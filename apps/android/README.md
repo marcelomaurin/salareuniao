@@ -231,12 +231,48 @@ Compartilhamento de tela depende das capacidades do Android System WebView e do 
 
 ## Próximas evoluções
 
-- notificações push;
-- lembrete de reunião;
 - foreground service durante chamada;
 - seleção de câmera frontal/traseira pelo app;
 - integração com Android Telecom;
-- atualização automática do APK;
-- deep link oficial do domínio;
-- gestão de convidados dentro do app;
 - chat nativo opcional.
+
+
+## Recursos adicionados na versão atual
+
+### Lembretes
+
+A agenda obtida da API gera trabalhos únicos no WorkManager, normalmente 10 minutos antes do início da reunião.
+
+No Android 13+ o app solicita `POST_NOTIFICATIONS` em tempo de execução.
+
+### Gestão de convidados
+
+Selecione uma sala e toque em **Convidados**.
+
+O app permite:
+- listar convidados;
+- adicionar e-mails;
+- autorizar;
+- recusar;
+- reenviar convite;
+- remover participante.
+
+### Atualização do APK
+
+O app verifica `/api/v1/android_update.php` ao atualizar a tela e também em segundo plano aproximadamente a cada 12 horas.
+
+Quando uma versão nova existe:
+- mostra notificação;
+- apresenta notas da versão;
+- pode baixar o APK;
+- abre o instalador Android.
+
+Instalação silenciosa não é usada: o Android mantém a confirmação do usuário.
+
+### Deep links e App Links
+
+São suportados:
+- `salareuniao://join?token=...`;
+- links HTTPS verificados do domínio configurado.
+
+Consulte `deployment/android/README.md`.
