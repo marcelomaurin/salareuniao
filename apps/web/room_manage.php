@@ -105,5 +105,5 @@ body{font-family:Arial,sans-serif;margin:24px;max-width:1100px}.toolbar{display:
 <?php endif;?>
 </div>
 <?php endforeach; ?>
-<p><a href="index.php">Voltar</a></p>
+<p><a href="room_history.php?id=<?=$id?>">Ver histórico da reunião</a> · <a href="index.php">Voltar</a></p>
 </body></html>
