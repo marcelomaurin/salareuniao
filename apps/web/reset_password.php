@@ -35,6 +35,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$newHash,$record['user_id']]);
             $pdo->prepare('UPDATE password_reset_tokens SET used_at=NOW() WHERE user_id=? AND used_at IS NULL')->execute([$record['user_id']]);
             $pdo->commit();
+            audit_log('auth.password_reset','user',$record['user_id']);
             $success='Senha alterada com sucesso. Você já pode entrar.';
             $record=null;
         }catch(Throwable $e){
