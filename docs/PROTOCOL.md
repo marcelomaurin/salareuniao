@@ -117,3 +117,66 @@ Principais recursos:
 - `/api/v1/device/events.php`
 
 O token de usuário não deve ser gravado no firmware. Dispositivos possuem credenciais próprias e revogáveis.
+
+
+## Device Commands v1
+
+O backend possui uma fila persistente de comandos por dispositivo.
+
+ESP32 consulta:
+
+```text
+GET /api/v1/device/commands.php
+Authorization: Bearer <DEVICE_TOKEN>
+```
+
+Resposta:
+
+```json
+{
+  "ok": true,
+  "commands": [
+    {
+      "id": 10,
+      "command_type": "message",
+      "payload": {
+        "value": "Reunião iniciando"
+      }
+    }
+  ]
+}
+```
+
+Depois da execução, o dispositivo confirma:
+
+```text
+POST /api/v1/device/commands.php
+```
+
+```json
+{
+  "command_id": 10,
+  "status": "acked",
+  "ack_payload": {
+    "message": "message displayed"
+  }
+}
+```
+
+Estados da fila:
+
+- `pending`
+- `delivered`
+- `acked`
+- `failed`
+
+Um comando entregue sem ACK pode ser reenviado após timeout.
+
+Comandos iniciais do firmware:
+
+- `refresh`
+- `led_on`
+- `led_off`
+- `message`
+- `nextion_page`
+- `reboot`
