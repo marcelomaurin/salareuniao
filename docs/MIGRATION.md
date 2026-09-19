@@ -36,3 +36,14 @@ Depois desses testes deve ser implantado TURN para aumentar a taxa de conexão.
 ## Legado
 
 O firmware ESP8266/Nextion e o servidor TCP antigo continuam preservados durante a migração. O gateway de dispositivos será evoluído posteriormente para integrar o ESP32 às salas e reuniões.
+
+
+## Migration 003 — chat
+
+Para instalações existentes:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/003_chat.sql
+```
+
+A migration cria `room_messages`, usada para o chat persistente e para o histórico da reunião.
