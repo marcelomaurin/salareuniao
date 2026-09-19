@@ -13,13 +13,14 @@ if(!is_file($configFile)){
 }
 $config=require $configFile;
 
-$host=(string)($config['websocket']['listen_host']??'0.0.0.0');
+$httpHost=(string)($config['websocket']['http_host']??'localhost');
+$listenHost=(string)($config['websocket']['listen_host']??'127.0.0.1');
 $port=(int)($config['websocket']['listen_port']??8088);
 $path=(string)($config['websocket']['path']??'/ws');
 
 $socket=new MeetingSocket($config);
-$app=new App($host,$port,'0.0.0.0');
+$app=new App($httpHost,$port,$listenHost);
 $app->route($path,$socket,['*']);
 
-fwrite(STDOUT,"Sala Reunião WebSocket em {$host}:{$port}{$path}\n");
+fwrite(STDOUT,"Sala Reunião WebSocket em {$listenHost}:{$port}{$path} (Host {$httpHost})\n");
 $app->run();
