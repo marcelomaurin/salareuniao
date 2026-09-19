@@ -1,6 +1,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include "config.h"
@@ -42,6 +44,11 @@ const unsigned long COMMAND_INTERVAL = 5000;
 const unsigned long WIFI_RETRY_INTERVAL = 10000;
 
 HardwareSerial Nextion(2);
+WebServer configServer(80);
+DNSServer dnsServer;
+bool configPortalActive = false;
+unsigned long configPortalStarted = 0;
+String configApSsid;
 
 String normalizeBase(String s) {
   s.trim();
@@ -96,6 +103,7 @@ void printHelp() {
   Serial.println("  SET DEVICE_TOKEN=token");
   Serial.println("  SAVE");
   Serial.println("  RECONNECT");
+  Serial.println("  PORTAL");
   Serial.println("  POLL");
   Serial.println("  HEARTBEAT");
   Serial.println("  COMMANDS");
@@ -129,6 +137,172 @@ void connectWifi() {
   } else {
     Serial.println("[WIFI] Falha/timeout.");
   }
+}
+
+String htmlEscape(const String &s) {
+  String out = s;
+  out.replace("&", "&amp;");
+  out.replace("<", "&lt;");
+  out.replace(">", "&gt;");
+  out.replace("\"", "&quot;");
+  return out;
+}
+
+String buildConfigPage(const String &message = "") {
+  int n = WiFi.scanNetworks();
+  String options;
+  for (int i = 0; i < n; i++) {
+    String ssid = WiFi.SSID(i);
+    options += "<option value=\"" + htmlEscape(ssid) + "\">" +
+      htmlEscape(ssid) + " (" + String(WiFi.RSSI(i)) + " dBm)</option>";
+  }
+
+  String page = "<!doctype html><html><head><meta charset='utf-8'>"
+    "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>Sala Reunião - Configuração</title>"
+    "<style>body{font-family:Arial,sans-serif;background:#f4f6f8;margin:0;padding:20px}"
+    ".box{max-width:620px;margin:auto;background:white;padding:22px;border-radius:12px;"
+    "box-shadow:0 2px 10px #0002}label{display:block;margin-top:14px;font-weight:bold}"
+    "input,select{width:100%;box-sizing:border-box;padding:10px;margin-top:6px}"
+    "button{margin-top:20px;padding:12px 16px;background:#2563eb;color:white;border:0;"
+    "border-radius:8px}.msg{background:#ecfdf5;padding:10px;border-radius:8px}</style></head><body><div class='box'>"
+    "<h1>Sala Reunião</h1><p>Configure a rede e a conexão com o servidor.</p>";
+
+  if (message.length()) page += "<div class='msg'>" + htmlEscape(message) + "</div>";
+
+  page += "<form method='POST' action='/save'>"
+    "<label>Redes encontradas</label><select onchange=\"document.getElementById('ssid').value=this.value\">"
+    "<option value=''>Selecione...</option>" + options + "</select>"
+    "<label>SSID</label><input id='ssid' name='ssid' value='" + htmlEscape(cfg.ssid) + "' required>"
+    "<label>Senha Wi-Fi</label><input name='password' type='password' value='" + htmlEscape(cfg.password) + "'>"
+    "<label>API Base</label><input name='api' value='" + htmlEscape(cfg.apiBase) + "' required>"
+    "<label>Token do dispositivo</label><input name='token' type='password' value='" + htmlEscape(cfg.token) + "' required>"
+    "<button type='submit'>Salvar e reiniciar</button></form>"
+    "<p style='margin-top:20px;font-size:12px;color:#666'>AP: " + htmlEscape(configApSsid) +
+    "<br>IP: " + WiFi.softAPIP().toString() + "</p>"
+    "</div></body></html>";
+  return page;
+}
+
+void handlePortalRoot() {
+  configServer.send(200, "text/html; charset=utf-8", buildConfigPage());
+}
+
+void handlePortalSave() {
+  if (!configServer.hasArg("ssid") || !configServer.hasArg("api") ||
+      !configServer.hasArg("token")) {
+    configServer.send(400, "text/html; charset=utf-8",
+      buildConfigPage("Campos obrigatórios ausentes."));
+    return;
+  }
+
+  cfg.ssid = configServer.arg("ssid");
+  cfg.password = configServer.arg("password");
+  cfg.apiBase = normalizeBase(configServer.arg("api"));
+  cfg.token = configServer.arg("token");
+  saveConfig();
+
+  configServer.send(200, "text/html; charset=utf-8",
+    "<html><body style='font-family:Arial;padding:30px'><h2>Configuração salva.</h2>"
+    "<p>O dispositivo será reiniciado.</p></body></html>");
+  delay(1200);
+  ESP.restart();
+}
+
+void handlePortalNotFound() {
+  configServer.sendHeader("Location", "http://192.168.4.1/", true);
+  configServer.send(302, "text/plain", "");
+}
+
+String deviceSuffix() {
+  uint64_t chipid = ESP.getEfuseMac();
+  char buf[7];
+  snprintf(buf, sizeof(buf), "%06X", (uint32_t)(chipid & 0xFFFFFF));
+  return String(buf);
+}
+
+void startConfigPortal() {
+#if ENABLE_CONFIG_PORTAL
+  if (configPortalActive) return;
+
+  configApSsid = String(CONFIG_AP_PREFIX) + deviceSuffix();
+  WiFi.mode(WIFI_AP_STA);
+
+  bool apOk;
+  if (strlen(CONFIG_AP_PASSWORD) >= 8)
+    apOk = WiFi.softAP(configApSsid.c_str(), CONFIG_AP_PASSWORD);
+  else
+    apOk = WiFi.softAP(configApSsid.c_str());
+
+  if (!apOk) {
+    Serial.println("[PORTAL] Falha ao iniciar Access Point.");
+    return;
+  }
+
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  configServer.on("/", HTTP_GET, handlePortalRoot);
+  configServer.on("/generate_204", HTTP_ANY, handlePortalRoot);
+  configServer.on("/hotspot-detect.html", HTTP_ANY, handlePortalRoot);
+  configServer.on("/ncsi.txt", HTTP_ANY, handlePortalRoot);
+  configServer.on("/connecttest.txt", HTTP_ANY, handlePortalRoot);
+  configServer.on("/save", HTTP_POST, handlePortalSave);
+  configServer.onNotFound(handlePortalNotFound);
+  configServer.begin();
+
+  configPortalActive = true;
+  configPortalStarted = millis();
+
+  Serial.println();
+  Serial.println("=== PORTAL DE CONFIGURAÇÃO ===");
+  Serial.printf("SSID: %s\n", configApSsid.c_str());
+  Serial.printf("Senha: %s\n", strlen(CONFIG_AP_PASSWORD) ? CONFIG_AP_PASSWORD : "(aberto)");
+  Serial.printf("Abra: http://%s/\n", WiFi.softAPIP().toString().c_str());
+#else
+  Serial.println("[PORTAL] Desabilitado em config.h.");
+#endif
+}
+
+void stopConfigPortal() {
+#if ENABLE_CONFIG_PORTAL
+  if (!configPortalActive) return;
+  configServer.stop();
+  dnsServer.stop();
+  WiFi.softAPdisconnect(true);
+  configPortalActive = false;
+  Serial.println("[PORTAL] Encerrado.");
+#endif
+}
+
+void handleConfigPortal() {
+#if ENABLE_CONFIG_PORTAL
+  if (!configPortalActive) return;
+  dnsServer.processNextRequest();
+  configServer.handleClient();
+
+  if (CONFIG_PORTAL_TIMEOUT_MS > 0 &&
+      millis() - configPortalStarted >= CONFIG_PORTAL_TIMEOUT_MS &&
+      !cfg.ssid.isEmpty()) {
+    stopConfigPortal();
+    connectWifi();
+  }
+#endif
+}
+
+bool shouldStartPortalAtBoot() {
+#if ENABLE_CONFIG_PORTAL
+  if (cfg.ssid.isEmpty() || cfg.apiBase.isEmpty() || cfg.token.isEmpty())
+    return true;
+
+  if (digitalRead(PIN_ACTION_BUTTON) != BUTTON_ACTIVE_LEVEL)
+    return false;
+
+  unsigned long started = millis();
+  while (digitalRead(PIN_ACTION_BUTTON) == BUTTON_ACTIVE_LEVEL) {
+    if (millis() - started >= CONFIG_BUTTON_HOLD_MS) return true;
+    delay(20);
+  }
+#endif
+  return false;
 }
 
 bool configureTls(WiFiClientSecure &client) {
@@ -401,7 +575,7 @@ bool pollCommands() {
 }
 
 void sendTelemetry() {
-  StaticJsonDocument<384> payload;
+  JsonDocument payload;
   payload["free_heap"] = ESP.getFreeHeap();
   payload["min_free_heap"] = ESP.getMinFreeHeap();
   payload["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
@@ -453,6 +627,7 @@ void processSerialLine(String line) {
     delay(200);
     connectWifi();
   }
+  else if (line.equalsIgnoreCase("PORTAL")) startConfigPortal();
   else if (line.equalsIgnoreCase("POLL")) pollState();
   else if (line.equalsIgnoreCase("HEARTBEAT")) sendHeartbeat();
   else if (line.equalsIgnoreCase("COMMANDS")) pollCommands();
@@ -515,7 +690,13 @@ void setup() {
   loadConfig();
   printConfig();
   printHelp();
-  connectWifi();
+
+  if (shouldStartPortalAtBoot()) {
+    startConfigPortal();
+  } else {
+    connectWifi();
+    if (WiFi.status() != WL_CONNECTED) startConfigPortal();
+  }
 
   if (WiFi.status() == WL_CONNECTED) {
     sendHeartbeat();
@@ -532,8 +713,15 @@ void setup() {
 void loop() {
   handleSerial();
   handleActionButton();
+  handleConfigPortal();
 
   unsigned long now = millis();
+
+  if (configPortalActive) {
+    digitalWrite(PIN_STATUS_LED, (now / 200) % 2);
+    delay(2);
+    return;
+  }
 
   if (WiFi.status() != WL_CONNECTED) {
     digitalWrite(PIN_STATUS_LED, (now / 500) % 2);
