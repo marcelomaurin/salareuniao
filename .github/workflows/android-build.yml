@@ -48,20 +48,24 @@ jobs:
           gradle-version: "9.6.0"
 
       - name: Prepare signing key
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/salareuniao-release.keystore"
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/salareuniao-release.keystore"
+          fi
 
       - name: Build debug and release
         env:
           ANDROID_APP_HOST: ${{ vars.ANDROID_APP_HOST }}
-          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/salareuniao-release.keystore', runner.temp) || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle --no-daemon --stacktrace :app:assembleDebug :app:assembleRelease
+        run: |
+          if [ -f "$RUNNER_TEMP/salareuniao-release.keystore" ]; then
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/salareuniao-release.keystore"
+          fi
+          gradle --no-daemon --stacktrace :app:assembleDebug :app:assembleRelease
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
