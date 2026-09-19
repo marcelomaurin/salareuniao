@@ -363,3 +363,98 @@ Se um equipamento for perdido:
 ```
 
 Se o equipamento mudar de rede posteriormente, mantenha o botão pressionado durante o boot e refaça apenas a configuração Wi-Fi.
+
+
+## OTA remoto
+
+O firmware suporta atualização remota autenticada.
+
+Fluxo:
+
+```text
+Administração > Firmware
+        ↓
+upload do .bin
+        ↓
+SHA-256 calculado no servidor
+        ↓
+release ativo
+        ↓
+Dispositivo > Atualizar firmware
+        ↓
+comando ota
+        ↓
+ESP32 consulta manifesto autenticado
+        ↓
+download HTTPS autenticado
+        ↓
+SHA-256 calculado durante o download
+        ↓
+Update.end()
+        ↓
+ACK + evento
+        ↓
+reinício
+```
+
+### Comando OTA
+
+O servidor envia:
+
+```text
+command_type = ota
+payload.value = <release_id>
+```
+
+O firmware também aceita pela Serial:
+
+```text
+OTA 12
+```
+
+onde `12` é o ID do release.
+
+### Validação
+
+O ESP32 só aplica a imagem quando:
+- o manifesto foi autenticado;
+- o tamanho recebido corresponde ao tamanho publicado;
+- o download termina completamente;
+- o SHA-256 calculado localmente corresponde ao SHA-256 do servidor;
+- `Update.end(true)` conclui com sucesso.
+
+Em caso de falha:
+- a imagem não é aplicada;
+- o comando recebe `failed`;
+- é registrado evento `device.ota.failed`.
+
+Eventos OTA:
+- `device.ota.started`;
+- `device.ota.failed`;
+- `device.ota.success`.
+
+### Versão
+
+Antes de compilar uma nova release, atualize:
+
+```cpp
+#define FW_VERSION "1.1.0"
+```
+
+em `config.h` ou `config.h.example`, conforme seu processo de build.
+
+O binário PlatformIO normalmente fica em:
+
+```text
+.pio/build/esp32dev/firmware.bin
+```
+
+Esse é o arquivo que deve ser enviado em **Administração > Firmware**.
+
+### Rollback
+
+O site mantém releases anteriores. Para voltar uma versão:
+1. ative o release anterior em **Administração > Firmware**;
+2. envie manualmente o comando `ota` com o ID do release desejado.
+
+Rollback deve ser usado conscientemente, pois versões antigas podem não entender APIs novas.
