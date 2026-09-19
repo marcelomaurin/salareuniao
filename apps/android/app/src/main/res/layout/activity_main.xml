@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:orientation="vertical"
+        android:background="@color/surface">
+
+        <TextView
+            android:id="@+id/txtUser"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="18sp"/>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <Button android:id="@+id/btnRefresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Atualizar"/>
+                <Button android:id="@+id/btnNewRoom" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Nova sala"/>
+                <Button android:id="@+id/btnEnter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Entrar"/>
+                <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Abrir"/>
+                <Button android:id="@+id/btnClose" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Encerrar"/>
+                <Button android:id="@+id/btnCancel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cancelar"/>
+                <Button android:id="@+id/btnLogout" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Sair"/>
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/txtAgenda"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:text="Agenda"
+        android:textStyle="bold"/>
+
+    <ListView
+        android:id="@+id/listRooms"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:choiceMode="singleChoice"
+        android:dividerHeight="1dp"/>
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:visibility="gone"/>
+</LinearLayout>
