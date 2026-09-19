@@ -89,3 +89,31 @@ Eventos:
 - `ping/pong`.
 
 O cliente mantém os endpoints HTTP existentes como fallback automático.
+
+
+## REST API v1
+
+Autenticação de usuário:
+
+```text
+POST /api/v1/auth/login.php
+Authorization: Bearer <USER_TOKEN>
+```
+
+Autenticação de dispositivo:
+
+```text
+Authorization: Bearer <DEVICE_TOKEN>
+```
+
+Principais recursos:
+- `/api/v1/rooms.php`
+- `/api/v1/room.php`
+- `/api/v1/room_invites.php`
+- `/api/v1/agenda.php`
+- `/api/v1/devices.php`
+- `/api/v1/device/heartbeat.php`
+- `/api/v1/device/state.php`
+- `/api/v1/device/events.php`
+
+O token de usuário não deve ser gravado no firmware. Dispositivos possuem credenciais próprias e revogáveis.
