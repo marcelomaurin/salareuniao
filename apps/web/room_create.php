@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ],$email,$token);
             }
             $pdo->commit();
+            audit_log('room.create','room',$roomId,['name'=>$name,'starts_at'=>$starts]);
             header('Location: room_manage.php?id='.$roomId);
             exit;
         } catch (Throwable $e) {
