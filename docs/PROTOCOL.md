@@ -67,3 +67,25 @@ Mensagens mínimas:
 - `participant.left`
 
 A sinalização não transporta o vídeo; ela apenas coordena o estabelecimento da mídia WebRTC.
+
+
+## WebSocket v1
+
+A implementação atual usa uma conexão autenticada por token de convite aprovado:
+
+```text
+wss://meet.seu-dominio.example/ws?token=<TOKEN>
+```
+
+O token é validado no MySQL. A sessão somente permanece ativa enquanto:
+- o convite estiver `approved`;
+- a reunião estiver `open`.
+
+Eventos:
+- `signal` — offer/answer/ICE/peer-ready/leave;
+- `chat` — mensagem persistente;
+- `presence` — microfone/câmera/tela e heartbeat;
+- `session-ended` — remoção, fechamento ou cancelamento;
+- `ping/pong`.
+
+O cliente mantém os endpoints HTTP existentes como fallback automático.
