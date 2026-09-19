@@ -1,0 +1,56 @@
+# Sala Reunião - Coturn
+# Copie para /etc/turnserver.conf e ajuste domínio, IP e caminhos TLS.
+
+listening-port=3478
+tls-listening-port=5349
+
+# Se o servidor possuir IP público diretamente:
+listening-ip=0.0.0.0
+relay-ip=0.0.0.0
+
+# Se estiver atrás de NAT, use:
+# external-ip=IP_PUBLICO/IP_PRIVADO
+
+realm=turn.seu-dominio.example
+server-name=turn.seu-dominio.example
+
+# Credenciais temporárias geradas pelo PHP.
+use-auth-secret
+static-auth-secret=TROQUE_POR_UM_SEGREDO_FORTE
+
+# TLS
+cert=/etc/letsencrypt/live/turn.seu-dominio.example/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.seu-dominio.example/privkey.pem
+
+fingerprint
+no-cli
+no-multicast-peers
+stale-nonce=600
+
+# Faixa de portas UDP usada para relay.
+min-port=49160
+max-port=49260
+
+# Limites iniciais conservadores; ajuste conforme capacidade.
+user-quota=12
+total-quota=1200
+
+# Logs
+log-file=/var/log/turnserver/turn.log
+simple-log
+
+# Segurança: bloqueia destinos privados/loopback como peers.
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+denied-peer-ip=192.88.99.0-192.88.99.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+denied-peer-ip=224.0.0.0-255.255.255.255
