@@ -29,6 +29,7 @@ type
     function CreateRoom(const AName, ADescription, AStartsAt: string): TJSONObject;
     procedure RoomAction(ARoomId: Int64; const AAction: string);
     function RoomInvites(ARoomId: Int64): TJSONArray;
+    function DesktopUpdate(const APlatform: string): TJSONObject;
     procedure InviteAction(ARoomId, AInviteId: Int64; const AAction: string);
     procedure AddInvites(ARoomId: Int64; const AEmails: array of string);
     property Token: string read FToken write FToken;
@@ -200,6 +201,11 @@ begin
   finally
     B.Free;
   end;
+end;
+
+function TSalaApiClient.DesktopUpdate(const APlatform: string): TJSONObject;
+begin
+  Result := TJSONObject(Execute('GET', 'desktop_update.php?platform=' + APlatform));
 end;
 
 function TSalaApiClient.RoomInvites(ARoomId: Int64): TJSONArray;
