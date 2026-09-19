@@ -36,6 +36,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $payload=json_encode(['value'=>$value],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $pdo->prepare('INSERT INTO device_commands(device_id,command_type,payload) VALUES(?,?,?)')
                 ->execute([$id,$type,$payload]);
+            audit_log('device.command','device',$id,['command'=>$type,'value'=>$value]);
             $message='Comando enfileirado.';
         }elseif($action==='rotate'){
             $pdo->beginTransaction();
@@ -44,11 +45,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $pdo->prepare('INSERT INTO device_tokens(device_id,token_hash) VALUES(?,?)')
                 ->execute([$id,hash('sha256',$issuedToken)]);
             $pdo->commit();
+            audit_log('device.rotate_token','device',$id);
             $message='Token rotacionado. Novo token: '.$issuedToken;
         }elseif($action==='toggle'){
             $active=!empty($_POST['active'])?1:0;
             $pdo->prepare("UPDATE devices SET active=?,status=IF(?=1,status,'offline') WHERE id=?")
                 ->execute([$active,$active,$id]);
+            audit_log('device.toggle_active','device',$id,['active'=>(bool)$active]);
             $message=$active?'Dispositivo ativado.':'Dispositivo desativado.';
         }
     }catch(Throwable $e){
