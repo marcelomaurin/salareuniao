@@ -312,3 +312,36 @@ Heartbeat, telemetria e polling não entram no `audit_log`; permanecem nas tabel
 ### Retenção
 
 Por padrão, logs de auditoria não são apagados automaticamente. Defina uma política institucional antes de criar uma rotina de expurgo. Se necessário, arquive/exporte registros antigos antes da exclusão.
+
+
+## Android
+
+### Atualização
+
+Configure:
+
+```php
+'android_update' => [
+    'enabled' => true,
+    'version_code' => 2,
+    'version' => '1.1.0',
+    'required' => false,
+    'notes' => 'Correções e melhorias.',
+    'apk_url' => 'https://meet.exemplo.com/downloads/SalaReuniaoAndroid-1.1.0.apk',
+],
+```
+
+O app faz verificação ao abrir/atualizar a tela e por WorkManager em segundo plano.
+
+Em distribuição privada, a instalação do APK requer confirmação e autorização do Android para instalar pacotes dessa origem. Em distribuição pela Google Play, prefira o mecanismo de atualização da própria loja.
+
+### App Links
+
+Para que links de convite HTTPS abram diretamente no app:
+1. configure `appHost` no build Android;
+2. assine o APK/AAB de produção;
+3. obtenha o SHA-256 do certificado;
+4. publique `/.well-known/assetlinks.json` no domínio;
+5. valide a associação pelo ADB.
+
+Consulte `deployment/android/README.md`.
