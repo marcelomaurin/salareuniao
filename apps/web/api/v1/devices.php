@@ -37,6 +37,7 @@ if($action==='create'){
         $t=$pdo->prepare('INSERT INTO device_tokens(device_id,token_hash,expires_at) VALUES(?,?,?)');
         $t->execute([$deviceId,$hash,$expires]);
         $pdo->commit();
+        api_audit($pdo,$admin,'device.create','device',$deviceId,['name'=>$name,'uid'=>$uid,'type'=>$type,'room_id'=>$roomId,'source'=>'api']);
 
         api_json(['ok'=>true,'device'=>[
             'id'=>$deviceId,'name'=>$name,'device_uid'=>$uid,'type'=>$type,'room_id'=>$roomId
@@ -59,6 +60,7 @@ if($action==='rotate_token'){
         $expires=$ttl>0?(new DateTimeImmutable())->modify('+'.$ttl.' seconds')->format('Y-m-d H:i:s'):null;
         $pdo->prepare('INSERT INTO device_tokens(device_id,token_hash,expires_at) VALUES(?,?,?)')->execute([$deviceId,$hash,$expires]);
         $pdo->commit();
+        api_audit($pdo,$admin,'device.rotate_token','device',$deviceId,['source'=>'api']);
         api_json(['ok'=>true,'token'=>$token,'token_type'=>'Bearer','expires_at'=>$expires]);
     }catch(Throwable $e){
         if($pdo->inTransaction())$pdo->rollBack();
@@ -67,6 +69,7 @@ if($action==='rotate_token'){
 }elseif($action==='revoke'){
     $pdo->prepare('UPDATE device_tokens SET revoked_at=NOW() WHERE device_id=? AND revoked_at IS NULL')->execute([$deviceId]);
     $pdo->prepare("UPDATE devices SET active=0,status='offline' WHERE id=?")->execute([$deviceId]);
+    api_audit($pdo,$admin,'device.revoke','device',$deviceId,['source'=>'api']);
     api_json(['ok'=>true]);
 }elseif($action==='update'){
     $name=trim((string)($in['name']??''));
@@ -75,6 +78,7 @@ if($action==='rotate_token'){
     if($name==='')api_json(['ok'=>false,'error'=>'name_required'],422);
     $pdo->prepare('UPDATE devices SET name=?,room_id=?,active=?,status=IF(?=1,status,\'offline\') WHERE id=?')
         ->execute([$name,$roomId,$active,$active,$deviceId]);
+    api_audit($pdo,$admin,'device.update','device',$deviceId,['name'=>$name,'room_id'=>$roomId,'active'=>(bool)$active,'source'=>'api']);
     api_json(['ok'=>true]);
 }
 
