@@ -40,6 +40,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $roomId=($_POST['room_id']??'')!==''?(int)$_POST['room_id']:null;
             $pdo->prepare('UPDATE devices SET room_id=? WHERE id=?')->execute([$roomId,$id]);
             $message='Vínculo atualizado.';
+        }elseif($action==='command'){
+            $id=(int)($_POST['device_id']??0);
+            $type=trim($_POST['command_type']??'refresh');
+            $value=trim($_POST['command_value']??'');
+            $payload=json_encode(['value'=>$value],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            $pdo->prepare('INSERT INTO device_commands(device_id,command_type,payload) VALUES(?,?,?)')->execute([$id,$type,$payload]);
+            $message='Comando enfileirado.';
         }
     }catch(Throwable $e){
         if($pdo->inTransaction())$pdo->rollBack();
@@ -73,6 +80,9 @@ $rooms=$pdo->query("SELECT id,name,status FROM rooms WHERE status IN('scheduled'
 <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="device_id" value="<?=$d['id']?>"><input type="hidden" name="active" value="<?=$d['active']?0:1?>"><button><?=$d['active']?'Desativar':'Ativar'?></button></form>
 <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="bind"><input type="hidden" name="device_id" value="<?=$d['id']?>">
 <select name="room_id"><option value="">Sem sala</option><?php foreach($rooms as $r):?><option value="<?=$r['id']?>" <?=$d['room_id']==$r['id']?'selected':''?>><?=e($r['name'])?></option><?php endforeach;?></select><button>Vincular</button></form>
+<form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="command"><input type="hidden" name="device_id" value="<?=$d['id']?>">
+<select name="command_type"><option value="refresh">Atualizar</option><option value="led_on">LED on</option><option value="led_off">LED off</option><option value="message">Mensagem</option><option value="nextion_page">Página Nextion</option><option value="reboot">Reiniciar</option></select>
+<input name="command_value" placeholder="valor opcional" size="14"><button>Enviar comando</button></form>
 </td></tr><?php endforeach;?>
 </tbody></table></div>
 </body></html>
