@@ -241,3 +241,21 @@ Authorization: Bearer DEVICE_TOKEN
 ```
 
 O binário não é disponibilizado como arquivo público estático.
+
+
+## Atualização Android
+
+```text
+GET /api/v1/android_update.php
+Authorization: Bearer USER_TOKEN
+```
+
+Retorna:
+- `enabled`;
+- `version_code`;
+- `version`;
+- `required`;
+- `notes`;
+- `apk_url`.
+
+O cliente compara `version_code` com `BuildConfig.VERSION_CODE`.
