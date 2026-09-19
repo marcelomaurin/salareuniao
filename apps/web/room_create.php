@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/lib/bootstrap.php';
+require __DIR__ . '/lib/invitations.php';
 $user = require_login();
 $error = '';
 
@@ -32,10 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $email === strtolower($user['email'])) continue;
                 $token = bin2hex(random_bytes(32));
                 $inviteStmt->execute([$roomId,$email,$token]);
-                $link = rtrim($config['app']['base_url'],'/') . '/join.php?token=' . urlencode($token);
-                $subject = 'Convite para ' . $name;
-                $body = "Você foi convidado para a sala: {$name}\n\nAcesse: {$link}\n";
-                @mail($email, $subject, $body, 'From: '.$config['mail']['from']);
+                send_room_invite_mail($config,[
+                    'name'=>$name,
+                    'description'=>$description,
+                    'starts_at'=>$starts,
+                ],$email,$token);
             }
             $pdo->commit();
             header('Location: room_manage.php?id='.$roomId);
