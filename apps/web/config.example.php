@@ -21,7 +21,8 @@ return [
         // URL pública usada pelo navegador. Em produção, use wss://.
         'public_url' => 'wss://meet.seu-dominio.example/ws',
         // Interface/porta internas do serviço PHP Ratchet.
-        'listen_host' => '0.0.0.0',
+        'http_host' => 'meet.seu-dominio.example',
+        'listen_host' => '127.0.0.1',
         'listen_port' => 8088,
         'path' => '/ws',
         'reconnect_ms' => 2000,
