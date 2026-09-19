@@ -1,7 +1,10 @@
 package br.com.maurinsoft.salareuniao
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
@@ -10,6 +13,8 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import br.com.maurinsoft.salareuniao.databinding.ActivityMainBinding
 import java.util.concurrent.Executors
 
@@ -21,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private var rooms: List<RoomInfo> = emptyList()
     private var selectedIndex = -1
+    private var pendingUpdate: AndroidUpdateInfo? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,11 +48,15 @@ class MainActivity : AppCompatActivity() {
         binding.btnRefresh.setOnClickListener { refresh() }
         binding.btnNewRoom.setOnClickListener { createRoomDialog() }
         binding.btnEnter.setOnClickListener { enterSelected() }
+        binding.btnInvites.setOnClickListener { openInvites() }
         binding.btnOpen.setOnClickListener { roomAction("open") }
         binding.btnClose.setOnClickListener { confirmRoomAction("close", "Encerrar a reunião?") }
         binding.btnCancel.setOnClickListener { confirmRoomAction("cancel", "Cancelar a reunião?") }
         binding.btnLogout.setOnClickListener { logout() }
 
+        NotificationHelper.ensureChannels(this)
+        requestNotificationPermission()
+        UpdateScheduler.ensure(this)
         refresh()
     }
 
@@ -58,7 +68,10 @@ class MainActivity : AppCompatActivity() {
             try {
                 val loadedRooms = api.rooms()
                 val agenda = api.agenda(30)
+                val update = try { api.androidUpdate() } catch (_: Exception) { null }
                 runOnUiThread {
+                    ReminderScheduler.schedule(this, agenda)
+                    if (update != null) offerUpdate(update)
                     rooms = loadedRooms
                     selectedIndex = -1
                     val lines = rooms.map {
@@ -129,6 +142,109 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+    private fun openInvites() {
+        val room = selectedRoom() ?: run {
+            toast("Selecione uma sala.")
+            return
+        }
+        startActivity(
+            Intent(this, InvitesActivity::class.java)
+                .putExtra(InvitesActivity.EXTRA_ROOM_ID, room.id)
+                .putExtra(InvitesActivity.EXTRA_ROOM_NAME, room.name)
+        )
+    }
+
+    private fun requestNotificationPermission() {
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                4201
+            )
+        }
+    }
+
+    private fun offerUpdate(info: AndroidUpdateInfo) {
+        if (!info.enabled || info.versionCode <= BuildConfig.VERSION_CODE || info.apkUrl.isBlank()) {
+            return
+        }
+        if (!info.required && session.lastUpdateOfferedCode == info.versionCode) return
+
+        val message = buildString {
+            append("Nova versão: ")
+            append(info.version)
+            if (info.notes.isNotBlank()) {
+                append("\n\n")
+                append(info.notes)
+            }
+            if (info.required) {
+                append("\n\nEsta atualização foi marcada como obrigatória.")
+            }
+        }
+
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Atualização disponível")
+            .setMessage(message)
+            .setPositiveButton("Baixar") { _, _ ->
+                beginUpdate(info)
+            }
+
+        if (!info.required) {
+            builder.setNegativeButton("Depois") { _, _ ->
+                session.lastUpdateOfferedCode = info.versionCode
+            }
+        } else {
+            builder.setCancelable(false)
+        }
+        builder.show()
+    }
+
+    private fun beginUpdate(info: AndroidUpdateInfo) {
+        if (!ApkUpdateManager.canInstallPackages(this)) {
+            pendingUpdate = info
+            toast("Autorize o Sala Reunião a instalar atualizações e retorne ao app.")
+            ApkUpdateManager.requestInstallPermission(this)
+            return
+        }
+
+        val token = secure.load() ?: run {
+            backToLogin()
+            return
+        }
+
+        setBusy(true)
+        executor.execute {
+            try {
+                val file = ApkUpdateManager.download(this, info, token, session)
+                runOnUiThread {
+                    setBusy(false)
+                    session.lastUpdateOfferedCode = info.versionCode
+                    ApkUpdateManager.install(this, file)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    setBusy(false)
+                    toast("Falha na atualização: " + e.message)
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val update = pendingUpdate
+        if (update != null && ApkUpdateManager.canInstallPackages(this)) {
+            pendingUpdate = null
+            beginUpdate(update)
+        }
     }
 
     private fun enterSelected() {
