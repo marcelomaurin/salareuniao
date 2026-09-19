@@ -161,12 +161,13 @@ bool apiRequest(const char *method, const String &path, const String &body,
   String url = normalizeBase(cfg.apiBase) + path;
   HTTPClient http;
   WiFiClientSecure tls;
+  WiFiClient plain;
 
   if (url.startsWith("https://")) {
     if (!configureTls(tls)) return false;
     if (!http.begin(tls, url)) return false;
   } else {
-    if (!http.begin(url)) return false;
+    if (!http.begin(plain, url)) return false;
   }
 
   http.setTimeout(10000);
@@ -233,7 +234,7 @@ void updateDisplay() {
 }
 
 bool sendHeartbeat() {
-  StaticJsonDocument<384> doc;
+  JsonDocument doc;
   doc["status"] = "online";
   doc["firmware_version"] = FW_VERSION;
   doc["free_heap"] = ESP.getFreeHeap();
@@ -249,7 +250,7 @@ bool sendHeartbeat() {
 }
 
 bool sendEvent(const String &type, JsonDocument &payload) {
-  DynamicJsonDocument doc(768);
+  JsonDocument doc;
   doc["type"] = type;
   doc["payload"].set(payload.as<JsonVariantConst>());
 
@@ -262,7 +263,7 @@ bool sendEvent(const String &type, JsonDocument &payload) {
 }
 
 bool sendSimpleEvent(const String &type, const String &message) {
-  StaticJsonDocument<256> payload;
+  JsonDocument payload;
   payload["message"] = message;
   payload["millis"] = millis();
   return sendEvent(type, payload);
@@ -273,7 +274,7 @@ bool pollState() {
   int code;
   if (!apiRequest("GET", "/device/state.php", "", response, code)) return false;
 
-  DynamicJsonDocument doc(4096);
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.printf("[JSON] state: %s\n", err.c_str());
@@ -309,7 +310,7 @@ bool pollState() {
 }
 
 bool ackCommand(long commandId, const String &status, const String &message) {
-  StaticJsonDocument<384> doc;
+  JsonDocument doc;
   doc["command_id"] = commandId;
   doc["status"] = status;
   doc["ack_payload"]["message"] = message;
@@ -383,7 +384,7 @@ bool pollCommands() {
   int code;
   if (!apiRequest("GET", "/device/commands.php", "", response, code)) return false;
 
-  DynamicJsonDocument doc(4096);
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.printf("[JSON] commands: %s\n", err.c_str());
@@ -420,7 +421,7 @@ void handleActionButton() {
 
   if (!down && buttonWasDown) {
     unsigned long duration = millis() - buttonDownAt;
-    StaticJsonDocument<256> payload;
+    JsonDocument payload;
     payload["duration_ms"] = duration;
     payload["room_id"] = state.roomId;
     payload["room_status"] = state.roomStatus;
