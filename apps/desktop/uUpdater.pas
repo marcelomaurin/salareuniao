@@ -93,16 +93,24 @@ function DownloadAndLaunchUpdate(const AUrl: string; out AFileName: string): Boo
 var
   C: TFPHTTPClient;
   S: TFileStream;
-  Ext: string;
+  Ext, UrlPath: string;
+  QPos: SizeInt;
 begin
   Result := False;
   AFileName := '';
 
-  {$IFDEF Windows}
-  Ext := '.exe';
-  {$ELSE}
-  Ext := '.bin';
-  {$ENDIF}
+  UrlPath := AUrl;
+  QPos := Pos('?', UrlPath);
+  if QPos > 0 then Delete(UrlPath, QPos, MaxInt);
+  Ext := ExtractFileExt(UrlPath);
+  if Ext = '' then
+  begin
+    {$IFDEF Windows}
+    Ext := '.exe';
+    {$ELSE}
+    Ext := '.bin';
+    {$ENDIF}
+  end;
 
   AFileName := IncludeTrailingPathDelimiter(GetTempDir(False)) +
     'SalaReuniaoDesktop-update' + Ext;
