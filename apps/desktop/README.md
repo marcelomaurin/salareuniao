@@ -11,7 +11,7 @@ Cliente Desktop da plataforma Sala Reunião.
 - OpenSSL para HTTPS
 - API REST v1 do Sala Reunião
 
-A primeira versão reutiliza a videoconferência Web/WebRTC já pronta: o Desktop administra a reunião nativamente e, ao clicar em **Entrar**, abre a sala no navegador usando o `host_join_token`.
+A videoconferência Web/WebRTC já pronta pode ser aberta **dentro do próprio Desktop** quando o projeto é compilado com CEF4Delphi. Sem CEF, o cliente mantém fallback para o navegador externo usando o mesmo `host_join_token`.
 
 ## Recursos implementados
 
@@ -26,7 +26,9 @@ A primeira versão reutiliza a videoconferência Web/WebRTC já pronta: o Deskto
 - abrir sala;
 - encerrar sala;
 - cancelar reunião;
-- abrir videoconferência;
+- abrir videoconferência em janela interna;
+- modo CEF4Delphi/Chromium opcional;
+- fallback para navegador externo;
 - lista de convidados;
 - adicionar convidados;
 - autorizar;
@@ -44,6 +46,9 @@ apps/desktop/
 ├── uApiClient.pas
 ├── uAppConfig.pas
 ├── uInvites.pas
+├── uMeetingView.pas
+├── SalaReuniaoDesktopCEF.lpi
+├── CEF_SETUP.md
 └── README.md
 ```
 
@@ -147,11 +152,13 @@ GET /api/v1/room.php?id=<ID>
 
 e recebe `host_join_token`.
 
-Depois abre:
+Depois monta:
 
 ```text
 <WEB_BASE_URL>/room.php?token=<HOST_JOIN_TOKEN>
 ```
+
+No projeto `SalaReuniaoDesktopCEF.lpi`, essa URL é carregada em uma janela `TChromiumWindow` dentro da própria aplicação. No projeto padrão, a mesma janela oferece fallback para o navegador externo.
 
 Isso permite aproveitar imediatamente:
 - câmera;
@@ -162,10 +169,19 @@ Isso permite aproveitar imediatamente:
 - chat;
 - compartilhamento de tela.
 
+## CEF4Delphi
+
+Para usar o navegador Chromium embutido, abra:
+
+```text
+SalaReuniaoDesktopCEF.lpi
+```
+
+Consulte `CEF_SETUP.md` para instalação do pacote Lazarus e dos binários CEF.
+
 ## Próxima evolução Desktop
 
 A base agora permite evoluir gradualmente para:
-- janela embutida com WebView/CEF;
 - notificações nativas;
 - seleção nativa de dispositivos de áudio/vídeo;
 - WebSocket nativo;
