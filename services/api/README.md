@@ -207,3 +207,37 @@ Retorna:
 - Tokens podem ser rotacionados/revogados.
 - Perfil `user` não acessa salas de terceiros.
 - Perfil `admin` pode usar visão global.
+
+
+## Firmware OTA ESP32
+
+Manifesto autenticado:
+
+```text
+GET /api/v1/device/firmware.php?current=1.0.0
+Authorization: Bearer DEVICE_TOKEN
+```
+
+Manifesto de release específico:
+
+```text
+GET /api/v1/device/firmware.php?release_id=12&current=1.0.0
+```
+
+Resposta contém:
+- ID do release;
+- versão;
+- tamanho;
+- SHA-256;
+- obrigatoriedade;
+- notas;
+- caminho autenticado de download.
+
+Download:
+
+```text
+GET /api/v1/device/firmware_download.php?id=12
+Authorization: Bearer DEVICE_TOKEN
+```
+
+O binário não é disponibilizado como arquivo público estático.
