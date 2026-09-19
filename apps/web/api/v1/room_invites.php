@@ -49,6 +49,7 @@ if($action==='add'){
         send_room_invite_mail($config,$room,$email,$token);
         $created[]=['email'=>$email,'invite_url'=>room_invite_link($config,$token)];
     }
+    api_audit($pdo,$u,'room.invites_add','room',$roomId,['count'=>count($created),'source'=>'api']);
     api_json(['ok'=>true,'created'=>$created],201);
 }
 
@@ -63,15 +64,19 @@ if($action==='approve'){
     $key=$invite['participant_key']?:bin2hex(random_bytes(32));
     $pdo->prepare("UPDATE room_invites SET status='approved',participant_key=?,approved_at=NOW() WHERE id=?")
         ->execute([$key,$inviteId]);
+    api_audit($pdo,$u,'room.participant_approve','invite',$inviteId,['room_id'=>$roomId,'source'=>'api']);
 }elseif($action==='reject'){
     $pdo->prepare("UPDATE room_invites SET status='rejected' WHERE id=?")->execute([$inviteId]);
+    api_audit($pdo,$u,'room.participant_reject','invite',$inviteId,['room_id'=>$roomId,'source'=>'api']);
 }elseif($action==='resend'){
     send_room_invite_mail($config,$room,$invite['email'],$invite['token'],'resend');
+    api_audit($pdo,$u,'room.invite_resend','invite',$inviteId,['room_id'=>$roomId,'email'=>$invite['email'],'source'=>'api']);
 }elseif($action==='remove'){
     if($invite['participant_key']){
         $pdo->prepare('DELETE FROM room_presence WHERE room_id=? AND participant_key=?')->execute([$roomId,$invite['participant_key']]);
     }
     $pdo->prepare("UPDATE room_invites SET status='rejected' WHERE id=?")->execute([$inviteId]);
+    api_audit($pdo,$u,'room.participant_remove','invite',$inviteId,['room_id'=>$roomId,'source'=>'api']);
 }else{
     api_json(['ok'=>false,'error'=>'unknown_action'],400);
 }
