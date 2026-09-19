@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig, uInvites;
+  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig, uInvites, uMeetingView;
 
 type
   TMainForm = class(TForm)
@@ -508,8 +508,7 @@ begin
       raise Exception.Create('A API não retornou o token de entrada do anfitrião.');
 
     Url := FConfig.WebBaseUrl + '/room.php?token=' + Token;
-    if not OpenURL(Url) then
-      raise Exception.Create('Não foi possível abrir o navegador.');
+    OpenMeetingWindow(Self, Url);
   except
     on E: Exception do ApiError(E);
   end;
