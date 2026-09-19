@@ -2,6 +2,20 @@ plugins {
     id("com.android.application")
 }
 
+val appHost = System.getenv("ANDROID_APP_HOST")
+    ?.takeIf { it.isNotBlank() }
+    ?: "meet.seu-dominio.example"
+
+val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val hasReleaseSigning =
+    !releaseKeystorePath.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "br.com.maurinsoft.salareuniao"
     compileSdk = 37
@@ -13,8 +27,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        manifestPlaceholders["appHost"] = "meet.seu-dominio.example"
-        buildConfigField("String", "APP_HOST", "\"meet.seu-dominio.example\"")
+        manifestPlaceholders["appHost"] = appHost
+        buildConfigField("String", "APP_HOST", "\"" + appHost + "\"")
     }
 
     buildFeatures {
@@ -22,8 +36,22 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
