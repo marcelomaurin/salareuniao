@@ -6,7 +6,7 @@ A arquitetura passa a considerar quatro tipos principais de cliente:
 
 - **Web** — acesso pelo navegador, reuniões, chat, agenda e administração.
 - **Desktop** — cliente para Windows/Linux, com integração mais profunda com câmera, microfone, tela e sistema operacional.
-- **ESP32 / terminal de sala** — presença física da sala, status, agenda, automação, botões, display, sensores e integração com periféricos.
+- **ESP32 / terminal de sala** — presença física da sala, status, agenda, automação, botões, display, sensores, telemetria e comandos remotos.
 - **Backend** — autenticação, usuários, salas, agenda, sinalização WebRTC, eventos, dispositivos e persistência.
 
 > O ESP32 não deve transportar vídeo de conferência como um PC. Ele funciona como **terminal/controlador da sala**, integrado à mesma plataforma.
@@ -63,3 +63,8 @@ O código original foi preservado enquanto a nova estrutura é implantada. Consu
 ## Autor
 
 Marcelo Maurin Martins — MaurinSoft
+
+
+## Firmware ESP32 atual
+
+O firmware REST v1 está em `apps/esp32/firmware` e já implementa heartbeat, agenda/estado, telemetria, eventos, comandos remotos com ACK, LED/botão e suporte opcional ao Nextion.
