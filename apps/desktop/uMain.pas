@@ -6,7 +6,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig, uInvites, uMeetingView;
+  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig, uInvites, uMeetingView,
+  uUpdater, uDesktopNotify;
 
 type
   TMainForm = class(TForm)
@@ -14,6 +15,12 @@ type
     FApi: TSalaApiClient;
     FConfig: TAppConfig;
     FCurrentUserRole: string;
+    FNotifier: TDesktopNotifier;
+    FAgendaTimer: TTimer;
+    FNotifiedRooms: TStringList;
+    FAutoJoinedRooms: TStringList;
+    FLastUpdateCheck: TDateTime;
+    FLastOfferedVersion: string;
 
     LoginPanel: TPanel;
     MainPanel: TPanel;
@@ -42,6 +49,11 @@ type
     procedure OpenMeetingClick(Sender: TObject);
     procedure InvitesClick(Sender: TObject);
     procedure RoomActionClick(Sender: TObject);
+    procedure AgendaTimerTick(Sender: TObject);
+    procedure CheckScheduledMeetings;
+    procedure CheckUpdates;
+    procedure OpenRoomMeeting(ARoomId: Int64);
+    function TryParseSqlDateTime(const S: string; out AValue: TDateTime): Boolean;
     procedure ShowLogin;
     procedure ShowMain(const AName, ARole: string);
     procedure RefreshAll;
@@ -70,13 +82,28 @@ begin
 
   FConfig := TAppConfig.Create;
   FApi := TSalaApiClient.Create(FConfig.ApiBaseUrl);
+  FNotifier := TDesktopNotifier.Create(Self);
+  FNotifiedRooms := TStringList.Create;
+  FAutoJoinedRooms := TStringList.Create;
+  FLastUpdateCheck := 0;
+  FLastOfferedVersion := '';
+
   BuildUi;
+
+  FAgendaTimer := TTimer.Create(Self);
+  FAgendaTimer.Interval := 30000;
+  FAgendaTimer.Enabled := False;
+  FAgendaTimer.OnTimer := @AgendaTimerTick;
+
   EdEmail.Text := FConfig.SavedEmail;
   ShowLogin;
 end;
 
 destructor TMainForm.Destroy;
 begin
+  FAutoJoinedRooms.Free;
+  FNotifiedRooms.Free;
+  FNotifier.Free;
   FApi.Free;
   FConfig.Free;
   inherited Destroy;
@@ -294,6 +321,7 @@ end;
 
 procedure TMainForm.ShowLogin;
 begin
+  if Assigned(FAgendaTimer) then FAgendaTimer.Enabled := False;
   MainPanel.Visible := False;
   LoginPanel.Visible := True;
   EdPassword.Text := '';
@@ -307,6 +335,9 @@ begin
   LoginPanel.Visible := False;
   MainPanel.Visible := True;
   RefreshAll;
+  FAgendaTimer.Enabled := True;
+  CheckScheduledMeetings;
+  CheckUpdates;
 end;
 
 procedure TMainForm.SetBusy(const AValue: Boolean; const AMsg: string);
@@ -365,7 +396,8 @@ end;
 
 procedure TMainForm.SettingsClick(Sender: TObject);
 var
-  ApiUrl, WebUrl: string;
+  ApiUrl, WebUrl, MinText: string;
+  Enabled: Boolean;
 begin
   ApiUrl := FConfig.ApiBaseUrl;
   WebUrl := FConfig.WebBaseUrl;
@@ -375,6 +407,25 @@ begin
 
   FConfig.SetApiBaseUrl(ApiUrl);
   FConfig.SetWebBaseUrl(WebUrl);
+
+  Enabled := MessageDlg('Ativar notificações de reuniões?',
+    mtConfirmation, [mbYes, mbNo], 0) = mrYes;
+  FConfig.SetNotificationsEnabled(Enabled);
+
+  Enabled := MessageDlg('Entrar automaticamente em reuniões agendadas?',
+    mtConfirmation, [mbYes, mbNo], 0) = mrYes;
+  FConfig.SetAutoJoinEnabled(Enabled);
+  if Enabled then
+  begin
+    MinText := IntToStr(FConfig.AutoJoinMinutes);
+    if InputQuery('Autoentrada', 'Quantos minutos antes do horário?', MinText) then
+      FConfig.SetAutoJoinMinutes(StrToIntDef(MinText, 2));
+  end;
+
+  Enabled := MessageDlg('Verificar atualizações automaticamente?',
+    mtConfirmation, [mbYes, mbNo], 0) = mrYes;
+  FConfig.SetAutoUpdateEnabled(Enabled);
+
   FConfig.Save;
   FApi.BaseUrl := FConfig.ApiBaseUrl;
   MessageDlg('Configuração salva.', mtInformation, [mbOK], 0);
@@ -487,11 +538,28 @@ begin
   SetBusy(False);
 end;
 
+procedure TMainForm.OpenRoomMeeting(ARoomId: Int64);
+var
+  D: TJSONObject;
+  Token, Url: string;
+begin
+  D := nil;
+  try
+    D := FApi.RoomDetail(ARoomId);
+    Token := D.Get('host_join_token', '');
+    if Token = '' then
+      raise Exception.Create('A API não retornou o token de entrada do anfitrião.');
+
+    Url := FConfig.WebBaseUrl + '/room.php?token=' + Token;
+    OpenMeetingWindow(Self, Url);
+  finally
+    D.Free;
+  end;
+end;
+
 procedure TMainForm.OpenMeetingClick(Sender: TObject);
 var
   ID: Int64;
-  D: TJSONObject;
-  Token, Url: string;
 begin
   ID := SelectedRoomId;
   if ID <= 0 then
@@ -500,19 +568,11 @@ begin
     Exit;
   end;
 
-  D := nil;
   try
-    D := FApi.RoomDetail(ID);
-    Token := D.Get('host_join_token', '');
-    if Token = '' then
-      raise Exception.Create('A API não retornou o token de entrada do anfitrião.');
-
-    Url := FConfig.WebBaseUrl + '/room.php?token=' + Token;
-    OpenMeetingWindow(Self, Url);
+    OpenRoomMeeting(ID);
   except
     on E: Exception do ApiError(E);
   end;
-  D.Free;
 end;
 
 procedure TMainForm.InvitesClick(Sender: TObject);
@@ -534,6 +594,139 @@ begin
   finally
     F.Free;
   end;
+end;
+
+function TMainForm.TryParseSqlDateTime(const S: string;
+  out AValue: TDateTime): Boolean;
+var
+  Y, Mth, D, H, N, Sec: Word;
+begin
+  Result := False;
+  AValue := 0;
+  if Length(S) < 16 then Exit;
+  try
+    Y := StrToInt(Copy(S,1,4));
+    Mth := StrToInt(Copy(S,6,2));
+    D := StrToInt(Copy(S,9,2));
+    H := StrToInt(Copy(S,12,2));
+    N := StrToInt(Copy(S,15,2));
+    Sec := 0;
+    if Length(S) >= 19 then Sec := StrToIntDef(Copy(S,18,2),0);
+    AValue := EncodeDateTime(Y,Mth,D,H,N,Sec,0);
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+procedure TMainForm.CheckScheduledMeetings;
+var
+  A: TJSONArray;
+  O: TJSONObject;
+  I: Integer;
+  ID: Int64;
+  Starts: TDateTime;
+  MinutesUntil: Double;
+  Key, Status, Name: string;
+begin
+  if FApi.Token = '' then Exit;
+
+  A := nil;
+  try
+    A := FApi.Agenda(1, 'mine');
+    for I := 0 to A.Count - 1 do
+    begin
+      O := A.Objects[I];
+      ID := O.Get('id', 0);
+      Key := IntToStr(ID);
+      Name := O.Get('name', 'Reunião');
+      Status := O.Get('status', '');
+      if not TryParseSqlDateTime(O.Get('starts_at',''), Starts) then Continue;
+
+      MinutesUntil := (Starts - Now) * 1440.0;
+
+      if FConfig.NotificationsEnabled and
+         (MinutesUntil <= 10) and (MinutesUntil >= 0) and
+         (FNotifiedRooms.IndexOf(Key) < 0) then
+      begin
+        FNotifier.Notify('Reunião em breve',
+          Name + ' começa em aproximadamente ' + IntToStr(Round(MinutesUntil)) + ' minuto(s).');
+        FNotifiedRooms.Add(Key);
+      end;
+
+      if FConfig.AutoJoinEnabled and
+         (MinutesUntil <= FConfig.AutoJoinMinutes) and
+         (MinutesUntil >= -5) and
+         (FAutoJoinedRooms.IndexOf(Key) < 0) and
+         ((Status = 'scheduled') or (Status = 'open')) then
+      begin
+        try
+          if Status = 'scheduled' then
+            FApi.RoomAction(ID, 'open');
+          FAutoJoinedRooms.Add(Key);
+          FNotifier.Notify('Entrando na reunião', Name);
+          OpenRoomMeeting(ID);
+          RefreshAll;
+        except
+          on E: Exception do ApiError(E);
+        end;
+      end;
+    end;
+  except
+    on E: Exception do
+      StatusBar.SimpleText := 'Agenda: ' + E.Message;
+  end;
+  A.Free;
+end;
+
+procedure TMainForm.CheckUpdates;
+var
+  Info: TUpdateInfo;
+  FileName, Msg: string;
+begin
+  if not FConfig.AutoUpdateEnabled then Exit;
+  if FApi.Token = '' then Exit;
+  if (FLastUpdateCheck <> 0) and ((Now - FLastUpdateCheck) < (6/24)) then Exit;
+
+  FLastUpdateCheck := Now;
+  try
+    Info := CheckForUpdate(FApi);
+    if not Info.Available then Exit;
+    if Info.Version = FLastOfferedVersion then Exit;
+    FLastOfferedVersion := Info.Version;
+
+    FNotifier.Notify('Atualização disponível',
+      'Sala Reunião Desktop ' + Info.Version + ' está disponível.');
+
+    Msg := 'Nova versão: ' + Info.Version + LineEnding + LineEnding + Info.Notes +
+      LineEnding + LineEnding + 'Baixar e iniciar a atualização agora?';
+
+    if Info.Required then
+      Msg := 'Esta atualização é obrigatória.' + LineEnding + LineEnding + Msg;
+
+    if MessageDlg('Atualização do Sala Reunião', Msg,
+      mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+    begin
+      SetBusy(True, 'Baixando atualização...');
+      if DownloadAndLaunchUpdate(Info.Url, FileName) then
+      begin
+        Application.Terminate;
+        Exit;
+      end
+      else
+        MessageDlg('Atualização', 'O pacote foi baixado, mas não pôde ser iniciado: ' +
+          FileName, mtWarning, [mbOK], 0);
+    end;
+  except
+    on E: Exception do
+      StatusBar.SimpleText := 'Atualização: ' + E.Message;
+  end;
+end;
+
+procedure TMainForm.AgendaTimerTick(Sender: TObject);
+begin
+  CheckScheduledMeetings;
+  CheckUpdates;
 end;
 
 procedure TMainForm.RoomActionClick(Sender: TObject);
