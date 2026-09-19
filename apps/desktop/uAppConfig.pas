@@ -27,6 +27,13 @@ type
 
 implementation
 
+function StripTrailingSlash(const S: string): string;
+begin
+  Result := Trim(S);
+  while (Length(Result) > 0) and (Result[Length(Result)] = '/') do
+    Delete(Result, Length(Result), 1);
+end;
+
 constructor TAppConfig.Create;
 var
   Dir: string;
@@ -53,11 +60,7 @@ end;
 
 procedure TAppConfig.SetApiBaseUrl(const AValue: string);
 begin
-  FIni.WriteString('server', 'api_base_url', AValue);
-  while (Length(FIni.ReadString('server','api_base_url','')) > 0) and
-        (FIni.ReadString('server','api_base_url','')[Length(FIni.ReadString('server','api_base_url',''))] = '/') do
-    FIni.WriteString('server','api_base_url',
-      Copy(FIni.ReadString('server','api_base_url',''),1,Length(FIni.ReadString('server','api_base_url',''))-1));
+  FIni.WriteString('server', 'api_base_url', StripTrailingSlash(AValue));
 end;
 
 function TAppConfig.WebBaseUrl: string;
@@ -68,11 +71,7 @@ end;
 
 procedure TAppConfig.SetWebBaseUrl(const AValue: string);
 begin
-  FIni.WriteString('server', 'web_base_url', AValue);
-  while (Length(FIni.ReadString('server','web_base_url','')) > 0) and
-        (FIni.ReadString('server','web_base_url','')[Length(FIni.ReadString('server','web_base_url',''))] = '/') do
-    FIni.WriteString('server','web_base_url',
-      Copy(FIni.ReadString('server','web_base_url',''),1,Length(FIni.ReadString('server','web_base_url',''))-1));
+  FIni.WriteString('server', 'web_base_url', StripTrailingSlash(AValue));
 end;
 
 function TAppConfig.SavedEmail: string;
