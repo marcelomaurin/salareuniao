@@ -185,3 +185,37 @@ Administração > Dispositivos
 ```
 
 O token bruto é exibido somente no momento da criação/rotação. Armazene-o no dispositivo de forma segura.
+
+
+## Distribuição e atualização do Desktop
+
+O Desktop consulta o manifesto autenticado:
+
+```text
+/api/v1/desktop_update.php
+```
+
+Configure em `apps/web/config.php`:
+
+```php
+'desktop_update' => [
+    'enabled' => true,
+    'version' => '1.1.0',
+    'required' => false,
+    'notes' => 'Correções e melhorias.',
+    'windows_url' => 'https://meet.exemplo.com/downloads/SalaReuniaoDesktop-1.1.0-setup.exe',
+    'linux_url' => 'https://meet.exemplo.com/downloads/SalaReuniaoDesktop-1.1.0.AppImage',
+],
+```
+
+Fluxo recomendado de publicação:
+
+1. atualize `APP_VERSION` em `apps/desktop/uVersion.pas`;
+2. compile o Desktop;
+3. gere instalador Windows e pacote/AppImage Linux;
+4. publique os arquivos somente por HTTPS;
+5. atualize `desktop_update.version` e as URLs;
+6. mantenha `required=false` normalmente;
+7. use `required=true` apenas quando uma versão antiga não puder continuar operando.
+
+O cliente baixa o pacote e chama o mecanismo padrão do sistema operacional para iniciá-lo. O instalador deve cuidar da substituição do executável.
