@@ -1,53 +1,38 @@
 # Plano de Migração
 
-A reorganização é deliberadamente incremental para preservar o hardware já funcional.
+## Estrutura atual
 
-## Fase 1 — organização
+O projeto foi reorganizado como uma plataforma de videoconferência com Web, Desktop, ESP32 e serviços compartilhados.
 
-- Criar `apps/web`, `apps/desktop` e `apps/esp32`.
-- Criar `services/api`, `services/signaling` e `services/device-gateway`.
-- Preservar firmware ESP8266/Nextion e servidor TCP existentes.
-- Formalizar protocolo legado como Device Protocol v0.
+## Web
 
-## Fase 2 — backend comum
+A versão Web é PHP + MySQL e já contém autenticação, usuários, salas, convites, sala de espera, aprovação, WebRTC P2P, presença e compartilhamento de tela.
 
-- Autenticação.
-- Usuários e grupos.
-- Cadastro de salas.
-- Reuniões e agenda.
-- API REST.
-- WebSocket de eventos.
+### Banco existente
 
-## Fase 3 — videoconferência
+Quem instalou o banco antes da presença de participantes deve aplicar:
 
-- Cliente Web.
-- WebRTC áudio/vídeo.
-- Seleção de câmera e microfone.
-- Compartilhamento de tela.
-- Chat.
-- STUN/TURN.
-- Depois, SFU quando necessário.
+```bash
+mysql -u root -p salareuniao < apps/web/sql/002_presence.sql
+```
 
-## Fase 4 — Desktop
+A migration cria `room_presence` e o índice de participante em `room_invites`.
 
-- Reutilizar contratos da API e sinalização.
-- Integração nativa com câmera, áudio, notificações e compartilhamento de tela.
+## Próxima etapa operacional
 
-## Fase 5 — ESP32
+Antes de ampliar Desktop/ESP32, validar em ambiente HTTPS real:
 
-- Migrar terminal ESP8266 para ESP32.
-- Provisionamento seguro de Wi-Fi.
-- Identidade do dispositivo.
-- WebSocket/MQTT/TCP versionado.
-- Agenda/status da sala.
-- Botões físicos, LEDs, display e sensores.
+1. dois navegadores na mesma rede;
+2. dois navegadores em redes diferentes;
+3. câmera e microfone;
+4. entrada por convite;
+5. aprovação;
+6. compartilhamento de tela;
+7. remoção e encerramento;
+8. comportamento atrás de NAT/firewall.
+
+Depois desses testes deve ser implantado TURN para aumentar a taxa de conexão.
 
 ## Legado
 
-Durante a transição:
-- `hardware/firmware` permanece como fonte original.
-- `hardware/nextion` permanece como projeto de display.
-- `script/server.py` permanece temporariamente para compatibilidade.
-- A nova cópia operacional do gateway fica em `services/device-gateway`.
-
-Após os novos componentes estarem validados, os caminhos antigos poderão ser removidos.
+O firmware ESP8266/Nextion e o servidor TCP antigo continuam preservados durante a migração. O gateway de dispositivos será evoluído posteriormente para integrar o ESP32 às salas e reuniões.
