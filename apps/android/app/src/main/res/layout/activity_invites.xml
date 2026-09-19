@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@color/background">
+
+    <TextView
+        android:id="@+id/txtTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/edtEmails"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="e-mails separados por vírgula"
+        android:inputType="textEmailAddress"/>
+
+    <Button
+        android:id="@+id/btnAdd"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Adicionar convidados"/>
+
+    <ListView
+        android:id="@+id/listInvites"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:choiceMode="singleChoice"/>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button android:id="@+id/btnApprove" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Autorizar"/>
+            <Button android:id="@+id/btnReject" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Recusar"/>
+            <Button android:id="@+id/btnResend" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Reenviar"/>
+            <Button android:id="@+id/btnRemove" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Remover"/>
+            <Button android:id="@+id/btnRefresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Atualizar"/>
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:visibility="gone"/>
+</LinearLayout>
