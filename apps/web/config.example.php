@@ -26,6 +26,12 @@ return [
         'reply_to' => 'salareuniao@seu-dominio.example',
         'fallback_mail' => false,
     ],
+    'api' => [
+        // Tokens de usuário (Desktop): 30 dias.
+        'user_token_ttl' => 2592000,
+        // 0 = token de dispositivo sem expiração até ser revogado/rotacionado.
+        'device_token_ttl' => 0,
+    ],
     'websocket' => [
         'enabled' => true,
         // URL pública usada pelo navegador. Em produção, use wss://.
