@@ -19,7 +19,8 @@ function load_device(PDO $pdo,int $id): ?array {
 
 $device=load_device($pdo,$id);
 if(!$device){http_response_code(404);exit('Dispositivo não encontrado.');}
-$esp32Target=(string)($config['firmware']['esp32_target_version']??'');
+$fwActive=$pdo->query("SELECT id,version,required,notes FROM firmware_releases WHERE device_type='esp32' AND active=1 ORDER BY created_at DESC LIMIT 1")->fetch();
+$esp32Target=(string)($fwActive['version']??($config['firmware']['esp32_target_version']??''));
 $fwCurrent=(string)($device['firmware_version']??'');
 $firmwareOutdated=$device['type']==='esp32'&&$esp32Target!==''&&$fwCurrent!==''&&version_compare($fwCurrent,$esp32Target,'<');
 
@@ -30,7 +31,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         if($action==='command'){
             $type=trim($_POST['command_type']??'refresh');
             $value=trim($_POST['command_value']??'');
-            $allowed=['refresh','led_on','led_off','message','nextion_page','reboot'];
+            $allowed=['refresh','led_on','led_off','message','nextion_page','reboot','ota'];
             if(!in_array($type,$allowed,true)) throw new RuntimeException('Comando inválido.');
             $payload=json_encode(['value'=>$value],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $pdo->prepare('INSERT INTO device_commands(device_id,command_type,payload) VALUES(?,?,?)')
@@ -111,7 +112,7 @@ input,select,button{padding:8px}.status-pending{color:#92400e}.status-delivered{
     <h1><?=e($device['name'])?></h1>
     <div class="muted">UID <?=e($device['device_uid'])?> · <?=e($device['type'])?></div>
   </div>
-  <div><a href="admin_devices.php">Voltar aos dispositivos</a> · <a href="admin.php">Administração</a></div>
+  <div><a href="admin_devices.php">Voltar aos dispositivos</a> · <a href="admin_firmware.php">Firmware</a> · <a href="admin.php">Administração</a></div>
 </div>
 
 <?php if($message):?><p class="ok"><?=e($message)?></p><?php endif;?>
@@ -150,10 +151,22 @@ input,select,button{padding:8px}.status-pending{color:#92400e}.status-delivered{
 <option value="message">Mensagem</option>
 <option value="nextion_page">Página Nextion</option>
 <option value="reboot">Reiniciar</option>
+<option value="ota">OTA por release ID</option>
 </select>
 <input name="command_value" placeholder="valor opcional" size="24">
 <button>Enviar comando</button>
 </form>
+
+<?php if($device['type']==='esp32' && $firmwareOutdated && $fwActive):?>
+<form method="post" class="inline" style="margin-left:14px">
+<input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+<input type="hidden" name="id" value="<?=$id?>">
+<input type="hidden" name="action" value="command">
+<input type="hidden" name="command_type" value="ota">
+<input type="hidden" name="command_value" value="<?=(int)$fwActive['id']?>">
+<button>Atualizar para <?=e($fwActive['version'])?></button>
+</form>
+<?php endif;?>
 
 <form method="post" class="inline" style="margin-left:14px">
 <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
