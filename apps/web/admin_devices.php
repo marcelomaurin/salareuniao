@@ -71,11 +71,15 @@ $rooms=$pdo->query("SELECT id,name,status FROM rooms WHERE status IN('scheduled'
 <button>Criar dispositivo</button></form></div>
 
 <div class="panel"><h2>Cadastrados</h2>
-<table><thead><tr><th>Nome</th><th>UID</th><th>Tipo</th><th>Status</th><th>Último contato</th><th>Sala</th><th>Ações</th></tr></thead><tbody>
+<table><thead><tr><th>Nome</th><th>UID</th><th>Tipo</th><th>Status</th><th>Firmware</th><th>IP</th><th>Último contato</th><th>Sala</th><th>Ações</th></tr></thead><tbody>
 <?php foreach($devices as $d):?><tr>
 <td><?=e($d['name'])?></td><td><?=e($d['device_uid'])?></td><td><?=e($d['type'])?></td>
-<td class="<?=$d['online']?'online':''?>"><?= $d['online']?'online':e($d['status']) ?></td><td><?=e((string)($d['last_seen_at']?:'-'))?></td><td><?=e((string)($d['room_name']?:'-'))?></td>
-<td>
+<td class="<?=$d['online']?'online':''?>"><?= $d['online']?'online':e($d['status']) ?></td>
+<td><?=e((string)($d['firmware_version']?:'-'))?></td>
+<td><?=e((string)($d['ip_address']?:'-'))?></td>
+<td><?=e((string)($d['last_seen_at']?:'-'))?></td>
+<td><?=e((string)($d['room_name']?:'-'))?></td>
+<td><a href="admin_device.php?id=<?=$d['id']?>">Detalhes</a> 
 <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="rotate"><input type="hidden" name="device_id" value="<?=$d['id']?>"><button>Rotacionar token</button></form>
 <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="toggle"><input type="hidden" name="device_id" value="<?=$d['id']?>"><input type="hidden" name="active" value="<?=$d['active']?0:1?>"><button><?=$d['active']?'Desativar':'Ativar'?></button></form>
 <form method="post" style="display:inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="bind"><input type="hidden" name="device_id" value="<?=$d['id']?>">
