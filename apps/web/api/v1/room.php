@@ -30,18 +30,22 @@ $action=(string)($in['action']??'update');
 if($action==='open'){
     if($room['status']==='cancelled')api_json(['ok'=>false,'error'=>'room_cancelled'],409);
     $pdo->prepare("UPDATE rooms SET status='open' WHERE id=?")->execute([$id]);
+    api_audit($pdo,$u,'room.open','room',$id,['source'=>'api']);
 }elseif($action==='close'){
     $pdo->prepare("UPDATE rooms SET status='closed',ends_at=NOW() WHERE id=?")->execute([$id]);
     $pdo->prepare('DELETE FROM room_presence WHERE room_id=?')->execute([$id]);
+    api_audit($pdo,$u,'room.close','room',$id,['source'=>'api']);
 }elseif($action==='cancel'){
     $pdo->prepare("UPDATE rooms SET status='cancelled',ends_at=NOW() WHERE id=?")->execute([$id]);
     $pdo->prepare('DELETE FROM room_presence WHERE room_id=?')->execute([$id]);
+    api_audit($pdo,$u,'room.cancel','room',$id,['source'=>'api']);
 }elseif($action==='update'){
     $name=trim((string)($in['name']??$room['name']));
     $description=(string)($in['description']??$room['description']);
     $starts=array_key_exists('starts_at',$in)?($in['starts_at']?:null):$room['starts_at'];
     if($name==='')api_json(['ok'=>false,'error'=>'name_required'],422);
     $pdo->prepare('UPDATE rooms SET name=?,description=?,starts_at=? WHERE id=?')->execute([$name,$description,$starts,$id]);
+    api_audit($pdo,$u,'room.edit','room',$id,['name'=>$name,'starts_at'=>$starts,'source'=>'api']);
 }else{
     api_json(['ok'=>false,'error'=>'unknown_action'],400);
 }
