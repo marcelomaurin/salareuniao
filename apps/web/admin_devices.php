@@ -55,9 +55,10 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
 }
 $devices=$pdo->query("SELECT d.*,r.name room_name,(d.last_seen_at IS NOT NULL AND d.last_seen_at>=DATE_SUB(NOW(),INTERVAL 90 SECOND)) online FROM devices d LEFT JOIN rooms r ON r.id=d.room_id ORDER BY d.name")->fetchAll();
 $rooms=$pdo->query("SELECT id,name,status FROM rooms WHERE status IN('scheduled','open') ORDER BY starts_at IS NULL,starts_at,created_at DESC LIMIT 300")->fetchAll();
+$esp32Target=(string)($config['firmware']['esp32_target_version']??'');
 ?>
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dispositivos</title>
-<style>body{font-family:Arial,sans-serif;margin:24px;background:#f6f7f9;color:#1f2937}.panel{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;min-width:900px}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}input,select{padding:8px}.ok{background:#dcfce7;padding:10px;border-radius:8px}.err{background:#fee2e2;padding:10px;border-radius:8px}.token{word-break:break-all;background:#111827;color:#fff;padding:12px;border-radius:8px}.online{color:#15803d;font-weight:bold}</style></head><body>
+<style>body{font-family:Arial,sans-serif;margin:24px;background:#f6f7f9;color:#1f2937}.panel{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;min-width:900px}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}input,select{padding:8px}.ok{background:#dcfce7;padding:10px;border-radius:8px}.err{background:#fee2e2;padding:10px;border-radius:8px}.token{word-break:break-all;background:#111827;color:#fff;padding:12px;border-radius:8px}.online{color:#15803d;font-weight:bold}.oldfw{color:#b91c1c;font-weight:bold}.fwok{color:#15803d}</style></head><body>
 <h1>Dispositivos</h1>
 <p><a href="admin.php">Voltar à administração</a></p>
 <?php if($message):?><p class="ok"><?=e($message)?></p><?php endif;?><?php if($error):?><p class="err"><?=e($error)?></p><?php endif;?>
@@ -75,7 +76,8 @@ $rooms=$pdo->query("SELECT id,name,status FROM rooms WHERE status IN('scheduled'
 <?php foreach($devices as $d):?><tr>
 <td><?=e($d['name'])?></td><td><?=e($d['device_uid'])?></td><td><?=e($d['type'])?></td>
 <td class="<?=$d['online']?'online':''?>"><?= $d['online']?'online':e($d['status']) ?></td>
-<td><?=e((string)($d['firmware_version']?:'-'))?></td>
+<?php $fw=(string)($d['firmware_version']?:''); $oldFw=$d['type']==='esp32'&&$esp32Target!==''&&$fw!==''&&version_compare($fw,$esp32Target,'<'); ?>
+<td class="<?=$oldFw?'oldfw':'fwok'?>"><?=e($fw?:'-')?><?=$oldFw?' ⚠':''?></td>
 <td><?=e((string)($d['ip_address']?:'-'))?></td>
 <td><?=e((string)($d['last_seen_at']?:'-'))?></td>
 <td><?=e((string)($d['room_name']?:'-'))?></td>
