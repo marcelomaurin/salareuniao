@@ -53,7 +53,11 @@ end;
 
 procedure TAppConfig.SetApiBaseUrl(const AValue: string);
 begin
-  FIni.WriteString('server', 'api_base_url', TrimRight(AValue, ['/']));
+  FIni.WriteString('server', 'api_base_url', AValue);
+  while (Length(FIni.ReadString('server','api_base_url','')) > 0) and
+        (FIni.ReadString('server','api_base_url','')[Length(FIni.ReadString('server','api_base_url',''))] = '/') do
+    FIni.WriteString('server','api_base_url',
+      Copy(FIni.ReadString('server','api_base_url',''),1,Length(FIni.ReadString('server','api_base_url',''))-1));
 end;
 
 function TAppConfig.WebBaseUrl: string;
@@ -64,7 +68,11 @@ end;
 
 procedure TAppConfig.SetWebBaseUrl(const AValue: string);
 begin
-  FIni.WriteString('server', 'web_base_url', TrimRight(AValue, ['/']));
+  FIni.WriteString('server', 'web_base_url', AValue);
+  while (Length(FIni.ReadString('server','web_base_url','')) > 0) and
+        (FIni.ReadString('server','web_base_url','')[Length(FIni.ReadString('server','web_base_url',''))] = '/') do
+    FIni.WriteString('server','web_base_url',
+      Copy(FIni.ReadString('server','web_base_url',''),1,Length(FIni.ReadString('server','web_base_url',''))-1));
 end;
 
 function TAppConfig.SavedEmail: string;
