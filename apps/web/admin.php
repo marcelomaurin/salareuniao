@@ -42,7 +42,7 @@ LIMIT 100
 <style>
 body{font-family:Arial,sans-serif;margin:24px;background:#f5f7fa;color:#1f2937}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px}.card strong{font-size:28px;display:block;margin-top:5px}.panel{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:16px 0;overflow:auto}table{border-collapse:collapse;width:100%;min-width:780px}th,td{text-align:left;padding:9px;border-bottom:1px solid #eee}th{background:#f9fafb}.open{color:#15803d;font-weight:bold}.muted{color:#6b7280;font-size:13px}.nav a{margin-right:12px}
 </style></head><body>
-<div class="top"><div><h1>Administração do sistema</h1><div class="muted">Visão global de usuários, salas, presença e sinalização.</div></div><div class="nav"><a href="admin_users.php">Usuários</a><a href="admin_system.php">Diagnóstico</a><a href="index.php">Área do usuário</a><a href="logout.php">Sair</a></div></div>
+<div class="top"><div><h1>Administração do sistema</h1><div class="muted">Visão global de usuários, salas, presença e sinalização.</div></div><div class="nav"><a href="admin_users.php">Usuários</a><a href="admin_devices.php">Dispositivos</a><a href="admin_system.php">Diagnóstico</a><a href="index.php">Área do usuário</a><a href="logout.php">Sair</a></div></div>
 
 <div class="cards">
 <div class="card">Usuários ativos<strong><?=(int)$summary['active_users']?></strong><span class="muted"><?=(int)$summary['admins']?> admin / <?=(int)$summary['regular_users']?> usuários</span></div>
