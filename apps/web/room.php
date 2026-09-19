@@ -1,96 +1,541 @@
 <?php
-require __DIR__.'/lib/bootstrap.php';
-$token=$_GET['token']??'';
-$st=$pdo->prepare("SELECT i.*,r.name room_name,r.status room_status FROM room_invites i JOIN rooms r ON r.id=i.room_id WHERE i.token=? AND i.status='approved' LIMIT 1");
-$st->execute([$token]);$me=$st->fetch();
-if(!$me){http_response_code(403);exit('Entrada não autorizada.');}
-if($me['room_status']!=='open')exit('A sala ainda não foi aberta pelo administrador.');
-$iceServers=$config['webrtc']['ice_servers']??[];
-$turn=$config['webrtc']['turn']??[];
-if(!empty($turn['enabled'])&&!empty($turn['secret'])&&!empty($turn['urls'])){
-    $ttl=max(300,(int)($turn['ttl']??3600));
-    $turnUsername=(string)(time()+$ttl).':'.$me['participant_key'];
-    $turnCredential=base64_encode(hash_hmac('sha1',$turnUsername,(string)$turn['secret'],true));
-    $iceServers[]=[
-        'urls'=>$turn['urls'],
-        'username'=>$turnUsername,
-        'credential'=>$turnCredential,
+declare(strict_types=1);
+
+require __DIR__ . '/lib/bootstrap.php';
+$token = $_GET['token'] ?? '';
+$st = $pdo->prepare("SELECT i.*, r.name room_name, r.status room_status FROM room_invites i JOIN rooms r ON r.id=i.room_id WHERE i.token=? AND i.status='approved' LIMIT 1");
+$st->execute([$token]);
+$me = $st->fetch();
+
+if (!$me) {
+    http_response_code(403);
+    exit('Entrada não autorizada.');
+}
+if ($me['room_status'] !== 'open') {
+    exit('A sala ainda não foi aberta pelo administrador ou foi encerrada.');
+}
+
+$iceServers = $config['webrtc']['ice_servers'] ?? [];
+$turn = $config['webrtc']['turn'] ?? [];
+if (!empty($turn['enabled']) && !empty($turn['secret']) && !empty($turn['urls'])) {
+    $ttl = max(300, (int)($turn['ttl'] ?? 3600));
+    $turnUsername = (string)(time() + $ttl) . ':' . $me['participant_key'];
+    $turnCredential = base64_encode(hash_hmac('sha1', $turnUsername, (string)$turn['secret'], true));
+    $iceServers[] = [
+        'urls' => $turn['urls'],
+        'username' => $turnUsername,
+        'credential' => $turnCredential,
     ];
 }
-$ice=json_encode($iceServers,JSON_UNESCAPED_SLASHES);
-$wsEnabled=!empty($config['websocket']['enabled'])&&!empty($config['websocket']['public_url']);
-$wsUrl=$wsEnabled?(string)$config['websocket']['public_url']:'';
-$wsReconnect=max(500,(int)($config['websocket']['reconnect_ms']??2000));
+$ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
+$wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);
+$wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
+$wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
+$inviteUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/join.php?token=' . urlencode($token);
 ?>
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?=e($me['room_name'])?> - Sala Reunião</title>
-<style>
-:root{font-family:Arial,Helvetica,sans-serif;color:#1f2937;background:#f4f6f8}
-*{box-sizing:border-box}body{margin:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:10}
-.top h1{font-size:20px;margin:0}.top small{display:block;color:#6b7280;margin-top:3px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:calc(100vh - 122px)}
-.main{padding:14px}.sidebar{background:#fff;border-left:1px solid #ddd;display:flex;flex-direction:column;min-height:0}.tabs{display:flex;border-bottom:1px solid #ddd}.tabs button{flex:1;border-radius:0;background:#fff}.tabs button.active{background:#eef2ff}.sidepane{display:none;padding:14px;overflow:auto;min-height:0}.sidepane.active{display:block;flex:1}.chatWrap{display:flex;flex-direction:column;height:100%}.chatMessages{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:260px}.chatMsg{background:#f3f4f6;border-radius:9px;padding:8px 10px}.chatMsg.self{background:#dbeafe}.chatMeta{font-size:11px;color:#6b7280;margin-bottom:3px}.chatText{white-space:pre-wrap;word-break:break-word}.chatForm{display:flex;gap:6px;margin-top:10px}.chatForm textarea{flex:1;resize:none;min-height:52px;border:1px solid #ccc;border-radius:8px;padding:8px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start}
-.tile{position:relative;background:#111827;border-radius:12px;overflow:hidden;min-height:190px;box-shadow:0 2px 8px #0002}
-.tile video{width:100%;height:100%;min-height:190px;max-height:52vh;object-fit:cover;display:block;background:#111827}
-.tile .name{position:absolute;left:9px;bottom:9px;background:#0009;color:white;padding:5px 8px;border-radius:6px;font-size:13px}
-.tile .state{position:absolute;right:9px;top:9px;background:#0009;color:white;padding:5px 7px;border-radius:6px;font-size:12px}
-.controls{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;padding:14px;background:#fff;border-top:1px solid #ddd;position:sticky;bottom:0}
-button{border:0;border-radius:9px;padding:10px 15px;cursor:pointer;background:#e5e7eb}button.active{background:#dbeafe}button.danger{background:#dc2626;color:white}
-.person{padding:9px 0;border-bottom:1px solid #eee}.person .badges{font-size:12px;color:#6b7280;margin-top:3px}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px}.empty{color:#6b7280;font-size:14px}
-#status{font-size:13px;color:#6b7280}
-@media(max-width:800px){.layout{grid-template-columns:1fr}.sidebar{border-left:0;border-top:1px solid #ddd}.tile video{max-height:42vh}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><?=e($me['room_name'])?> - Maurinsoft Sala Reunião</title>
+  <link rel="stylesheet" href="assets/css/salareuniao.css">
+  <style>
+    body {
+      background: #050811;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .room-header {
+      background: rgba(11, 17, 32, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-glass);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: nowrap;
+      z-index: 100;
+    }
+
+    .room-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .room-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .room-timer {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--primary);
+      background: rgba(0, 210, 255, 0.1);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(0, 210, 255, 0.25);
+    }
+
+    .room-main-layout {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .room-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      position: relative;
+      overflow-y: auto;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      width: 100%;
+      height: 100%;
+      max-height: calc(100vh - 170px);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tile {
+      position: relative;
+      background: #0b1120;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      overflow: hidden;
+      min-height: 200px;
+      aspect-ratio: 16/9;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .tile video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #0b1120;
+    }
+
+    .tile .name {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 2;
+    }
+
+    .tile .state {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      background: rgba(0, 210, 255, 0.2);
+      color: var(--primary);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      border: 1px solid rgba(0, 210, 255, 0.4);
+      z-index: 2;
+    }
+
+    /* Floating Bottom Dock */
+    .controls {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.7);
+      z-index: 80;
+    }
+
+    .controls button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 9999px;
+      border: 1px solid transparent;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .controls button:hover {
+      background: rgba(255, 255, 255, 0.18);
+      transform: translateY(-2px);
+    }
+
+    .controls button.active {
+      background: rgba(0, 210, 255, 0.2);
+      border-color: rgba(0, 210, 255, 0.4);
+      color: var(--primary);
+    }
+
+    .controls button.muted, .controls button.danger {
+      background: #dc2626;
+      border-color: #ef4444;
+      color: #fff;
+    }
+
+    .controls button.muted:hover, .controls button.danger:hover {
+      background: #b91c1c;
+    }
+
+    /* Sidebar Drawer */
+    .sidebar {
+      width: 360px;
+      background: rgba(11, 17, 32, 0.95);
+      backdrop-filter: blur(16px);
+      border-left: 1px solid var(--border-glass);
+      display: flex;
+      flex-direction: column;
+      z-index: 70;
+      transition: all 0.25s ease;
+    }
+
+    .sidebar.sr-hidden {
+      display: none !important;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-glass);
+    }
+
+    .tabs button {
+      flex: 1;
+      padding: 14px 10px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tabs button.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: rgba(0, 210, 255, 0.05);
+    }
+
+    .sidepane {
+      display: none;
+      padding: 16px;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .sidepane.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chatWrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .chatMessages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 12px;
+      max-height: calc(100vh - 220px);
+    }
+
+    .chatMsg {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      max-width: 90%;
+      align-self: flex-start;
+    }
+
+    .chatMsg.self {
+      background: rgba(0, 210, 255, 0.12);
+      border-color: rgba(0, 210, 255, 0.3);
+      align-self: flex-end;
+    }
+
+    .chatMeta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .chatText {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #f1f5f9;
+    }
+
+    .chatForm {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-glass);
+    }
+
+    .chatForm textarea {
+      flex: 1;
+      resize: none;
+      height: 50px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-glass);
+      border-radius: 8px;
+      padding: 10px;
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.88rem;
+    }
+
+    .chatForm textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .person {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-glass);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: 6px;
+    }
+
+    .person:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .person .badges {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      margin-right: 8px;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: 320px;
+        box-shadow: -5px 0 25px rgba(0, 0, 0, 0.6);
+      }
+      .controls {
+        width: 95%;
+        padding: 8px 12px;
+        gap: 6px;
+      }
+      .controls button {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+      }
+    }
+  </style>
 </head>
 <body>
-<div class="top">
-  <div><h1><?=e($me['room_name'])?></h1><small><?=e($me['display_name']?:$me['email'])?></small></div>
-  <div><div id="status">Conectando...</div><div id="iceRoute" style="font-size:12px;color:#6b7280;text-align:right">ICE: aguardando</div></div>
-</div>
 
-<div class="layout">
-  <main class="main">
-    <div class="grid" id="videos">
-      <div class="tile" id="tile-local">
-        <video id="local" autoplay muted playsinline></video>
-        <div class="name">Você</div>
-        <div class="state" id="localState">🎙 📹</div>
+  <!-- Top Navigation Bar -->
+  <header class="room-header">
+    <div class="room-info">
+      <div class="sr-brand-logo" style="width: 30px; height: 30px; font-size: 14px;">M</div>
+      <div>
+        <div class="room-title"><?=e($me['room_name'])?></div>
+        <small id="status" style="color: var(--text-muted); font-size: 0.78rem;">Iniciando conexão WebRTC...</small>
       </div>
     </div>
-  </main>
-  <aside class="sidebar">
-    <div class="tabs">
-      <button id="tabParticipants" class="active">Participantes (<span id="participantCount">1</span>)</button>
-      <button id="tabChat">Chat <span id="chatUnread"></span></button>
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="room-timer" id="meetingTimer">00:00:00</span>
+      <span id="iceRoute" style="font-size: 0.78rem; color: var(--text-dim);"></span>
+      <span class="sr-badge sr-badge-open" id="participantBadge">
+        <span class="sr-pulse-dot"></span>
+        <span id="participantCount">1</span> online
+      </span>
+      <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" onclick="copyInvite()" title="Copiar link de convite">
+        📋 Convidar
+      </button>
+      <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" onclick="toggleSidebar()" title="Bate-papo e Participantes">
+        💬 Painel
+      </button>
     </div>
-    <div id="paneParticipants" class="sidepane active">
-      <div id="participants"><div class="empty">Carregando...</div></div>
-    </div>
-    <div id="paneChat" class="sidepane">
-      <div class="chatWrap">
-        <div id="chatMessages" class="chatMessages"><div class="empty">Nenhuma mensagem.</div></div>
-        <form id="chatForm" class="chatForm">
-          <textarea id="chatInput" maxlength="2000" placeholder="Digite uma mensagem..."></textarea>
-          <button type="submit">Enviar</button>
-        </form>
+  </header>
+
+  <!-- Main Viewport -->
+  <div class="room-main-layout">
+    
+    <!-- Stage Area -->
+    <main class="room-stage">
+      <div class="grid" id="videos">
+        <div class="tile" id="tile-local">
+          <video id="local" autoplay muted playsinline></video>
+          <div class="name">Você (<?=e($me['display_name'])?>)</div>
+          <div class="state" id="localState">AO VIVO</div>
+        </div>
       </div>
-    </div>
-  </aside>
-</div>
+    </main>
 
-<div class="controls">
-  <button id="mic" class="active">🎙 Microfone</button>
-  <button id="cam" class="active">📹 Câmera</button>
-  <button id="screen">🖥 Compartilhar tela</button>
-  <button id="leave" class="danger">Sair</button>
-</div>
+    <!-- Sidebar Drawer (Chat & Participants) -->
+    <aside class="sidebar" id="roomSidebar">
+      <div class="tabs">
+        <button id="tabChat" class="active">Chat <span id="chatUnread" class="sr-badge sr-badge-scheduled" style="display:none; padding: 1px 6px; font-size: 10px;">0</span></button>
+        <button id="tabParticipants">Participantes</button>
+      </div>
 
-<script>
+      <!-- Chat Pane -->
+      <div id="paneChat" class="sidepane active">
+        <div class="chatWrap">
+          <div class="chatMessages" id="chatMessages">
+            <div class="chatMsg" style="background: rgba(0, 210, 255, 0.08); border: 1px dashed rgba(0, 210, 255, 0.2);">
+              <div class="chatMeta">Sistema Maurinsoft</div>
+              <div class="chatText">Bem-vindo(a) à sala de reunião criptografada ponta-a-ponta. As mensagens enviadas aqui são visíveis para todos os participantes da sessão.</div>
+            </div>
+          </div>
+          <form id="chatForm" class="chatForm">
+            <textarea id="chatInput" placeholder="Digite uma mensagem e pressione Enter..." rows="2"></textarea>
+            <button type="submit" class="sr-btn sr-btn-primary sr-btn-sm" style="align-self: flex-end; height: 50px;">
+              Enviar
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Participants Pane -->
+      <div id="paneParticipants" class="sidepane">
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+          Participantes conectados nesta chamada:
+        </div>
+        <div id="participants"></div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Floating Control Dock -->
+  <div class="controls">
+    <button id="mic" class="active" title="Ativar/Desativar Microfone">
+      <span id="micIcon">🎙️</span> <span id="micText">Mic Ligado</span>
+    </button>
+    <button id="cam" class="active" title="Ativar/Desativar Câmera">
+      <span id="camIcon">📹</span> <span id="camText">Câmera Ligada</span>
+    </button>
+    <button id="screen" title="Compartilhar Tela do Computador">
+      🖥️ Compartilhar Tela
+    </button>
+    <button id="leave" class="danger" title="Encerrar ou Sair da Reunião">
+      🚪 Sair da Sala
+    </button>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="sr-toast">Link de convite copiado para a área de transferência!</div>
+
+  <script>
+    // Meeting Timer
+    let meetingSeconds = 0;
+    setInterval(() => {
+      meetingSeconds++;
+      const hrs = String(Math.floor(meetingSeconds / 3600)).padStart(2, '0');
+      const mins = String(Math.floor((meetingSeconds % 3600) / 60)).padStart(2, '0');
+      const secs = String(meetingSeconds % 60).padStart(2, '0');
+      const el = document.getElementById('meetingTimer');
+      if (el) el.textContent = hrs + ':' + mins + ':' + secs;
+    }, 1000);
+
+    function copyInvite() {
+      const url = <?=json_encode($inviteUrl)?>;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(showToast);
+      } else {
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast();
+      }
+    }
+
+    function showToast() {
+      const toast = document.getElementById('sr-toast');
+      if (toast) {
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+    }
+
+    function toggleSidebar() {
+      const sb = document.getElementById('roomSidebar');
+      if (sb) sb.classList.toggle('sr-hidden');
+    }
+  </script>
+
+  <script>
+
 const TOKEN=<?=json_encode($token)?>;
 const ICE_SERVERS=<?=$ice?>;
 const WS_URL=<?=json_encode($wsUrl)?>;
@@ -407,6 +852,7 @@ window.addEventListener('beforeunload',()=>{
     alert('Não foi possível acessar câmera/microfone: '+e.message+'\nVerifique permissões e HTTPS.');
   }
 })();
-</script>
+
+  </script>
 </body>
 </html>
