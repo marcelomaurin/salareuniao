@@ -71,3 +71,62 @@ Depois do teste funcional:
 - use limites de banda/quota adequados;
 - automatize renovação do certificado;
 - mantenha `config.php` fora do Git.
+
+
+## WebSocket
+
+### Dependências
+
+```bash
+cd services/signaling
+composer install --no-dev --optimize-autoloader
+```
+
+O pacote Ratchet recomendado pelo próprio projeto é instalado por Composer.
+
+### Nginx
+
+Use `deployment/nginx/websocket.conf.example` dentro do virtual host HTTPS.
+
+### Apache
+
+Habilite os módulos necessários:
+
+```bash
+sudo a2enmod proxy proxy_http proxy_wstunnel rewrite
+```
+
+Use então `deployment/apache/websocket.conf.example`.
+
+### systemd
+
+Ajuste os caminhos do arquivo:
+
+`deployment/systemd/salareuniao-signaling.service.example`
+
+Depois:
+
+```bash
+sudo cp deployment/systemd/salareuniao-signaling.service.example /etc/systemd/system/salareuniao-signaling.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now salareuniao-signaling
+sudo systemctl status salareuniao-signaling
+```
+
+### Validação
+
+No painel administrativo, abra **Diagnóstico**. O item WebSocket deve aparecer como OK.
+
+Na reunião, o status muda para:
+
+```text
+Conectado em tempo real
+```
+
+Se o serviço cair:
+
+```text
+WebSocket desconectado; usando fallback
+```
+
+e o sistema continua operando via polling.
