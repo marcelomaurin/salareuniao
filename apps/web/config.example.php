@@ -32,6 +32,9 @@ return [
         // 0 = token de dispositivo sem expiração até ser revogado/rotacionado.
         'device_token_ttl' => 0,
     ],
+    'firmware' => [
+        'esp32_target_version' => '1.0.0',
+    ],
     'desktop_update' => [
         'enabled' => true,
         'version' => '1.0.0',
