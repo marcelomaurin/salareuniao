@@ -1,8 +1,6 @@
 package br.com.maurinsoft.salareuniao
 
-import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -33,7 +31,7 @@ class ApiClient(
 
         val code = con.responseCode
         val stream = if (code in 200..299) con.inputStream else con.errorStream
-        val text = stream?.bufferedReader()?.use(BufferedReader::readText).orEmpty()
+        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
         con.disconnect()
 
         val json = if (text.isBlank()) JSONObject() else JSONObject(text)
