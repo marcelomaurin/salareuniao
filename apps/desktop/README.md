@@ -34,7 +34,13 @@ A videoconferência Web/WebRTC já pronta pode ser aberta **dentro do próprio D
 - autorizar;
 - recusar;
 - reenviar convite;
-- remover participante.
+- remover participante;
+- notificações nativas pela bandeja;
+- aviso de reunião próxima;
+- autoentrada opcional em reunião agendada;
+- abertura automática da sala do anfitrião;
+- verificação periódica de atualização;
+- download e execução do instalador/pacote publicado pelo servidor.
 
 ## Arquivos
 
@@ -47,6 +53,9 @@ apps/desktop/
 ├── uAppConfig.pas
 ├── uInvites.pas
 ├── uMeetingView.pas
+├── uDesktopNotify.pas
+├── uUpdater.pas
+├── uVersion.pas
 ├── SalaReuniaoDesktopCEF.lpi
 ├── CEF_SETUP.md
 └── README.md
@@ -179,15 +188,51 @@ SalaReuniaoDesktopCEF.lpi
 
 Consulte `CEF_SETUP.md` para instalação do pacote Lazarus e dos binários CEF.
 
+## Agenda automática e notificações
+
+Depois do login, o cliente verifica a agenda periodicamente.
+
+Por padrão:
+- avisa quando uma reunião está a até 10 minutos do início;
+- a autoentrada vem desabilitada;
+- quando habilitada, o usuário escolhe quantos minutos antes deve entrar;
+- se a sala ainda estiver em `scheduled`, o Desktop do anfitrião a abre antes de entrar;
+- cada reunião é notificada/aberta apenas uma vez por execução.
+
+As preferências ficam no arquivo local `salareuniao.ini`.
+
+## Atualização automática
+
+O Desktop consulta:
+
+```text
+GET /api/v1/desktop_update.php?platform=windows
+GET /api/v1/desktop_update.php?platform=linux
+```
+
+A versão atual está em `uVersion.pas`:
+
+```pascal
+APP_VERSION = '1.0.0';
+```
+
+Quando o servidor publica uma versão superior, o Desktop:
+1. notifica o usuário;
+2. mostra as notas da versão;
+3. baixa o instalador/pacote para a pasta temporária;
+4. inicia o pacote;
+5. encerra o aplicativo quando o instalador foi aberto.
+
+A checagem automática ocorre no login e no máximo uma vez a cada seis horas.
+
 ## Próxima evolução Desktop
 
 A base agora permite evoluir gradualmente para:
-- notificações nativas;
 - seleção nativa de dispositivos de áudio/vídeo;
-- WebSocket nativo;
-- atualização automática;
+- WebSocket nativo fora da página CEF;
 - integração com o ESP32 da sala;
-- abertura automática de reunião agendada.
+- instalador oficial Windows/Linux com assinatura;
+- execução em segundo plano/inicialização automática.
 
 ## Validação
 
