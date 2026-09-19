@@ -18,6 +18,9 @@ if(!empty($turn['enabled'])&&!empty($turn['secret'])&&!empty($turn['urls'])){
     ];
 }
 $ice=json_encode($iceServers,JSON_UNESCAPED_SLASHES);
+$wsEnabled=!empty($config['websocket']['enabled'])&&!empty($config['websocket']['public_url']);
+$wsUrl=$wsEnabled?(string)$config['websocket']['public_url']:'';
+$wsReconnect=max(500,(int)($config['websocket']['reconnect_ms']??2000));
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -90,9 +93,12 @@ button{border:0;border-radius:9px;padding:10px 15px;cursor:pointer;background:#e
 <script>
 const TOKEN=<?=json_encode($token)?>;
 const ICE_SERVERS=<?=$ice?>;
+const WS_URL=<?=json_encode($wsUrl)?>;
+const WS_ENABLED=<?=json_encode($wsEnabled)?>;
+const WS_RECONNECT_MS=<?=$wsReconnect?>;
 const pcs=new Map(), pendingIce=new Map(), participantNames=new Map();
 let lastId=0,selfKey=null,localStream=null,cameraTrack=null,screenTrack=null;
-let micEnabled=true,camEnabled=true,screenSharing=false,leaving=false,lastChatId=0,chatOpen=false,chatUnread=0;
+let micEnabled=true,camEnabled=true,screenSharing=false,leaving=false,lastChatId=0,chatOpen=false,chatUnread=0,ws=null,wsReady=false,wsReconnectTimer=null;
 
 async function jsonFetch(url,options={}){
   const r=await fetch(url,options);
@@ -100,6 +106,10 @@ async function jsonFetch(url,options={}){
   return r.json();
 }
 async function send(type,payload={},recipient=null){
+  if(wsReady&&ws){
+    ws.send(JSON.stringify({type:'signal',signalType:type,payload,recipient}));
+    return {ok:true,transport:'websocket'};
+  }
   return jsonFetch('api/signal_send.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,type,payload,recipient})});
 }
 function updateButtons(){
@@ -201,7 +211,7 @@ async function handleSignal(m){
   }
 }
 async function pollSignals(){
-  if(leaving)return;
+  if(leaving||wsReady)return;
   try{
     const d=await jsonFetch('api/signal_poll.php?token='+encodeURIComponent(TOKEN)+'&after='+lastId,{cache:'no-store'});
     selfKey=d.self;
@@ -232,24 +242,35 @@ async function loadChatHistory(){
   try{const d=await jsonFetch('api/chat_history.php?token='+encodeURIComponent(TOKEN)+'&limit=100',{cache:'no-store'});selfKey=d.self;for(const m of d.messages||[])appendChatMessage(m);chatUnread=0;updateUnread();}catch(e){console.warn('chat history',e);}
 }
 async function pollChat(){
-  if(leaving)return;
+  if(leaving||wsReady)return;
   try{const d=await jsonFetch('api/chat_poll.php?token='+encodeURIComponent(TOKEN)+'&after='+lastChatId,{cache:'no-store'});for(const m of d.messages||[])appendChatMessage(m);}catch(e){console.warn('chat poll',e);}
   setTimeout(pollChat,1200);
 }
 async function sendChatMessage(text){
   const msg=text.trim();if(!msg)return;
+  if(wsReady&&ws){
+    ws.send(JSON.stringify({type:'chat',message:msg}));
+    return;
+  }
   const d=await jsonFetch('api/chat_send.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,message:msg})});
   if(d.message)appendChatMessage(d.message);
 }
 async function heartbeat(){
   if(leaving)return;
-  try{
-    const d=await jsonFetch('api/presence.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,mic:micEnabled,cam:camEnabled,screen:screenSharing})});
-    selfKey=d.self;
-    if(d.room_status!=='open'){alert('A reunião foi encerrada.');await leaveRoom(false);return;}
-    renderParticipants(d.participants||[]);
-    document.getElementById('status').textContent='Conectado';
-  }catch(e){document.getElementById('status').textContent='Reconectando...';}
+  if(wsReady&&ws){
+    try{
+      ws.send(JSON.stringify({type:'presence',mic:micEnabled,cam:camEnabled,screen:screenSharing}));
+      document.getElementById('status').textContent='Conectado em tempo real';
+    }catch(e){wsReady=false;}
+  }else{
+    try{
+      const d=await jsonFetch('api/presence.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,mic:micEnabled,cam:camEnabled,screen:screenSharing})});
+      selfKey=d.self;
+      if(d.room_status!=='open'){alert('A reunião foi encerrada.');await leaveRoom(false);return;}
+      renderParticipants(d.participants||[]);
+      document.getElementById('status').textContent='Conectado (fallback)';
+    }catch(e){document.getElementById('status').textContent='Reconectando...';}
+  }
   for(const [key,pc] of pcs) if(pc.connectionState==='connected') updateIceRoute(key,pc);
   setTimeout(heartbeat,4000);
 }
@@ -270,6 +291,44 @@ function renderParticipants(list){
   if(!list.length)wrap.innerHTML='<div class="empty">Nenhum participante online.</div>';
   for(const key of pcs.keys()) if(!activeKeys.has(key)) removePeer(key);
 }
+function connectWebSocket(){
+  if(!WS_ENABLED||!WS_URL||leaving)return;
+  try{
+    ws=new WebSocket(WS_URL+(WS_URL.includes('?')?'&':'?')+'token='+encodeURIComponent(TOKEN));
+    ws.onopen=()=>{
+      wsReady=true;
+      document.getElementById('status').textContent='Conectado em tempo real';
+      if(wsReconnectTimer){clearTimeout(wsReconnectTimer);wsReconnectTimer=null;}
+      ws.send(JSON.stringify({type:'presence',mic:micEnabled,cam:camEnabled,screen:screenSharing}));
+      ws.send(JSON.stringify({type:'signal',signalType:'peer-ready',payload:{},recipient:null}));
+    };
+    ws.onmessage=async ev=>{
+      try{
+        const d=JSON.parse(ev.data);
+        if(d.type==='hello'){selfKey=d.self||selfKey;return;}
+        if(d.type==='signal'&&d.message){
+          if(d.message.id)lastId=Math.max(lastId,Number(d.message.id));
+          await handleSignal(d.message);
+          return;
+        }
+        if(d.type==='chat'&&d.message){appendChatMessage(d.message);return;}
+        if(d.type==='presence'){renderParticipants(d.participants||[]);return;}
+        if(d.type==='error'){console.warn('WebSocket',d.error);}
+      }catch(e){console.warn('WS message',e);}
+    };
+    ws.onclose=()=>{
+      wsReady=false;
+      document.getElementById('status').textContent='WebSocket desconectado; usando fallback';
+      pollSignals();pollChat();
+      if(!leaving)wsReconnectTimer=setTimeout(connectWebSocket,WS_RECONNECT_MS);
+    };
+    ws.onerror=()=>{wsReady=false;};
+  }catch(e){
+    wsReady=false;
+    if(!leaving)wsReconnectTimer=setTimeout(connectWebSocket,WS_RECONNECT_MS);
+  }
+}
+
 async function toggleScreen(){
   if(screenSharing){await stopScreen();return;}
   try{
@@ -296,7 +355,11 @@ async function stopScreen(){
 }
 async function leaveRoom(navigate=true){
   if(leaving)return;leaving=true;
-  try{await jsonFetch('api/leave.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN})});}catch(e){}
+  try{
+    if(wsReady&&ws)ws.send(JSON.stringify({type:'signal',signalType:'leave',payload:{},recipient:null}));
+    await jsonFetch('api/leave.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN})});
+  }catch(e){}
+  try{ws?.close();}catch(e){}
   for(const pc of pcs.values())pc.close();pcs.clear();
   localStream?.getTracks().forEach(t=>t.stop());screenTrack?.stop();
   if(navigate)location.href='join.php?token='+encodeURIComponent(TOKEN);
@@ -329,9 +392,11 @@ window.addEventListener('beforeunload',()=>{
     document.getElementById('local').srcObject=localStream;updateButtons();
     const first=await jsonFetch('api/presence.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,mic:true,cam:true,screen:false})});
     selfKey=first.self;renderParticipants(first.participants||[]);
-    await send('peer-ready',{});
-    document.getElementById('status').textContent='Conectado';
-    await loadChatHistory();pollSignals();pollChat();setTimeout(heartbeat,1200);
+    await loadChatHistory();
+    connectWebSocket();
+    if(!WS_ENABLED){await send('peer-ready',{});pollSignals();pollChat();}
+    document.getElementById('status').textContent=WS_ENABLED?'Conectando WebSocket...':'Conectado (fallback)';
+    setTimeout(heartbeat,1200);
   }catch(e){
     document.getElementById('status').textContent='Erro de mídia';
     alert('Não foi possível acessar câmera/microfone: '+e.message+'\nVerifique permissões e HTTPS.');
