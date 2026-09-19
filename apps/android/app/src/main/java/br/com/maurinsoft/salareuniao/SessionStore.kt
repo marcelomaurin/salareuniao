@@ -24,4 +24,8 @@ class SessionStore(context: Context) {
     var userRole: String
         get() = prefs.getString("user_role", "user") ?: "user"
         set(value) = prefs.edit().putString("user_role", value).apply()
+
+    var lastUpdateOfferedCode: Int
+        get() = prefs.getInt("last_update_offered_code", 0)
+        set(value) = prefs.edit().putInt("last_update_offered_code", value).apply()
 }
