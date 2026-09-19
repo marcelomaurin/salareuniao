@@ -3,7 +3,7 @@ require __DIR__.'/lib/bootstrap.php';
 $admin=require_admin();
 
 $message='';$error='';
-$storage=__DIR__.'/storage/firmware';
+$storage=dirname(__DIR__,2).'/storage/firmware';
 if(!is_dir($storage))@mkdir($storage,0770,true);
 
 if($_SERVER['REQUEST_METHOD']==='POST'){
