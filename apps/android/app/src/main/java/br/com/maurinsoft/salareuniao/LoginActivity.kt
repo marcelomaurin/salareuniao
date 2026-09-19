@@ -24,6 +24,8 @@ class LoginActivity : AppCompatActivity() {
         session = SessionStore(this)
         secure = SecureTokenStore(this)
 
+        if (handleIncomingIntent(intent)) return
+
         binding.edtEmail.setText(session.email)
         binding.edtApiBase.setText(session.apiBase)
         binding.edtWebBase.setText(session.webBase)
@@ -46,6 +48,33 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun handleIncomingIntent(incoming: Intent): Boolean {
+        val data = incoming.data ?: return false
+
+        val target = when {
+            data.scheme == "salareuniao" && data.host == "join" -> {
+                val token = data.getQueryParameter("token") ?: return false
+                session.webBase + "/join.php?token=" + Uri.encode(token)
+            }
+            data.scheme == "https" &&
+                data.host.equals(BuildConfig.APP_HOST, ignoreCase = true) &&
+                data.path.orEmpty().endsWith("/join.php") -> data.toString()
+            else -> return false
+        }
+
+        startActivity(
+            Intent(this, MeetingActivity::class.java)
+                .putExtra(MeetingActivity.EXTRA_URL, target)
+        )
+        return true
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
     }
 
     private fun validHttps(url: String): Boolean {
