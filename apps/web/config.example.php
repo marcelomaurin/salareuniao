@@ -16,6 +16,16 @@ return [
     'mail' => [
         'from' => 'salareuniao@seu-dominio.example',
     ],
+    'websocket' => [
+        'enabled' => true,
+        // URL pública usada pelo navegador. Em produção, use wss://.
+        'public_url' => 'wss://meet.seu-dominio.example/ws',
+        // Interface/porta internas do serviço PHP Ratchet.
+        'listen_host' => '0.0.0.0',
+        'listen_port' => 8088,
+        'path' => '/ws',
+        'reconnect_ms' => 2000,
+    ],
     'webrtc' => [
         'ice_servers' => [
             ['urls' => ['stun:turn.seu-dominio.example:3478']],
