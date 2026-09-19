@@ -81,7 +81,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             }
         }elseif($action==='open'){
             if($room['status']==='cancelled') throw new RuntimeException('Uma reunião cancelada não pode ser aberta.');
-            $pdo->prepare("UPDATE rooms SET status='open',ends_at=NULL WHERE id=?")->execute([$id]);
+            $pdo->prepare("UPDATE rooms SET status='open' WHERE id=?")->execute([$id]);
             $msg='Sala aberta.';
         }elseif(in_array($action,['close','cancel'],true)){
             $newStatus=$action==='cancel'?'cancelled':'closed';
