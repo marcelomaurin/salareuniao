@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig;
+  ComCtrls, Grids, fpjson, LCLIntf, uApiClient, uAppConfig, uInvites;
 
 type
   TMainForm = class(TForm)
@@ -24,7 +24,7 @@ type
     TopPanel: TPanel;
     LblUser: TLabel;
     BtnRefresh, BtnLogout, BtnNewRoom, BtnOpenMeeting, BtnOpenRoom,
-      BtnCloseRoom, BtnCancelRoom: TButton;
+      BtnCloseRoom, BtnCancelRoom, BtnInvites: TButton;
 
     Tabs: TPageControl;
     TabRooms, TabAgenda: TTabSheet;
@@ -40,6 +40,7 @@ type
     procedure RefreshClick(Sender: TObject);
     procedure NewRoomClick(Sender: TObject);
     procedure OpenMeetingClick(Sender: TObject);
+    procedure InvitesClick(Sender: TObject);
     procedure RoomActionClick(Sender: TObject);
     procedure ShowLogin;
     procedure ShowMain(const AName, ARole: string);
@@ -197,10 +198,18 @@ begin
   BtnOpenMeeting.Top := 12;
   BtnOpenMeeting.OnClick := @OpenMeetingClick;
 
+  BtnInvites := TButton.Create(TopPanel);
+  BtnInvites.Parent := TopPanel;
+  BtnInvites.Caption := 'Convidados';
+  BtnInvites.Left := 545;
+  BtnInvites.Top := 12;
+  BtnInvites.Width := 90;
+  BtnInvites.OnClick := @InvitesClick;
+
   BtnOpenRoom := TButton.Create(TopPanel);
   BtnOpenRoom.Parent := TopPanel;
   BtnOpenRoom.Caption := 'Abrir sala';
-  BtnOpenRoom.Left := 545;
+  BtnOpenRoom.Left := 645;
   BtnOpenRoom.Top := 12;
   BtnOpenRoom.Tag := 1;
   BtnOpenRoom.OnClick := @RoomActionClick;
@@ -208,7 +217,7 @@ begin
   BtnCloseRoom := TButton.Create(TopPanel);
   BtnCloseRoom.Parent := TopPanel;
   BtnCloseRoom.Caption := 'Encerrar';
-  BtnCloseRoom.Left := 635;
+  BtnCloseRoom.Left := 735;
   BtnCloseRoom.Top := 12;
   BtnCloseRoom.Tag := 2;
   BtnCloseRoom.OnClick := @RoomActionClick;
@@ -216,7 +225,7 @@ begin
   BtnCancelRoom := TButton.Create(TopPanel);
   BtnCancelRoom.Parent := TopPanel;
   BtnCancelRoom.Caption := 'Cancelar';
-  BtnCancelRoom.Left := 720;
+  BtnCancelRoom.Left := 820;
   BtnCancelRoom.Top := 12;
   BtnCancelRoom.Tag := 3;
   BtnCancelRoom.OnClick := @RoomActionClick;
@@ -224,7 +233,7 @@ begin
   BtnLogout := TButton.Create(TopPanel);
   BtnLogout.Parent := TopPanel;
   BtnLogout.Caption := 'Sair';
-  BtnLogout.Left := 810;
+  BtnLogout.Left := 910;
   BtnLogout.Top := 12;
   BtnLogout.OnClick := @LogoutClick;
 
@@ -505,6 +514,27 @@ begin
     on E: Exception do ApiError(E);
   end;
   D.Free;
+end;
+
+procedure TMainForm.InvitesClick(Sender: TObject);
+var
+  ID: Int64;
+  F: TInviteForm;
+begin
+  ID := SelectedRoomId;
+  if ID <= 0 then
+  begin
+    MessageDlg('Selecione uma sala.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+
+  F := TInviteForm.CreateForRoom(Self, FApi, ID);
+  try
+    F.ShowModal;
+    RefreshAll;
+  finally
+    F.Free;
+  end;
 end;
 
 procedure TMainForm.RoomActionClick(Sender: TObject);
