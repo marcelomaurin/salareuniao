@@ -1,0 +1,8 @@
+# Dentro do VirtualHost *:443 de meet.seu-dominio.example
+ProxyPreserveHost On
+
+# Apache 2.4 com mod_proxy_wstunnel
+ProxyPass        "/ws"  "ws://127.0.0.1:8088/ws"
+ProxyPassReverse "/ws"  "ws://127.0.0.1:8088/ws"
+
+# Garanta também o HTTPS/certificado normal do VirtualHost.
