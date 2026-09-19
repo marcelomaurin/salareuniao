@@ -14,7 +14,17 @@ return [
         'session_name' => 'salareuniao_session',
     ],
     'mail' => [
+        'driver' => 'smtp',
+        'host' => 'smtp.seu-dominio.example',
+        'port' => 587,
+        'auth' => true,
+        'username' => 'salareuniao@seu-dominio.example',
+        'password' => 'ALTERE_AQUI',
+        'encryption' => 'tls',
         'from' => 'salareuniao@seu-dominio.example',
+        'from_name' => 'Sala Reunião',
+        'reply_to' => 'salareuniao@seu-dominio.example',
+        'fallback_mail' => false,
     ],
     'websocket' => [
         'enabled' => true,
