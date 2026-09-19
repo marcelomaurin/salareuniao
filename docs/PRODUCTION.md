@@ -279,3 +279,36 @@ Administração > Dispositivos > Detalhes
 Quando houver versão ativa superior, aparece o botão **Atualizar para X.Y.Z**.
 
 O ESP32 baixa o binário por HTTPS, valida SHA-256 e só então grava a nova imagem.
+
+
+## Auditoria
+
+Após aplicar `009_audit_log.sql`, o administrador acessa:
+
+```text
+Administração > Auditoria
+```
+
+Filtros disponíveis:
+- ação;
+- usuário;
+- tipo do alvo;
+- ID do alvo;
+- data inicial/final.
+
+São registrados, entre outros:
+- login/logout Web;
+- login/logout da API Desktop;
+- criação/edição/abertura/encerramento/cancelamento de sala;
+- inclusão, reenvio, aprovação, rejeição e remoção de participantes;
+- criação/alteração de usuários;
+- cadastro, ativação, vínculo e rotação de token de dispositivos;
+- envio de comandos, inclusive OTA/reboot;
+- publicação, ativação e exclusão de firmware;
+- redefinição de senha.
+
+Heartbeat, telemetria e polling não entram no `audit_log`; permanecem nas tabelas operacionais próprias.
+
+### Retenção
+
+Por padrão, logs de auditoria não são apagados automaticamente. Defina uma política institucional antes de criar uma rotina de expurgo. Se necessário, arquive/exporte registros antigos antes da exclusão.
