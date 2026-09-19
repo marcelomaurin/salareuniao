@@ -30,6 +30,7 @@ RoomState state;
 unsigned long lastHeartbeat = 0;
 unsigned long lastStatePoll = 0;
 unsigned long lastTelemetry = 0;
+unsigned long lastCommandPoll = 0;
 unsigned long lastWifiAttempt = 0;
 unsigned long buttonDownAt = 0;
 bool buttonWasDown = false;
@@ -37,6 +38,7 @@ bool buttonWasDown = false;
 const unsigned long HEARTBEAT_INTERVAL = 30000;
 const unsigned long STATE_INTERVAL = 15000;
 const unsigned long TELEMETRY_INTERVAL = 300000;
+const unsigned long COMMAND_INTERVAL = 5000;
 const unsigned long WIFI_RETRY_INTERVAL = 10000;
 
 HardwareSerial Nextion(2);
@@ -96,6 +98,7 @@ void printHelp() {
   Serial.println("  RECONNECT");
   Serial.println("  POLL");
   Serial.println("  HEARTBEAT");
+  Serial.println("  COMMANDS");
   Serial.println("  EVENT texto");
   Serial.println("  CLEAR");
   Serial.println("  HELP");
@@ -305,6 +308,97 @@ bool pollState() {
   return true;
 }
 
+bool ackCommand(long commandId, const String &status, const String &message) {
+  StaticJsonDocument<384> doc;
+  doc["command_id"] = commandId;
+  doc["status"] = status;
+  doc["ack_payload"]["message"] = message;
+  doc["ack_payload"]["firmware_version"] = FW_VERSION;
+
+  String body, response;
+  serializeJson(doc, body);
+  int code;
+  return apiRequest("POST", "/device/commands.php", body, response, code);
+}
+
+bool executeCommand(JsonObject cmd) {
+  long id = cmd["id"] | 0;
+  String type = String((const char *)(cmd["command_type"] | ""));
+  JsonObject payload = cmd["payload"].as<JsonObject>();
+  String value = payload.isNull() ? "" : String((const char *)(payload["value"] | ""));
+
+  Serial.printf("[CMD] id=%ld type=%s value=%s\n", id, type.c_str(), value.c_str());
+
+  if (type == "refresh") {
+    bool ok = pollState();
+    ackCommand(id, ok ? "acked" : "failed", ok ? "state refreshed" : "refresh failed");
+    return ok;
+  }
+
+  if (type == "led_on") {
+    digitalWrite(PIN_STATUS_LED, HIGH);
+    ackCommand(id, "acked", "led on");
+    return true;
+  }
+
+  if (type == "led_off") {
+    digitalWrite(PIN_STATUS_LED, LOW);
+    ackCommand(id, "acked", "led off");
+    return true;
+  }
+
+  if (type == "message") {
+    Serial.printf("[MESSAGE] %s\n", value.c_str());
+#if ENABLE_NEXTION
+    nextionText("agenda", value);
+#endif
+    ackCommand(id, "acked", "message displayed");
+    return true;
+  }
+
+  if (type == "nextion_page") {
+#if ENABLE_NEXTION
+    nextionSendRaw(String("page ") + value);
+    ackCommand(id, "acked", "page changed");
+    return true;
+#else
+    ackCommand(id, "failed", "Nextion disabled");
+    return false;
+#endif
+  }
+
+  if (type == "reboot") {
+    ackCommand(id, "acked", "rebooting");
+    delay(300);
+    ESP.restart();
+    return true;
+  }
+
+  ackCommand(id, "failed", "unknown command");
+  return false;
+}
+
+bool pollCommands() {
+  String response;
+  int code;
+  if (!apiRequest("GET", "/device/commands.php", "", response, code)) return false;
+
+  DynamicJsonDocument doc(4096);
+  DeserializationError err = deserializeJson(doc, response);
+  if (err) {
+    Serial.printf("[JSON] commands: %s\n", err.c_str());
+    return false;
+  }
+
+  JsonArray commands = doc["commands"].as<JsonArray>();
+  if (commands.isNull()) return true;
+
+  for (JsonObject cmd : commands) {
+    executeCommand(cmd);
+  }
+  return true;
+}
+
 void sendTelemetry() {
   StaticJsonDocument<384> payload;
   payload["free_heap"] = ESP.getFreeHeap();
@@ -360,6 +454,7 @@ void processSerialLine(String line) {
   }
   else if (line.equalsIgnoreCase("POLL")) pollState();
   else if (line.equalsIgnoreCase("HEARTBEAT")) sendHeartbeat();
+  else if (line.equalsIgnoreCase("COMMANDS")) pollCommands();
   else if (line.startsWith("EVENT ")) sendSimpleEvent("device.manual", line.substring(6));
   else if (line.startsWith("SET ")) {
     int eq = line.indexOf('=');
@@ -430,6 +525,7 @@ void setup() {
   lastHeartbeat = now;
   lastStatePoll = now;
   lastTelemetry = now;
+  lastCommandPoll = now;
 }
 
 void loop() {
@@ -461,6 +557,11 @@ void loop() {
   if (now - lastTelemetry >= TELEMETRY_INTERVAL) {
     lastTelemetry = now;
     sendTelemetry();
+  }
+
+  if (now - lastCommandPoll >= COMMAND_INTERVAL) {
+    lastCommandPoll = now;
+    pollCommands();
   }
 
   delay(5);
