@@ -219,3 +219,63 @@ Fluxo recomendado de publicação:
 7. use `required=true` apenas quando uma versão antiga não puder continuar operando.
 
 O cliente baixa o pacote e chama o mecanismo padrão do sistema operacional para iniciá-lo. O instalador deve cuidar da substituição do executável.
+
+
+## OTA ESP32
+
+Crie um diretório privado, fora da raiz pública do virtual host:
+
+```bash
+mkdir -p storage/firmware
+chown -R www-data:www-data storage/firmware
+chmod 770 storage/firmware
+```
+
+O PHP grava os binários em:
+
+```text
+<raiz-do-projeto>/storage/firmware
+```
+
+O arquivo não deve ser servido diretamente por Apache/Nginx. O download ocorre exclusivamente por:
+
+```text
+/api/v1/device/firmware_download.php
+```
+
+e exige o Bearer token do dispositivo.
+
+### PHP upload
+
+Garanta no `php.ini` limites compatíveis com o firmware, por exemplo:
+
+```ini
+upload_max_filesize = 16M
+post_max_size = 18M
+```
+
+Depois reinicie PHP-FPM/Apache conforme seu ambiente.
+
+### Publicação
+
+1. atualize `FW_VERSION`;
+2. compile o ESP32;
+3. localize `firmware.bin`;
+4. abra **Administração > Firmware**;
+5. informe a versão e notas;
+6. faça upload do `.bin`;
+7. o site calcula SHA-256;
+8. o release publicado torna-se o ativo;
+9. dispositivos abaixo dessa versão passam a aparecer como desatualizados.
+
+### Atualização por dispositivo
+
+Abra:
+
+```text
+Administração > Dispositivos > Detalhes
+```
+
+Quando houver versão ativa superior, aparece o botão **Atualizar para X.Y.Z**.
+
+O ESP32 baixa o binário por HTTPS, valida SHA-256 e só então grava a nova imagem.
