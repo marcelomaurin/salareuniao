@@ -93,7 +93,7 @@ begin
       begin
         S := Resp.DataString;
         if S = '' then S := E.Message;
-        raise ESalaApiError.CreateFmt('HTTP %d: %s', [E.StatusCode, S]);
+        raise ESalaApiError.Create('Falha HTTP: ' + S);
       end;
     end;
 
