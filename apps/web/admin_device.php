@@ -19,6 +19,9 @@ function load_device(PDO $pdo,int $id): ?array {
 
 $device=load_device($pdo,$id);
 if(!$device){http_response_code(404);exit('Dispositivo não encontrado.');}
+$esp32Target=(string)($config['firmware']['esp32_target_version']??'');
+$fwCurrent=(string)($device['firmware_version']??'');
+$firmwareOutdated=$device['type']==='esp32'&&$esp32Target!==''&&$fwCurrent!==''&&version_compare($fwCurrent,$esp32Target,'<');
 
 if($_SERVER['REQUEST_METHOD']==='POST'){
     verify_csrf();
@@ -116,7 +119,7 @@ input,select,button{padding:8px}.status-pending{color:#92400e}.status-delivered{
 
 <div class="cards">
   <div class="card">Conectividade<strong class="<?=$device['online']?'online':'offline'?>"><?=$device['online']?'ONLINE':'OFFLINE'?></strong><span class="muted"><?=e((string)($device['last_seen_at']?:'sem heartbeat'))?></span></div>
-  <div class="card">Firmware<strong><?=e((string)($device['firmware_version']?:'-'))?></strong><span class="muted">versão informada pelo heartbeat</span></div>
+  <div class="card">Firmware<strong class="<?=$firmwareOutdated?'offline':'online'?>"><?=e($fwCurrent?:'-')?></strong><span class="muted"><?=$firmwareOutdated?'desatualizado · alvo '.e($esp32Target):($esp32Target!==''?'alvo '.e($esp32Target):'versão informada pelo heartbeat')?></span></div>
   <div class="card">IP<strong><?=e((string)($device['ip_address']?:'-'))?></strong><span class="muted">último endereço visto</span></div>
   <div class="card">Sala<strong><?=e((string)($device['room_name']?:'não vinculada'))?></strong><span class="muted"><?=e((string)($device['room_status']?:'-'))?></span></div>
   <div class="card">Ativo<strong><?=$device['active']?'SIM':'NÃO'?></strong><span class="muted">cadastro do dispositivo</span></div>
