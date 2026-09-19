@@ -9,7 +9,7 @@ $q=$pdo->prepare("SELECT * FROM firmware_releases WHERE id=? AND device_type='es
 $q->execute([$id]);$r=$q->fetch();
 if(!$r)api_json(['ok'=>false,'error'=>'firmware_not_found'],404);
 
-$path=__DIR__.'/../../storage/firmware/'.$r['file_name'];
+$path=dirname(__DIR__,5).'/storage/firmware/'.$r['file_name'];
 if(!is_file($path))api_json(['ok'=>false,'error'=>'firmware_file_missing'],404);
 
 header_remove('Content-Type');
