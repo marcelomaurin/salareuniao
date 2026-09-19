@@ -98,3 +98,14 @@ mysql -u root -p salareuniao < apps/web/sql/008_firmware_releases.sql
 ```
 
 Cria `firmware_releases`, usada para versionamento e publicação OTA dos binários ESP32.
+
+
+## Migration 009 — auditoria
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/009_audit_log.sql
+```
+
+Cria `audit_log`, com usuário, ação, alvo, detalhes JSON, IP, user-agent e data/hora.
+
+A aplicação foi instrumentada para registrar ações administrativas e operacionais relevantes do site e da API REST, sem registrar heartbeat, polling ou telemetria em alta frequência.
