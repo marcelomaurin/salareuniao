@@ -68,3 +68,8 @@ Marcelo Maurin Martins — MaurinSoft
 ## Firmware ESP32 atual
 
 O firmware REST v1 está em `apps/esp32/firmware` e já implementa heartbeat, agenda/estado, telemetria, eventos, comandos remotos com ACK, LED/botão e suporte opcional ao Nextion.
+
+
+## Cliente Android
+
+O app Android está em `apps/android`. Ele usa Kotlin, API REST v1 e uma WebView segura para executar a mesma videoconferência WebRTC do site, com câmera e microfone dentro do aplicativo.
