@@ -21,6 +21,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $issuedToken=bin2hex(random_bytes(32));
             $pdo->prepare('INSERT INTO device_tokens(device_id,token_hash) VALUES(?,?)')->execute([$id,hash('sha256',$issuedToken)]);
             $pdo->commit();
+            audit_log('device.create','device',$id,['name'=>$name,'uid'=>$uid,'type'=>$type,'room_id'=>$roomId]);
             $message='Dispositivo criado. Copie o token agora; ele não será exibido novamente.';
         }elseif($action==='rotate'){
             $id=(int)($_POST['device_id']??0);
@@ -29,16 +30,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $issuedToken=bin2hex(random_bytes(32));
             $pdo->prepare('INSERT INTO device_tokens(device_id,token_hash) VALUES(?,?)')->execute([$id,hash('sha256',$issuedToken)]);
             $pdo->commit();
+            audit_log('device.rotate_token','device',$id);
             $message='Token rotacionado. Atualize o dispositivo.';
         }elseif($action==='toggle'){
             $id=(int)($_POST['device_id']??0);
             $active=(int)($_POST['active']??0);
             $pdo->prepare("UPDATE devices SET active=?,status=IF(?=1,status,'offline') WHERE id=?")->execute([$active,$active,$id]);
+            audit_log('device.toggle_active','device',$id,['active'=>(bool)$active]);
             $message=$active?'Dispositivo ativado.':'Dispositivo desativado.';
         }elseif($action==='bind'){
             $id=(int)($_POST['device_id']??0);
             $roomId=($_POST['room_id']??'')!==''?(int)$_POST['room_id']:null;
             $pdo->prepare('UPDATE devices SET room_id=? WHERE id=?')->execute([$roomId,$id]);
+            audit_log('device.bind_room','device',$id,['room_id'=>$roomId]);
             $message='Vínculo atualizado.';
         }elseif($action==='command'){
             $id=(int)($_POST['device_id']??0);
@@ -46,6 +50,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $value=trim($_POST['command_value']??'');
             $payload=json_encode(['value'=>$value],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $pdo->prepare('INSERT INTO device_commands(device_id,command_type,payload) VALUES(?,?,?)')->execute([$id,$type,$payload]);
+            audit_log('device.command','device',$id,['command'=>$type,'value'=>$value]);
             $message='Comando enfileirado.';
         }
     }catch(Throwable $e){
