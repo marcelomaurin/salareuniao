@@ -16,7 +16,7 @@
     <BuildModes Count="1">
       <Item1 Name="Default" Default="True"/>
     </BuildModes>
-    <Units Count="5">
+    <Units Count="6">
       <Unit0>
         <Filename Value="SalaReuniaoDesktop.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -42,6 +42,11 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="uInvites"/>
       </Unit4>
+      <Unit5>
+        <Filename Value="uMeetingView.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="uMeetingView"/>
+      </Unit5>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
