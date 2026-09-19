@@ -93,7 +93,14 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                                 SELECT ?,?,participant_key,'leave',JSON_OBJECT('roomEnded',true,'cancelled',?) FROM room_invites WHERE room_id=? AND participant_key IS NOT NULL AND participant_key<>?");
             $sig->execute([$id,$hostInvite['participant_key'],$action==='cancel'?1:0,$id,$hostInvite['participant_key']]);
             $pdo->commit();
-            $msg=$action==='cancel'?'Reunião cancelada.':'Reunião encerrada.';
+            if($action==='cancel'){
+                $emails=$pdo->prepare("SELECT DISTINCT email FROM room_invites WHERE room_id=? AND email<>?");
+                $emails->execute([$id,strtolower($room['owner_email'])]);
+                foreach($emails->fetchAll() as $row){
+                    if(!empty($row['email'])) send_room_cancelled_mail($config,$room,$row['email']);
+                }
+            }
+            $msg=$action==='cancel'?'Reunião cancelada e convidados notificados.':'Reunião encerrada.';
         }elseif($action==='remove'){
             $target=$pdo->prepare('SELECT participant_key FROM room_invites WHERE id=? AND room_id=?');
             $target->execute([$inviteId,$id]);$t=$target->fetch();
