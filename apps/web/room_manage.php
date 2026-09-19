@@ -45,6 +45,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             if($name==='') throw new RuntimeException('Informe o nome da reunião.');
             $q=$pdo->prepare('UPDATE rooms SET name=?,description=?,starts_at=?,ends_at=? WHERE id=?');
             $q->execute([$name,$description,$starts,$ends,$id]);
+            audit_log('room.edit','room',$id,['name'=>$name,'starts_at'=>$starts,'ends_at'=>$ends]);
             $msg='Dados da reunião atualizados.';
         }elseif($action==='add_invites'){
             if($room['status']==='cancelled') throw new RuntimeException('Não é possível convidar pessoas para uma reunião cancelada.');
@@ -62,26 +63,31 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 send_room_invite_mail($config,$room,$email,$token);
                 $added++;
             }
+            audit_log('room.invites_add','room',$id,['count'=>$added]);
             $msg=$added.' novo(s) convite(s) enviado(s).';
         }elseif($action==='resend'){
             $q=$pdo->prepare('SELECT * FROM room_invites WHERE id=? AND room_id=? LIMIT 1');
             $q->execute([$inviteId,$id]);$invite=$q->fetch();
             if(!$invite) throw new RuntimeException('Convite não encontrado.');
             send_room_invite_mail($config,$room,$invite['email'],$invite['token'],'resend');
+            audit_log('room.invite_resend','invite',$inviteId,['room_id'=>$id,'email'=>$invite['email']]);
             $msg='Convite reenviado para '.$invite['email'].'.';
         }elseif(in_array($action,['approve','reject'],true)){
             if($action==='approve'){
                 $pk=bin2hex(random_bytes(32));
                 $up=$pdo->prepare("UPDATE room_invites SET status='approved',participant_key=COALESCE(participant_key,?),approved_at=NOW() WHERE id=? AND room_id=?");
                 $up->execute([$pk,$inviteId,$id]);
+                audit_log('room.participant_approve','invite',$inviteId,['room_id'=>$id]);
                 $msg='Participante autorizado.';
             }else{
                 $pdo->prepare("UPDATE room_invites SET status='rejected' WHERE id=? AND room_id=?")->execute([$inviteId,$id]);
+                audit_log('room.participant_reject','invite',$inviteId,['room_id'=>$id]);
                 $msg='Participante recusado.';
             }
         }elseif($action==='open'){
             if($room['status']==='cancelled') throw new RuntimeException('Uma reunião cancelada não pode ser aberta.');
             $pdo->prepare("UPDATE rooms SET status='open' WHERE id=?")->execute([$id]);
+            audit_log('room.open','room',$id);
             $msg='Sala aberta.';
         }elseif(in_array($action,['close','cancel'],true)){
             $newStatus=$action==='cancel'?'cancelled':'closed';
@@ -100,6 +106,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     if(!empty($row['email'])) send_room_cancelled_mail($config,$room,$row['email']);
                 }
             }
+            audit_log($action==='cancel'?'room.cancel':'room.close','room',$id);
             $msg=$action==='cancel'?'Reunião cancelada e convidados notificados.':'Reunião encerrada.';
         }elseif($action==='remove'){
             $target=$pdo->prepare('SELECT participant_key FROM room_invites WHERE id=? AND room_id=?');
@@ -112,6 +119,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 $pdo->prepare('DELETE FROM room_presence WHERE room_id=? AND participant_key=?')->execute([$id,$t['participant_key']]);
                 $sig=$pdo->prepare("INSERT INTO signaling_messages(room_id,sender_key,recipient_key,message_type,payload) VALUES(?,?,?,'leave',JSON_OBJECT('removed',true))");
                 $sig->execute([$id,$hostInvite['participant_key'],$t['participant_key']]);
+                audit_log('room.participant_remove','invite',$inviteId,['room_id'=>$id]);
                 $msg='Participante removido.';
             }
         }
