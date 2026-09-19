@@ -35,6 +35,14 @@ return [
     'firmware' => [
         'esp32_target_version' => '1.0.0',
     ],
+    'android_update' => [
+        'enabled' => true,
+        'version_code' => 1,
+        'version' => '1.0.0',
+        'required' => false,
+        'notes' => 'Primeira versão Android distribuída pelo servidor.',
+        'apk_url' => 'https://meet.seu-dominio.example/downloads/SalaReuniaoAndroid-1.0.0.apk',
+    ],
     'desktop_update' => [
         'enabled' => true,
         'version' => '1.0.0',
