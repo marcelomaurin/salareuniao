@@ -42,14 +42,13 @@ try {
 } catch (Throwable $e) {
     http_response_code(500);
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'
-        . '<h2 style="color: #ef4444;">Erro de Conexão com o Banco de Dados (Sala Reunião)</h2>'
-        . '<p style="color: #94a3b8;">Não foi possível conectar ao banco de dados MySQL (' . htmlspecialchars($config['db']['name']) . ').</p>'
-        . '<pre style="background: #1e293b; padding: 15px; border-radius: 8px; color: #fca5a5;">' . htmlspecialchars($e->getMessage()) . '</pre>'
-        . '<p style="color: #64748b; font-size: 13px;">Verifique as credenciais no arquivo <code>salareuniao/config.php</code> ou <code>restrita/config.local.php</code>.</p>'
+        . '<h2 style="color: #ef4444;">Erro de Conexão com o Banco de Dados</h2>'
+        . '<p>Não foi possível conectar ao MySQL para a Sala de Reunião: ' . htmlspecialchars($e->getMessage()) . '</p>'
+        . '<p style="color: #94a3b8;">Verifique as credenciais em <code>salareuniao/config.php</code> ou <code>restrita/config.local.php</code>.</p>'
         . '</div>');
 }
 
-// Auto-provisionamento de todas as tabelas essenciais do Sala Reunião
+// Auto-provisioning de tabelas essenciais
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS users (
@@ -97,6 +96,10 @@ try {
             display_name VARCHAR(120) NOT NULL,
             ip_address VARCHAR(64) NULL,
             user_agent VARCHAR(255) NULL,
+            mic_enabled TINYINT(1) NOT NULL DEFAULT 1,
+            cam_enabled TINYINT(1) NOT NULL DEFAULT 1,
+            screen_sharing TINYINT(1) NOT NULL DEFAULT 0,
+            joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_seen_at DATETIME NOT NULL,
             PRIMARY KEY (room_id, participant_key),
             INDEX idx_presence_room (room_id, last_seen_at)
@@ -126,12 +129,24 @@ try {
         CREATE TABLE IF NOT EXISTS signaling_messages (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             room_id BIGINT UNSIGNED NOT NULL,
-            from_key CHAR(64) NOT NULL,
-            to_key CHAR(64) NOT NULL,
-            type VARCHAR(32) NOT NULL,
+            sender_key CHAR(64) NOT NULL,
+            recipient_key CHAR(64) NULL,
+            message_type VARCHAR(32) NOT NULL,
             payload MEDIUMTEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_signaling_to (room_id, to_key, id)
+            INDEX idx_signaling_to (room_id, recipient_key, id),
+            INDEX idx_signaling_sender (room_id, sender_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS devices (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            device_uid VARCHAR(120) NOT NULL UNIQUE,
+            name VARCHAR(120) NOT NULL,
+            type VARCHAR(60) NOT NULL DEFAULT 'webcam',
+            api_key VARCHAR(120) NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            last_seen_at DATETIME NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
         CREATE TABLE IF NOT EXISTS audit_log (
@@ -147,7 +162,59 @@ try {
             INDEX idx_audit_user (user_id),
             INDEX idx_audit_action (action)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id BIGINT UNSIGNED NOT NULL,
+            token CHAR(64) NOT NULL UNIQUE,
+            expires_at DATETIME NOT NULL,
+            used TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_reset_token (token)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+
+    // Migrações seguras de colunas em signaling_messages
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM signaling_messages")->fetchAll(PDO::FETCH_COLUMN);
+        if (in_array('from_key', $cols, true) && !in_array('sender_key', $cols, true)) {
+            $pdo->exec("ALTER TABLE signaling_messages CHANGE COLUMN from_key sender_key CHAR(64) NOT NULL");
+        }
+        if (in_array('to_key', $cols, true) && !in_array('recipient_key', $cols, true)) {
+            $pdo->exec("ALTER TABLE signaling_messages CHANGE COLUMN to_key recipient_key CHAR(64) NULL");
+        }
+        if (in_array('type', $cols, true) && !in_array('message_type', $cols, true)) {
+            $pdo->exec("ALTER TABLE signaling_messages CHANGE COLUMN type message_type VARCHAR(32) NOT NULL");
+        }
+    } catch (Throwable $e) {}
+
+    // Migrações seguras de colunas em room_presence
+    try {
+        $colsPresence = $pdo->query("SHOW COLUMNS FROM room_presence")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('mic_enabled', $colsPresence, true)) {
+            $pdo->exec("ALTER TABLE room_presence ADD COLUMN mic_enabled TINYINT(1) NOT NULL DEFAULT 1");
+        }
+        if (!in_array('cam_enabled', $colsPresence, true)) {
+            $pdo->exec("ALTER TABLE room_presence ADD COLUMN cam_enabled TINYINT(1) NOT NULL DEFAULT 1");
+        }
+        if (!in_array('screen_sharing', $colsPresence, true)) {
+            $pdo->exec("ALTER TABLE room_presence ADD COLUMN screen_sharing TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('joined_at', $colsPresence, true)) {
+            $pdo->exec("ALTER TABLE room_presence ADD COLUMN joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+        }
+    } catch (Throwable $e) {}
+
+    // Cria usuário admin padrão se não houver usuários cadastrados
+    try {
+        $userCount = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+        if ($userCount === 0) {
+            $defaultPass = password_hash('Maurinsoft@2026', PASSWORD_DEFAULT);
+            $st = $pdo->prepare("INSERT INTO users (name, email, password_hash, role, active) VALUES (?, ?, ?, 'admin', 1)");
+            $st->execute(['Marcelo Maurin', 'marcelomaurinmartins@maurinsoft.com.br', $defaultPass]);
+        }
+    } catch (Throwable $e) {}
+
 } catch (Throwable $e) {
     error_log('SalaReuniao auto-provisioning notice: ' . $e->getMessage());
 }
@@ -155,7 +222,7 @@ try {
 function current_user(): ?array {
     global $pdo;
     
-    // 1. Tenta sessao do Sala Reuniao
+    // 1. Tenta sessão nativa do Sala Reunião
     if (!empty($_SESSION['user_id'])) {
         try {
             $st = $pdo->prepare('SELECT id,name,email,role,active FROM users WHERE id=? LIMIT 1');
@@ -165,45 +232,28 @@ function current_user(): ?array {
         } catch (Throwable $e) {}
     }
 
-    // 2. Ponte de SSO: Se logado na Area Restrita da Maurinsoft ($_SESSION['usuario_id'])
+    // 2. Ponte de SSO: Se logado na Área Restrita da Maurinsoft ($_SESSION['usuario_id'])
     if (!empty($_SESSION['usuario_id'])) {
         try {
-            $uRestrita = null;
-            // Tenta buscar no schema usuarios
             $st = $pdo->prepare('SELECT * FROM usuarios WHERE id=? LIMIT 1');
             $st->execute([$_SESSION['usuario_id']]);
             $uRestrita = $st->fetch();
             
-            if ($uRestrita && (!isset($uRestrita['ativo']) || (int)$uRestrita['ativo'] === 1)) {
-                $email = strtolower(trim((string)($uRestrita['email'] ?? '')));
-                $nome = trim((string)($uRestrita['nome'] ?? 'Usuário Maurinsoft'));
-                if ($email === '') {
-                    $email = strtolower((string)($uRestrita['login'] ?? 'user')) . '@maurinsoft.com.br';
+            if ($uRestrita && !empty($uRestrita['email'])) {
+                $st2 = $pdo->prepare('SELECT id,name,email,role,active FROM users WHERE email=? LIMIT 1');
+                $st2->execute([$uRestrita['email']]);
+                $uSala = $st2->fetch();
+                if (!$uSala) {
+                    $defPass = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+                    $ins = $pdo->prepare("INSERT INTO users(name,email,password_hash,role,active) VALUES(?,?,?,'admin',1)");
+                    $ins->execute([$uRestrita['nome'] ?? $uRestrita['email'], $uRestrita['email'], $defPass]);
+                    $newId = (int)$pdo->lastInsertId();
+                    $_SESSION['user_id'] = $newId;
+                    return ['id' => $newId, 'name' => $uRestrita['nome'] ?? $uRestrita['email'], 'email' => $uRestrita['email'], 'role' => 'admin', 'active' => 1];
+                } else {
+                    $_SESSION['user_id'] = (int)$uSala['id'];
+                    return $uSala;
                 }
-
-                $papel = strtolower((string)($uRestrita['papel'] ?? $uRestrita['perfil'] ?? 'usuario'));
-                $isAdmin = ($papel === 'admin' || $email === 'marcelomaurinmartins@gmail.com' || ($uRestrita['login'] ?? '') === 'admin');
-                $role = $isAdmin ? 'admin' : 'user';
-
-                // Localiza ou cria em users
-                $st = $pdo->prepare('SELECT id,name,email,role,active FROM users WHERE LOWER(email)=? LIMIT 1');
-                $st->execute([$email]);
-                $uExistente = $st->fetch();
-
-                if (!$uExistente) {
-                    $st = $pdo->prepare('INSERT INTO users(name,email,password_hash,role,active) VALUES(?,?,?,?,1)');
-                    $st->execute([$nome, $email, (string)($uRestrita['senha_hash'] ?? $uRestrita['senha'] ?? 'sso_auth'), $role]);
-                    $novoId = (int)$pdo->lastInsertId();
-                    $uExistente = ['id' => $novoId, 'name' => $nome, 'email' => $email, 'role' => $role, 'active' => 1];
-                } else if ($isAdmin && $uExistente['role'] !== 'admin') {
-                    $pdo->prepare('UPDATE users SET role="admin" WHERE id=?')->execute([$uExistente['id']]);
-                    $uExistente['role'] = 'admin';
-                }
-
-                $_SESSION['user_id'] = (int)$uExistente['id'];
-                $_SESSION['user_name'] = $uExistente['name'];
-                $_SESSION['role'] = $uExistente['role'];
-                return $uExistente;
             }
         } catch (Throwable $e) {}
     }
@@ -214,7 +264,8 @@ function current_user(): ?array {
 function require_login(): array {
     $u = current_user();
     if (!$u) {
-        header('Location: login.php');
+        $ret = urlencode($_SERVER['REQUEST_URI'] ?? 'index.php');
+        header("Location: index.php?redirect={$ret}");
         exit;
     }
     return $u;
@@ -222,48 +273,65 @@ function require_login(): array {
 
 function require_admin(): array {
     $u = require_login();
-    if ($u['role'] !== 'admin') {
+    if (($u['role'] ?? '') !== 'admin') {
         http_response_code(403);
-        exit('Acesso restrito ao administrador.');
+        die('<div style="font-family: sans-serif; padding: 40px; text-align: center; background: #0b1120; color: #f87171; min-height: 100vh;">'
+            . '<h1>403 - Acesso Restrito</h1>'
+            . '<p>Esta área requer privilégios de administrador do sistema.</p>'
+            . '<a href="index.php" style="color: #60a5fa; text-decoration: underline;">Voltar ao Início</a>'
+            . '</div>');
     }
     return $u;
 }
 
+function e(?string $v): string {
+    return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8');
+}
+
 function csrf_token(): string {
-    if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
-    return $_SESSION['csrf'];
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function check_csrf(?string $token): bool {
+    return !empty($token) && hash_equals($_SESSION['csrf_token'] ?? '', $token);
 }
 
 function verify_csrf(): void {
-    if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
-        http_response_code(419);
-        exit('CSRF inválido.');
+    $token = $_POST['csrf'] ?? $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+    if (!check_csrf($token)) {
+        http_response_code(403);
+        die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f87171; min-height: 100vh;">'
+            . '<h2>Ação não autorizada (CSRF)</h2>'
+            . '<p style="color: #cbd5e1;">A sessão expirou ou o token de segurança é inválido. Por favor, volte e tente novamente.</p>'
+            . '<a href="javascript:history.back()" style="color: #60a5fa; text-decoration: underline;">Voltar</a>'
+            . '</div>');
     }
 }
 
-function e(string $s): string {
-    return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-}
-
-function audit_log(string $action, ?string $targetType=null, $targetId=null, array $details=[]): void {
+function audit_log(string $action, ?string $targetType = null, $targetId = null, array $details = []): void {
     global $pdo;
+    if (!$pdo) return;
     try {
-        $u=current_user();
-        $userId=$u['id']??null;
-        $ip=substr((string)($_SERVER['REMOTE_ADDR']??''),0,64);
-        $ua=substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,255);
-        $json=$details ? json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) : null;
-        $st=$pdo->prepare('INSERT INTO audit_log(user_id,action,target_type,target_id,details,ip_address,user_agent) VALUES(?,?,?,?,?,?,?)');
+        $u = current_user();
+        $userId = $u['id'] ?? null;
+        $json = !empty($details) ? json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+        $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
+        $ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+        $st = $pdo->prepare('INSERT INTO audit_log(user_id, action, target_type, target_id, details, ip_address, user_agent) VALUES(?,?,?,?,?,?,?)');
         $st->execute([
             $userId,
-            substr($action,0,120),
-            $targetType!==null?substr($targetType,0,80):null,
-            $targetId!==null?substr((string)$targetId,0,120):null,
+            substr($action, 0, 120),
+            $targetType !== null ? substr($targetType, 0, 80) : null,
+            $targetId !== null ? substr((string)$targetId, 0, 120) : null,
             $json,
-            $ip?:null,
-            $ua?:null,
+            $ip ?: null,
+            $ua ?: null,
         ]);
     } catch (Throwable $e) {
-        error_log('SalaReuniao audit error: '.$e->getMessage());
+        error_log('audit_log error: ' . $e->getMessage());
     }
 }
+

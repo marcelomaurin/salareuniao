@@ -2,7 +2,15 @@
 declare(strict_types=1);
 
 require __DIR__ . '/lib/bootstrap.php';
-$user = require_login();
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+$user = current_user();
+if (!$user) {
+    header('Location: login.php');
+    exit;
+}
 
 // Ação de Criar Reunião Instantânea
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick_meeting') {
@@ -28,7 +36,7 @@ try {
         SELECT r.*,
          (SELECT COUNT(*) FROM room_invites i WHERE i.room_id=r.id) invited,
          (SELECT COUNT(*) FROM room_presence p WHERE p.room_id=r.id AND p.last_seen_at>=DATE_SUB(NOW(), INTERVAL 20 SECOND)) online,
-         (SELECT token FROM room_invites i WHERE i.room_id=r.id AND (i.status='approved' OR i.email=?) ORDER BY i.id ASC LIMIT 1) host_token
+         (SELECT token FROM room_invites i WHERE i.room_id=r.id AND i.status='approved' AND i.email=? ORDER BY i.id ASC LIMIT 1) host_token
         FROM rooms r
         WHERE r.owner_user_id=?
         ORDER BY CASE WHEN r.status='open' THEN 1 WHEN r.status='scheduled' THEN 2 ELSE 3 END, COALESCE(r.starts_at, r.created_at) DESC
@@ -61,11 +69,11 @@ try {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Central de Videoconferências - Maurinsoft</title>
-  <link rel="stylesheet" href="assets/css/salareuniao.css">
+  <link rel="stylesheet" href="assets/css/salareuniao.css?v=20260919_3">
   <style>
     .sr-rooms-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
       gap: 20px;
       margin-top: 20px;
     }
@@ -129,6 +137,35 @@ try {
       gap: 12px;
       flex-wrap: wrap;
     }
+
+    .sr-room-card, .sr-room-header > *, .sr-hero > *, .sr-brand > *, .sr-user-pill { min-width: 0; }
+    .sr-room-card, .sr-brand-title, .sr-user-pill { overflow-wrap: anywhere; }
+    .sr-room-header { flex-wrap: wrap; }
+    .sr-nav-links { flex-wrap: wrap; max-width: 100%; }
+    .sr-brand { max-width: 100%; flex-wrap: wrap; }
+    .sr-brand-logo, .sr-user-avatar { flex-shrink: 0; }
+    .sr-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .sr-section-heading h2 { flex: 1 1 240px; }
+    .sr-btn { white-space: normal; text-align: center; max-width: 100%; }
+    @media (max-width: 640px) {
+      .sr-topbar { position: static; padding: 14px 12px; }
+      .sr-container { padding: 20px 12px; }
+      .sr-nav-links { width: 100%; gap: 8px; }
+      .sr-nav-links .sr-btn { flex: 1 1 120px; min-height: 44px; }
+      .sr-user-pill { width: 100%; order: -1; }
+      .sr-brand-badge { display: none; }
+      .sr-brand-title { font-size: 1.1rem; }
+      .sr-hero { padding: 22px 16px; gap: 20px; }
+      .sr-hero h1 { font-size: 1.5rem !important; }
+      .sr-hero-actions, .sr-hero-actions form, .sr-hero-actions .sr-btn { width: 100%; }
+      .sr-hero-actions .sr-btn { min-height: 48px; }
+      .sr-stats-grid { grid-template-columns: 1fr; gap: 10px; }
+      .sr-stat-card { padding: 14px 18px; }
+      .sr-room-card { padding: 18px 14px; }
+      .sr-room-actions .sr-btn { flex: 1 1 120px !important; min-height: 44px; }
+      .sr-section-heading h2 { font-size: 1.25rem; }
+      #sr-toast { max-width: calc(100% - 24px); white-space: normal; text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -167,7 +204,7 @@ try {
       <div>
         <h1 style="font-size: 1.85rem; margin-bottom: 8px;">Videoconferências Criptografadas em Tempo Real</h1>
         <p style="color: var(--text-muted); max-width: 650px;">
-          Salas virtuais com transmissão de vídeo em alta definição, áudio balanceado, compartilhamento de tela e chat instantâneo.
+          Crie uma reunião e compartilhe o convite. O convidado não precisa de conta: informa o nome e aguarda sua autorização na sala de espera.
         </p>
       </div>
       <div class="sr-hero-actions">
@@ -206,7 +243,7 @@ try {
 
     <!-- Rooms List Section -->
     <section>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div class="sr-section-heading">
         <h2>Suas Salas de Videoconferência</h2>
         <a href="room_create.php" class="sr-btn sr-btn-primary sr-btn-sm">+ Nova Sala</a>
       </div>
@@ -234,7 +271,7 @@ try {
               $statusLabel = $isOpen ? 'Aberta Agora' : ($isScheduled ? 'Agendada' : 'Encerrada');
               $hostToken = $r['host_token'] ?? '';
               $enterUrl = $hostToken ? 'room.php?token=' . urlencode($hostToken) : 'room_manage.php?id=' . (int)$r['id'];
-              $inviteLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/join.php?token=' . urlencode($hostToken);
+              $inviteLink = rtrim((string)$config['app']['base_url'], '/') . '/join.php?room_id=' . (int)$r['id'];
             ?>
             <div class="sr-room-card">
               <div>
@@ -280,9 +317,9 @@ try {
                   Gerenciar
                 </a>
 
-                <?php if ($hostToken): ?>
-                  <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" onclick="copyInvite('<?=e($inviteLink)?>')" title="Copiar Link de Convite">
-                    📋 Copiar
+                <?php if ($isOpen || $isScheduled): ?>
+                  <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" data-invite-url="<?=e($inviteLink)?>" onclick="copyInvite(this.dataset.inviteUrl)" title="Copiar Link de Convite">
+                    📋 Copiar convite
                   </button>
                   <a href="https://api.whatsapp.com/send?text=<?=urlencode('Convite para videoconferência Maurinsoft (' . $r['name'] . '): ' . $inviteLink)?>" target="_blank" class="sr-btn sr-btn-secondary sr-btn-sm" title="Enviar no WhatsApp">
                     💬 WhatsApp

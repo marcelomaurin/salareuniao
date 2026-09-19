@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/lib/bootstrap.php';
-if (current_user()) {
+if (empty($_GET['logged_out']) && current_user()) {
     header('Location: index.php');
     exit;
 }

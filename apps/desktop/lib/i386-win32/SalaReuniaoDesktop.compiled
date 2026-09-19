@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Compiler Value="C:\lazarus\fpc\3.2.2\bin\i386-win32\fpc.exe" Date="1533566547"/>
+  <Params Value="-MObjFPC -Scghi -CX -O2 -gw3 -gl -WG -l -vewnhibq -FiD:\projetos\maurinsoft\salareuniao\apps\desktop\lib\i386-win32 -FuD:\projetos\maurinsoft\salareuniao\apps\desktop\ -FUD:\projetos\maurinsoft\salareuniao\apps\desktop\lib\i386-win32\ -FED:\projetos\maurinsoft\salareuniao\apps\desktop\bin\ -oD:\projetos\maurinsoft\salareuniao\apps\desktop\bin\SalaReuniaoDesktop.exe -dUSE_CEF4DELPHI SalaReuniaoDesktop.lpr"/>
+  <Complete Value="False"/>
+</CONFIG>

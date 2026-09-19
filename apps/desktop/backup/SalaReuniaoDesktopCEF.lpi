@@ -4,57 +4,69 @@
     <Version Value="12"/>
     <PathDelim Value="\"/>
     <General>
+      <RequiredPackages Count="1">
+        <Item1>
+          <PackageName Value="cef4delphi_lazarus"/>
+        </Item1>
+      </RequiredPackages>
+      <Flags>
+        <MainUnitHasCreateFormStatements Value="True"/>
+        <MainUnitHasTitleStatement Value="True"/>
+      </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="Sala Reunião Desktop"/>
+      <Title Value="Sala Reunião Desktop CEF"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
-    <BuildModes>
-      <Item Name="Default" Default="True"/>
+    <BuildModes Count="1">
+      <Item1 Name="Default" Default="True"/>
     </BuildModes>
-    <PublishOptions>
-      <Version Value="2"/>
-    </PublishOptions>
-    <RunParams>
-      <FormatVersion Value="2"/>
-    </RunParams>
-    <Units>
-      <Unit>
+    <Units Count="9">
+      <Unit0>
         <Filename Value="SalaReuniaoDesktop.lpr"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="SalaReuniaoDesktop"/>
+      </Unit0>
+      <Unit1>
         <Filename Value="uMain.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uMain"/>
+      </Unit1>
+      <Unit2>
         <Filename Value="uApiClient.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uApiClient"/>
+      </Unit2>
+      <Unit3>
         <Filename Value="uAppConfig.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uAppConfig"/>
+      </Unit3>
+      <Unit4>
         <Filename Value="uInvites.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uInvites"/>
+      </Unit4>
+      <Unit5>
         <Filename Value="uMeetingView.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uMeetingView"/>
+      </Unit5>
+      <Unit6>
         <Filename Value="uUpdater.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uUpdater"/>
+      </Unit6>
+      <Unit7>
         <Filename Value="uVersion.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
+        <UnitName Value="uVersion"/>
+      </Unit7>
+      <Unit8>
         <Filename Value="uDesktopNotify.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
+        <UnitName Value="uDesktopNotify"/>
+      </Unit8>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -65,8 +77,11 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+      <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
+    <Other>
+      <CustomOptions Value="-dUSE_CEF4DELPHI"/>
+    </Other>
     <CodeGeneration>
       <SmartLinkUnit Value="True"/>
       <Optimizations>
@@ -75,7 +90,7 @@
     </CodeGeneration>
     <Linking>
       <Debugging>
-        <DebugInfoType Value="dsDwarf3"/>
+        <GenerateDebugInfo Value="True"/>
       </Debugging>
       <Options>
         <Win32>
