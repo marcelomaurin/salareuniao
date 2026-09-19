@@ -89,3 +89,12 @@ mysql -u root -p salareuniao < apps/web/sql/007_device_commands.sql
 ```
 
 Cria `device_commands`, usada para a fila persistente servidor -> ESP32 com entrega e ACK.
+
+
+## Migration 008 — releases OTA
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/008_firmware_releases.sql
+```
+
+Cria `firmware_releases`, usada para versionamento e publicação OTA dos binários ESP32.
