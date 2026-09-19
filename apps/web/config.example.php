@@ -32,6 +32,14 @@ return [
         // 0 = token de dispositivo sem expiração até ser revogado/rotacionado.
         'device_token_ttl' => 0,
     ],
+    'desktop_update' => [
+        'enabled' => true,
+        'version' => '1.0.0',
+        'required' => false,
+        'notes' => 'Primeira versão distribuída pelo servidor.',
+        'windows_url' => 'https://meet.seu-dominio.example/downloads/SalaReuniaoDesktop-1.0.0-setup.exe',
+        'linux_url' => 'https://meet.seu-dominio.example/downloads/SalaReuniaoDesktop-1.0.0.tar.gz',
+    ],
     'websocket' => [
         'enabled' => true,
         // URL pública usada pelo navegador. Em produção, use wss://.
