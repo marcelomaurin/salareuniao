@@ -67,3 +67,27 @@ function verify_csrf(): void {
 function e(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
+
+
+function audit_log(string $action, ?string $targetType=null, $targetId=null, array $details=[]): void {
+    global $pdo;
+    try {
+        $u=current_user();
+        $userId=$u['id']??null;
+        $ip=substr((string)($_SERVER['REMOTE_ADDR']??''),0,64);
+        $ua=substr((string)($_SERVER['HTTP_USER_AGENT']??''),0,255);
+        $json=$details ? json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) : null;
+        $st=$pdo->prepare('INSERT INTO audit_log(user_id,action,target_type,target_id,details,ip_address,user_agent) VALUES(?,?,?,?,?,?,?)');
+        $st->execute([
+            $userId,
+            substr($action,0,120),
+            $targetType!==null?substr($targetType,0,80):null,
+            $targetId!==null?substr((string)$targetId,0,120):null,
+            $json,
+            $ip?:null,
+            $ua?:null,
+        ]);
+    } catch (Throwable $e) {
+        error_log('SalaReuniao audit error: '.$e->getMessage());
+    }
+}
