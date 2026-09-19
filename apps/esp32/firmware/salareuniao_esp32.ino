@@ -4,6 +4,8 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <Update.h>
+#include <mbedtls/sha256.h>
 #include <ArduinoJson.h>
 #include "config.h"
 
@@ -107,6 +109,7 @@ void printHelp() {
   Serial.println("  POLL");
   Serial.println("  HEARTBEAT");
   Serial.println("  COMMANDS");
+  Serial.println("  OTA release_id");
   Serial.println("  EVENT texto");
   Serial.println("  CLEAR");
   Serial.println("  HELP");
@@ -483,6 +486,166 @@ bool pollState() {
   return true;
 }
 
+String sha256Hex(const unsigned char *hash, size_t len) {
+  const char *hex = "0123456789abcdef";
+  String out;
+  out.reserve(len * 2);
+  for (size_t i = 0; i < len; i++) {
+    out += hex[(hash[i] >> 4) & 0x0F];
+    out += hex[hash[i] & 0x0F];
+  }
+  return out;
+}
+
+bool downloadAndApplyFirmware(long releaseId, String &message) {
+  String manifestResponse;
+  int code;
+  String manifestPath = "/device/firmware.php?release_id=" + String(releaseId) +
+    "&current=" + String(FW_VERSION);
+
+  if (!apiRequest("GET", manifestPath, "", manifestResponse, code)) {
+    message = "manifest request failed";
+    return false;
+  }
+
+  JsonDocument manifest;
+  DeserializationError err = deserializeJson(manifest, manifestResponse);
+  if (err) {
+    message = String("manifest json: ") + err.c_str();
+    return false;
+  }
+
+  JsonObject rel = manifest["release"].as<JsonObject>();
+  if (rel.isNull()) {
+    message = "release not found";
+    return false;
+  }
+
+  String version = String((const char *)(rel["version"] | ""));
+  String expectedSha = String((const char *)(rel["sha256"] | ""));
+  String downloadPath = String((const char *)(rel["download_path"] | ""));
+  size_t expectedSize = rel["size"] | 0;
+
+  if (downloadPath.isEmpty() || expectedSha.length() != 64 || expectedSize == 0) {
+    message = "invalid manifest";
+    return false;
+  }
+
+  String url = normalizeBase(cfg.apiBase) + downloadPath;
+  HTTPClient http;
+  WiFiClientSecure tls;
+  WiFiClient plain;
+
+  if (url.startsWith("https://")) {
+    if (!configureTls(tls)) {
+      message = "tls config failed";
+      return false;
+    }
+    if (!http.begin(tls, url)) {
+      message = "http begin failed";
+      return false;
+    }
+  } else {
+    if (!http.begin(plain, url)) {
+      message = "http begin failed";
+      return false;
+    }
+  }
+
+  http.setTimeout(20000);
+  http.addHeader("Authorization", "Bearer " + cfg.token);
+  http.addHeader("Accept", "application/octet-stream");
+  http.addHeader("User-Agent", String("SalaReuniaoESP32/") + FW_VERSION);
+
+  int httpCode = http.GET();
+  if (httpCode != HTTP_CODE_OK) {
+    message = "download HTTP " + String(httpCode);
+    http.end();
+    return false;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 0 || (expectedSize > 0 && (size_t)contentLength != expectedSize)) {
+    message = "invalid firmware size";
+    http.end();
+    return false;
+  }
+
+  if (!Update.begin((size_t)contentLength)) {
+    message = "Update.begin failed";
+    http.end();
+    return false;
+  }
+
+  mbedtls_sha256_context shaCtx;
+  mbedtls_sha256_init(&shaCtx);
+  mbedtls_sha256_starts(&shaCtx, 0);
+
+  WiFiClient *stream = http.getStreamPtr();
+  uint8_t buffer[1024];
+  size_t writtenTotal = 0;
+  bool streamOk = true;
+  unsigned long lastData = millis();
+
+  while (http.connected() && writtenTotal < (size_t)contentLength) {
+    size_t available = stream->available();
+    if (available) {
+      size_t toRead = available;
+      if (toRead > sizeof(buffer)) toRead = sizeof(buffer);
+      int readLen = stream->readBytes(buffer, toRead);
+      if (readLen <= 0) {
+        streamOk = false;
+        break;
+      }
+
+      mbedtls_sha256_update(&shaCtx, buffer, readLen);
+
+      size_t written = Update.write(buffer, readLen);
+      if (written != (size_t)readLen) {
+        streamOk = false;
+        break;
+      }
+
+      writtenTotal += written;
+      lastData = millis();
+    } else {
+      if (millis() - lastData > 15000) {
+        streamOk = false;
+        break;
+      }
+      delay(2);
+    }
+  }
+
+  unsigned char digest[32];
+  mbedtls_sha256_finish(&shaCtx, digest);
+  mbedtls_sha256_free(&shaCtx);
+  http.end();
+
+  if (!streamOk || writtenTotal != (size_t)contentLength) {
+    Update.abort();
+    message = "download interrupted";
+    return false;
+  }
+
+  String actualSha = sha256Hex(digest, sizeof(digest));
+  actualSha.toLowerCase();
+  expectedSha.toLowerCase();
+  if (actualSha != expectedSha) {
+    Update.abort();
+    message = "sha256 mismatch";
+    return false;
+  }
+
+  if (!Update.end(true)) {
+    message = "Update.end failed";
+    return false;
+  }
+
+  message = "updated to " + version;
+  return true;
+}
+
 bool ackCommand(long commandId, const String &status, const String &message) {
   JsonDocument doc;
   doc["command_id"] = commandId;
@@ -540,6 +703,30 @@ bool executeCommand(JsonObject cmd) {
     ackCommand(id, "failed", "Nextion disabled");
     return false;
 #endif
+  }
+
+  if (type == "ota") {
+    long releaseId = value.toInt();
+    if (releaseId <= 0) {
+      ackCommand(id, "failed", "invalid release id");
+      return false;
+    }
+
+    String otaMessage;
+    sendSimpleEvent("device.ota.started", String("release_id=") + releaseId);
+    bool ok = downloadAndApplyFirmware(releaseId, otaMessage);
+
+    if (!ok) {
+      ackCommand(id, "failed", otaMessage);
+      sendSimpleEvent("device.ota.failed", otaMessage);
+      return false;
+    }
+
+    ackCommand(id, "acked", otaMessage);
+    sendSimpleEvent("device.ota.success", otaMessage);
+    delay(700);
+    ESP.restart();
+    return true;
   }
 
   if (type == "reboot") {
@@ -631,6 +818,17 @@ void processSerialLine(String line) {
   else if (line.equalsIgnoreCase("POLL")) pollState();
   else if (line.equalsIgnoreCase("HEARTBEAT")) sendHeartbeat();
   else if (line.equalsIgnoreCase("COMMANDS")) pollCommands();
+  else if (line.startsWith("OTA ")) {
+    long releaseId = line.substring(4).toInt();
+    String otaMessage;
+    if (downloadAndApplyFirmware(releaseId, otaMessage)) {
+      Serial.println("[OTA] " + otaMessage);
+      delay(500);
+      ESP.restart();
+    } else {
+      Serial.println("[OTA] falha: " + otaMessage);
+    }
+  }
   else if (line.startsWith("EVENT ")) sendSimpleEvent("device.manual", line.substring(6));
   else if (line.startsWith("SET ")) {
     int eq = line.indexOf('=');
