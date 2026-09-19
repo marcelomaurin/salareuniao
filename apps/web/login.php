@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($u && password_verify($password, $u['password_hash'])) {
         session_regenerate_id(true);
         $_SESSION['user_id'] = $u['id'];
+        audit_log('auth.login','user',$u['id'],['email'=>$u['email']]);
         header('Location: index.php');
         exit;
     }
