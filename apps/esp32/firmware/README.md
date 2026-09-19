@@ -22,6 +22,9 @@ O firmware legado ESP8266/Nextion permanece em `../legacy/`. Esta implementaçã
 - ACK de comandos;
 - suporte opcional a Nextion via Serial2;
 - provisionamento pela Serial;
+- Access Point de configuração;
+- portal captive para Wi-Fi/API/token;
+- configuração forçada pelo botão no boot;
 - firmware versionado.
 
 ## Estrutura
@@ -75,6 +78,70 @@ Tipo: esp32
 ```
 
 O servidor exibirá um token somente no momento da criação/rotação.
+
+## Provisionamento por Access Point
+
+Se o firmware iniciar sem SSID, API ou token válidos, ele cria automaticamente um Access Point.
+
+Nome padrão:
+
+```text
+SalaReuniao-XXXXXX
+```
+
+onde o sufixo deriva do identificador do ESP32.
+
+Senha padrão:
+
+```text
+config123
+```
+
+Conecte o celular ou notebook ao AP. O portal captive deve abrir automaticamente; se não abrir, acesse:
+
+```text
+http://192.168.4.1/
+```
+
+O formulário permite configurar:
+- rede Wi-Fi;
+- senha Wi-Fi;
+- URL base da API;
+- token do dispositivo.
+
+A tela também lista redes Wi-Fi encontradas, RSSI incluído.
+
+Após clicar em **Salvar e reiniciar**:
+1. a configuração é gravada no NVS;
+2. o navegador recebe a confirmação;
+3. o ESP32 reinicia;
+4. tenta entrar na rede configurada.
+
+### Forçar modo de configuração
+
+Mantenha o botão físico pressionado por aproximadamente 3 segundos durante a inicialização.
+
+O firmware entra no portal mesmo que já tenha Wi-Fi configurado.
+
+Também é possível ativar pela Serial:
+
+```text
+PORTAL
+```
+
+O portal fecha automaticamente após 5 minutos se já existir uma configuração salva.
+
+Esses valores podem ser ajustados em `config.h`:
+
+```cpp
+#define ENABLE_CONFIG_PORTAL 1
+#define CONFIG_AP_PREFIX "SalaReuniao-"
+#define CONFIG_AP_PASSWORD "config123"
+#define CONFIG_PORTAL_TIMEOUT_MS 300000
+#define CONFIG_BUTTON_HOLD_MS 3000
+```
+
+Use uma senha de AP própria em produção.
 
 ## Provisionamento pela Serial
 
@@ -198,7 +265,7 @@ Se um comando for entregue mas o ESP32 cair antes do ACK, o servidor permite nov
 Padrão:
 
 ```text
-GPIO 0
+GPIO 4
 INPUT_PULLUP
 ```
 
@@ -278,3 +345,21 @@ Se um equipamento for perdido:
 1. Administração > Dispositivos;
 2. desative ou rotacione o token;
 3. o token anterior deixa de autenticar.
+
+
+## Fluxo de instalação sem cabo
+
+```text
+1. Grave o firmware uma vez
+2. Instale o ESP32 na sala
+3. Ligue o equipamento
+4. Celular encontra SalaReuniao-XXXXXX
+5. Conecta no AP
+6. Portal captive abre
+7. Configura Wi-Fi + API + token
+8. ESP32 reinicia
+9. Conecta no servidor
+10. Aparece online em Administração > Dispositivos
+```
+
+Se o equipamento mudar de rede posteriormente, mantenha o botão pressionado durante o boot e refaça apenas a configuração Wi-Fi.
