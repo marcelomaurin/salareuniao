@@ -80,3 +80,12 @@ Cria:
 - `device_events`.
 
 Tokens são armazenados somente em forma de hash SHA-256.
+
+
+## Migration 007 — comandos de dispositivos
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/007_device_commands.sql
+```
+
+Cria `device_commands`, usada para a fila persistente servidor -> ESP32 com entrega e ACK.
