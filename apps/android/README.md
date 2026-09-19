@@ -276,3 +276,100 @@ São suportados:
 - links HTTPS verificados do domínio configurado.
 
 Consulte `deployment/android/README.md`.
+
+
+## CI GitHub Actions
+
+Foi criado:
+
+```text
+.github/workflows/android-build.yml
+```
+
+O workflow compila:
+
+```text
+:app:assembleDebug
+:app:assembleRelease
+```
+
+e publica os artefatos:
+
+```text
+SalaReuniaoAndroid-debug
+SalaReuniaoAndroid-release
+```
+
+### Host do App Link
+
+Crie a variável do repositório:
+
+```text
+ANDROID_APP_HOST=meet.seu-dominio.example
+```
+
+Em:
+
+```text
+Settings > Secrets and variables > Actions > Variables
+```
+
+### Assinatura do release
+
+Para gerar release assinado, cadastre estes secrets em:
+
+```text
+Settings > Secrets and variables > Actions > Secrets
+```
+
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
+Converta o keystore para Base64 antes de cadastrar.
+
+Linux:
+
+```bash
+base64 -w 0 salareuniao-release.keystore
+```
+
+PowerShell:
+
+```powershell
+[Convert]::ToBase64String(
+  [IO.File]::ReadAllBytes("salareuniao-release.keystore")
+)
+```
+
+Sem esses secrets, o workflow continua compilando o APK debug e o release não assinado.
+
+### Executar
+
+O workflow pode ser executado manualmente em:
+
+```text
+GitHub > Actions > Android Build > Run workflow
+```
+
+ou por um push que altere `apps/android/**`.
+
+Commits feitos por automações/integradores podem não iniciar outro workflow automaticamente, para evitar loops. Nesse caso use **Run workflow** ou faça um push normal.
+
+### APKs
+
+Após sucesso:
+
+```text
+Actions > Android Build > execução > Artifacts
+```
+
+Baixe:
+
+```text
+SalaReuniaoAndroid-debug
+SalaReuniaoAndroid-release
+```
