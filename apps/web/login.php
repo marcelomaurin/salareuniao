@@ -29,4 +29,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <label>Senha <input type="password" name="password" required></label><br>
 <button type="submit">Entrar</button>
 </form>
+<p><a href="forgot_password.php">Esqueci minha senha</a></p>
 </body></html>
