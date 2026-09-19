@@ -38,6 +38,7 @@ try{
       VALUES(?,?,?,'approved',?,?,NOW(),NOW())");
     $h->execute([$roomId,$u['email'],$hostToken,$u['name'],$hostKey]);
     $pdo->commit();
+    api_audit($pdo,$u,'room.create','room',$roomId,['name'=>$name,'starts_at'=>$starts,'source'=>'api']);
 
     api_json(['ok'=>true,'room'=>[
         'id'=>$roomId,'name'=>$name,'description'=>$description,'starts_at'=>$starts,'status'=>'scheduled',
