@@ -64,7 +64,7 @@ O WebRTC usa ICE para descobrir IPs/portas. STUN ajuda a descobrir o endereço p
 
 ## Próximos itens
 
-- SMTP autenticado/PHPMailer;
+- SMTP autenticado/PHPMailer e e-mails HTML (implementado);
 - chat persistente da reunião (implementado);
 - edição de reunião, novos convidados, reenvio e cancelamento (implementado);
 - TURN/Coturn com credenciais temporárias (implementado; requer configuração do servidor);
@@ -121,3 +121,29 @@ mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
 A sinalização WebRTC, presença e chat usam preferencialmente o serviço PHP Ratchet em `services/signaling`.
 
 Quando a conexão WebSocket está disponível, a tela mostra `Conectado em tempo real`. Em caso de falha, o cliente retorna automaticamente aos endpoints HTTP de polling, permitindo implantação gradual e maior tolerância a falhas.
+
+
+## SMTP e recuperação de senha
+
+O cliente Web usa PHPMailer via Composer para SMTP autenticado.
+
+```bash
+cd apps/web
+composer install --no-dev --optimize-autoloader
+```
+
+Configure a seção `mail` do `config.php`. O painel **Administração > Diagnóstico** verifica se o PHPMailer está instalado, se o SMTP foi configurado e permite enviar uma mensagem de teste para o administrador autenticado.
+
+Os fluxos de e-mail incluem:
+- convite inicial;
+- reenvio de convite;
+- aviso de cancelamento;
+- recuperação de senha.
+
+A recuperação usa token aleatório de 256 bits; somente o SHA-256 do token é salvo no banco. O link expira em 60 minutos e é invalidado após o uso.
+
+Para bancos existentes:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/005_password_reset.sql
+```
