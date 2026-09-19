@@ -29,8 +29,8 @@ $ice=json_encode($iceServers,JSON_UNESCAPED_SLASHES);
 :root{font-family:Arial,Helvetica,sans-serif;color:#1f2937;background:#f4f6f8}
 *{box-sizing:border-box}body{margin:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;background:#fff;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:10}
 .top h1{font-size:20px;margin:0}.top small{display:block;color:#6b7280;margin-top:3px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;min-height:calc(100vh - 122px)}
-.main{padding:14px}.sidebar{background:#fff;border-left:1px solid #ddd;padding:14px;overflow:auto}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:calc(100vh - 122px)}
+.main{padding:14px}.sidebar{background:#fff;border-left:1px solid #ddd;display:flex;flex-direction:column;min-height:0}.tabs{display:flex;border-bottom:1px solid #ddd}.tabs button{flex:1;border-radius:0;background:#fff}.tabs button.active{background:#eef2ff}.sidepane{display:none;padding:14px;overflow:auto;min-height:0}.sidepane.active{display:block;flex:1}.chatWrap{display:flex;flex-direction:column;height:100%}.chatMessages{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:260px}.chatMsg{background:#f3f4f6;border-radius:9px;padding:8px 10px}.chatMsg.self{background:#dbeafe}.chatMeta{font-size:11px;color:#6b7280;margin-bottom:3px}.chatText{white-space:pre-wrap;word-break:break-word}.chatForm{display:flex;gap:6px;margin-top:10px}.chatForm textarea{flex:1;resize:none;min-height:52px;border:1px solid #ccc;border-radius:8px;padding:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start}
 .tile{position:relative;background:#111827;border-radius:12px;overflow:hidden;min-height:190px;box-shadow:0 2px 8px #0002}
 .tile video{width:100%;height:100%;min-height:190px;max-height:52vh;object-fit:cover;display:block;background:#111827}
@@ -61,8 +61,22 @@ button{border:0;border-radius:9px;padding:10px 15px;cursor:pointer;background:#e
     </div>
   </main>
   <aside class="sidebar">
-    <h3>Participantes (<span id="participantCount">1</span>)</h3>
-    <div id="participants"><div class="empty">Carregando...</div></div>
+    <div class="tabs">
+      <button id="tabParticipants" class="active">Participantes (<span id="participantCount">1</span>)</button>
+      <button id="tabChat">Chat <span id="chatUnread"></span></button>
+    </div>
+    <div id="paneParticipants" class="sidepane active">
+      <div id="participants"><div class="empty">Carregando...</div></div>
+    </div>
+    <div id="paneChat" class="sidepane">
+      <div class="chatWrap">
+        <div id="chatMessages" class="chatMessages"><div class="empty">Nenhuma mensagem.</div></div>
+        <form id="chatForm" class="chatForm">
+          <textarea id="chatInput" maxlength="2000" placeholder="Digite uma mensagem..."></textarea>
+          <button type="submit">Enviar</button>
+        </form>
+      </div>
+    </div>
   </aside>
 </div>
 
@@ -78,7 +92,7 @@ const TOKEN=<?=json_encode($token)?>;
 const ICE_SERVERS=<?=$ice?>;
 const pcs=new Map(), pendingIce=new Map(), participantNames=new Map();
 let lastId=0,selfKey=null,localStream=null,cameraTrack=null,screenTrack=null;
-let micEnabled=true,camEnabled=true,screenSharing=false,leaving=false;
+let micEnabled=true,camEnabled=true,screenSharing=false,leaving=false,lastChatId=0,chatOpen=false,chatUnread=0;
 
 async function jsonFetch(url,options={}){
   const r=await fetch(url,options);
@@ -195,6 +209,38 @@ async function pollSignals(){
   }catch(e){document.getElementById('status').textContent='Reconectando sinalização...';}
   setTimeout(pollSignals,700);
 }
+function setSideTab(tab){
+  chatOpen=tab==='chat';
+  document.getElementById('paneParticipants').classList.toggle('active',!chatOpen);
+  document.getElementById('paneChat').classList.toggle('active',chatOpen);
+  document.getElementById('tabParticipants').classList.toggle('active',!chatOpen);
+  document.getElementById('tabChat').classList.toggle('active',chatOpen);
+  if(chatOpen){chatUnread=0;updateUnread();setTimeout(()=>{const w=document.getElementById('chatMessages');w.scrollTop=w.scrollHeight;},0);}
+}
+function updateUnread(){document.getElementById('chatUnread').textContent=chatUnread?('('+chatUnread+')'):'';}
+function appendChatMessage(m){
+  const wrap=document.getElementById('chatMessages');
+  if(wrap.querySelector('.empty'))wrap.innerHTML='';
+  if(document.getElementById('chat-'+m.id))return;
+  const div=document.createElement('div');div.className='chatMsg'+(m.participant_key===selfKey?' self':'');div.id='chat-'+m.id;
+  const meta=document.createElement('div');meta.className='chatMeta';meta.textContent=m.display_name+' · '+String(m.created_at||'').slice(11,16);
+  const text=document.createElement('div');text.className='chatText';text.textContent=m.message;
+  div.append(meta,text);wrap.appendChild(div);lastChatId=Math.max(lastChatId,Number(m.id)||0);
+  if(chatOpen)wrap.scrollTop=wrap.scrollHeight;else if(m.participant_key!==selfKey){chatUnread++;updateUnread();}
+}
+async function loadChatHistory(){
+  try{const d=await jsonFetch('api/chat_history.php?token='+encodeURIComponent(TOKEN)+'&limit=100',{cache:'no-store'});selfKey=d.self;for(const m of d.messages||[])appendChatMessage(m);chatUnread=0;updateUnread();}catch(e){console.warn('chat history',e);}
+}
+async function pollChat(){
+  if(leaving)return;
+  try{const d=await jsonFetch('api/chat_poll.php?token='+encodeURIComponent(TOKEN)+'&after='+lastChatId,{cache:'no-store'});for(const m of d.messages||[])appendChatMessage(m);}catch(e){console.warn('chat poll',e);}
+  setTimeout(pollChat,1200);
+}
+async function sendChatMessage(text){
+  const msg=text.trim();if(!msg)return;
+  const d=await jsonFetch('api/chat_send.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,message:msg})});
+  if(d.message)appendChatMessage(d.message);
+}
 async function heartbeat(){
   if(leaving)return;
   try{
@@ -260,6 +306,15 @@ document.getElementById('mic').onclick=()=>{micEnabled=!micEnabled;localStream?.
 document.getElementById('cam').onclick=()=>{camEnabled=!camEnabled;if(cameraTrack)cameraTrack.enabled=camEnabled;updateButtons();};
 document.getElementById('screen').onclick=toggleScreen;
 document.getElementById('leave').onclick=()=>leaveRoom(true);
+document.getElementById('tabParticipants').onclick=()=>setSideTab('participants');
+document.getElementById('tabChat').onclick=()=>setSideTab('chat');
+document.getElementById('chatForm').addEventListener('submit',async e=>{
+  e.preventDefault();const input=document.getElementById('chatInput');const value=input.value;if(!value.trim())return;
+  input.disabled=true;
+  try{await sendChatMessage(value);input.value='';}catch(err){alert('Não foi possível enviar a mensagem.');}
+  finally{input.disabled=false;input.focus();}
+});
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('chatForm').requestSubmit();}});
 
 window.addEventListener('beforeunload',()=>{
   if(leaving)return;
@@ -276,7 +331,7 @@ window.addEventListener('beforeunload',()=>{
     selfKey=first.self;renderParticipants(first.participants||[]);
     await send('peer-ready',{});
     document.getElementById('status').textContent='Conectado';
-    pollSignals();setTimeout(heartbeat,1200);
+    await loadChatHistory();pollSignals();pollChat();setTimeout(heartbeat,1200);
   }catch(e){
     document.getElementById('status').textContent='Erro de mídia';
     alert('Não foi possível acessar câmera/microfone: '+e.message+'\nVerifique permissões e HTTPS.');
