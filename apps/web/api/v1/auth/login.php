@@ -22,6 +22,7 @@ $expires=(new DateTimeImmutable())->modify('+'.$ttl.' seconds')->format('Y-m-d H
 
 $ins=$pdo->prepare('INSERT INTO api_tokens(user_id,token_hash,name,expires_at) VALUES(?,?,?,?)');
 $ins->execute([$u['id'],$hash,mb_substr($name,0,120),$expires]);
+api_audit($pdo,$u,'auth.api_login','user',$u['id'],['client_name'=>$name]);
 
 api_json([
     'ok'=>true,
