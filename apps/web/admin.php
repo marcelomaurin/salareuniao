@@ -13,7 +13,8 @@ SELECT
  (SELECT COUNT(*) FROM room_presence WHERE last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND)) online_participants,
  (SELECT COUNT(*) FROM signaling_messages WHERE created_at>=DATE_SUB(NOW(),INTERVAL 5 MINUTE)) signaling_5m,
  (SELECT COUNT(*) FROM devices WHERE active=1) active_devices,
- (SELECT COUNT(*) FROM devices WHERE active=1 AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 90 SECOND)) online_devices
+ (SELECT COUNT(*) FROM devices WHERE active=1 AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 90 SECOND)) online_devices,
+ (SELECT COUNT(*) FROM audit_log WHERE created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR)) audit_24h
 ")->fetch();
 
 $rooms=$pdo->query("
@@ -27,6 +28,8 @@ JOIN users u ON u.id=r.owner_user_id
 ORDER BY (r.status='open') DESC, COALESCE(r.starts_at,r.created_at) DESC
 LIMIT 200
 ")->fetchAll();
+
+$recentAudit=$pdo->query("SELECT a.*,u.name user_name FROM audit_log a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 10")->fetchAll();
 
 $usage=$pdo->query("
 SELECT u.id,u.name,u.email,u.role,
@@ -53,6 +56,7 @@ body{font-family:Arial,sans-serif;margin:24px;background:#f5f7fa;color:#1f2937}.
 <div class="card">Participantes online<strong><?=(int)$summary['online_participants']?></strong><span class="muted">heartbeat &lt; 20 s</span></div>
 <div class="card">Sinalização / 5 min<strong><?=(int)$summary['signaling_5m']?></strong><span class="muted">offer/answer/ICE/eventos</span></div>
 <div class="card">Dispositivos online<strong><?=(int)$summary['online_devices']?></strong><span class="muted">de <?=(int)$summary['active_devices']?> ativos</span></div>
+<div class="card">Auditoria / 24h<strong><?=(int)$summary['audit_24h']?></strong><span class="muted"><a href="admin_audit.php">ver histórico</a></span></div>
 </div>
 
 <div class="panel"><h2>Salas e uso atual</h2>
@@ -62,6 +66,12 @@ body{font-family:Arial,sans-serif;margin:24px;background:#f5f7fa;color:#1f2937}.
 <td><?=(int)$r['online']?></td><td><?=(int)$r['invited']?></td><td><?=(int)$r['sharing']?></td><td><?=(int)$r['signaling_5m']?></td>
 <td><a href="room_manage.php?id=<?=(int)$r['id']?>">inspecionar</a></td>
 </tr><?php endforeach;?>
+</tbody></table></div>
+
+<div class="panel"><h2>Atividade recente</h2>
+<table><thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Alvo</th></tr></thead><tbody>
+<?php foreach($recentAudit as $a):?><tr><td><?=e($a['created_at'])?></td><td><?=e($a['user_name']?:'sistema')?></td><td><?=e($a['action'])?></td><td><?=e((string)($a['target_type']?:'-'))?><?= $a['target_id']!==null?' #'.e((string)$a['target_id']):'' ?></td></tr><?php endforeach;?>
+<?php if(!$recentAudit):?><tr><td colspan="4">Sem registros de auditoria.</td></tr><?php endif;?>
 </tbody></table></div>
 
 <div class="panel"><h2>Uso por usuário</h2>
