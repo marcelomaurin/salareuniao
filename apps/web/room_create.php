@@ -14,23 +14,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Informe o nome da sala.';
     } else {
         $pdo->beginTransaction();
-        $st = $pdo->prepare('INSERT INTO rooms(owner_user_id,name,description,starts_at,status) VALUES(?,?,?,?,?)');
-        $st->execute([$user['id'],$name,$description,$starts,'scheduled']);
-        $roomId = (int)$pdo->lastInsertId();
+        try {
+            $st = $pdo->prepare('INSERT INTO rooms(owner_user_id,name,description,starts_at,status) VALUES(?,?,?,?,?)');
+            $st->execute([$user['id'],$name,$description,$starts,'scheduled']);
+            $roomId = (int)$pdo->lastInsertId();
 
-        $inviteStmt = $pdo->prepare('INSERT INTO room_invites(room_id,email,token) VALUES(?,?,?)');
-        foreach (array_unique($emails) as $email) {
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
-            $token = bin2hex(random_bytes(32));
-            $inviteStmt->execute([$roomId,strtolower($email),$token]);
-            $link = rtrim($config['app']['base_url'],'/') . '/join.php?token=' . urlencode($token);
-            $subject = 'Convite para ' . $name;
-            $body = "Você foi convidado para a sala: {$name}\n\nAcesse: {$link}\n";
-            @mail($email, $subject, $body, 'From: '.$config['mail']['from']);
+            // O criador da sala recebe automaticamente uma identidade aprovada.
+            $hostToken = bin2hex(random_bytes(32));
+            $hostKey = bin2hex(random_bytes(32));
+            $host = $pdo->prepare("INSERT INTO room_invites(room_id,email,token,status,display_name,participant_key,requested_at,approved_at)
+                                  VALUES(?,?,?,'approved',?,?,NOW(),NOW())");
+            $host->execute([$roomId,strtolower($user['email']),$hostToken,$user['name'],$hostKey]);
+
+            $inviteStmt = $pdo->prepare('INSERT INTO room_invites(room_id,email,token) VALUES(?,?,?)');
+            foreach (array_unique($emails) as $email) {
+                $email = strtolower(trim($email));
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $email === strtolower($user['email'])) continue;
+                $token = bin2hex(random_bytes(32));
+                $inviteStmt->execute([$roomId,$email,$token]);
+                $link = rtrim($config['app']['base_url'],'/') . '/join.php?token=' . urlencode($token);
+                $subject = 'Convite para ' . $name;
+                $body = "Você foi convidado para a sala: {$name}\n\nAcesse: {$link}\n";
+                @mail($email, $subject, $body, 'From: '.$config['mail']['from']);
+            }
+            $pdo->commit();
+            header('Location: room_manage.php?id='.$roomId);
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $error = 'Não foi possível criar a sala.';
         }
-        $pdo->commit();
-        header('Location: room_manage.php?id='.$roomId);
-        exit;
     }
 }
 ?>
