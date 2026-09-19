@@ -313,6 +313,11 @@ function connectWebSocket(){
         }
         if(d.type==='chat'&&d.message){appendChatMessage(d.message);return;}
         if(d.type==='presence'){renderParticipants(d.participants||[]);return;}
+        if(d.type==='session-ended'){
+          alert('Sua participação foi encerrada ou a reunião foi fechada.');
+          await leaveRoom(false);
+          return;
+        }
         if(d.type==='error'){console.warn('WebSocket',d.error);}
       }catch(e){console.warn('WS message',e);}
     };
