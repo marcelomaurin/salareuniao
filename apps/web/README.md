@@ -66,7 +66,7 @@ O WebRTC usa ICE para descobrir IPs/portas. STUN ajuda a descobrir o endereço p
 
 - SMTP autenticado/PHPMailer;
 - chat persistente da reunião (implementado);
-- convite/edição/cancelamento mais completos;
+- edição de reunião, novos convidados, reenvio e cancelamento (implementado);
 - TURN/Coturn com credenciais temporárias (implementado; requer configuração do servidor);
 - limpeza automática de sinalização antiga;
 - troca do polling por WebSocket ou canal de eventos dedicado;
@@ -94,3 +94,23 @@ mysql -u root -p salareuniao < apps/web/sql/003_chat.sql
 ```
 
 O anfitrião e o administrador podem consultar o histórico em `room_history.php`.
+
+
+## Gestão de reuniões
+
+O responsável pela sala, e o administrador global, podem:
+- editar nome, descrição e horários;
+- adicionar convidados depois da criação;
+- reenviar um convite existente;
+- abrir e encerrar a sala;
+- cancelar a reunião;
+- remover participantes;
+- consultar histórico de chat e participação.
+
+A tabela `room_attendance` registra cada sessão de entrada/saída. Se um navegador desaparecer sem executar a saída normal, o heartbeat fecha a sessão usando o último `last_seen_at`.
+
+Para bancos existentes:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
+```
