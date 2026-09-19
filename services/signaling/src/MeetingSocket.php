@@ -78,6 +78,12 @@ final class MeetingSocket implements MessageComponentInterface
         if(!$meta){$from->close();return;}
 
         try{
+            if(!$this->sessionStillAllowed($meta)){
+                $from->send(json_encode(['type'=>'session-ended','reason'=>'authorization_or_room_closed']));
+                $from->close();
+                return;
+            }
+
             $data=json_decode((string)$msg,true,512,JSON_THROW_ON_ERROR);
             $type=(string)($data['type']??'');
 
@@ -189,6 +195,16 @@ final class MeetingSocket implements MessageComponentInterface
             ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),mic_enabled=VALUES(mic_enabled),
             cam_enabled=VALUES(cam_enabled),screen_sharing=VALUES(screen_sharing),last_seen_at=NOW()");
         $q->execute([$roomId,$key,$name,$mic?1:0,$cam?1:0,$screen?1:0]);
+    }
+
+    private function sessionStillAllowed(array $meta): bool
+    {
+        $q=$this->pdo->prepare("SELECT 1
+            FROM room_invites i JOIN rooms r ON r.id=i.room_id
+            WHERE i.room_id=? AND i.participant_key=? AND i.status='approved' AND r.status='open'
+            LIMIT 1");
+        $q->execute([$meta['room_id'],$meta['participant_key']]);
+        return (bool)$q->fetchColumn();
     }
 
     private function closeAttendance(int $roomId,string $key): void
