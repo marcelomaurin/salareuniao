@@ -18,7 +18,10 @@ if(!$room)api_json(['ok'=>false,'error'=>'room_not_found'],404);
 if($_SERVER['REQUEST_METHOD']==='GET'){
     $i=$pdo->prepare('SELECT id,email,status,display_name,requested_at,approved_at,created_at FROM room_invites WHERE room_id=? ORDER BY created_at');
     $i->execute([$id]);
-    api_json(['ok'=>true,'room'=>$room,'participants'=>$i->fetchAll()]);
+    $host=$pdo->prepare("SELECT token FROM room_invites WHERE room_id=? AND email=? AND status='approved' ORDER BY id LIMIT 1");
+    $host->execute([$id,strtolower($room['owner_email'])]);
+    $hostToken=$host->fetchColumn()?:null;
+    api_json(['ok'=>true,'room'=>$room,'participants'=>$i->fetchAll(),'host_join_token'=>$hostToken]);
 }
 
 $in=api_input();
