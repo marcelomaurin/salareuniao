@@ -17,6 +17,10 @@ $turnOk=!empty($turn['enabled'])&&!empty($turn['secret'])&&!empty($turn['urls'])
 $checks[]=['TURN configurado',$turnOk,$turnOk?'habilitado':'pendente'];
 $base=(string)($config['app']['base_url']??'');
 $checks[]=['Base URL HTTPS',str_starts_with($base,'https://'),$base?:'não configurada'];
+$ws=$config['websocket']??[];
+$wsUrl=(string)($ws['public_url']??'');
+$wsOk=!empty($ws['enabled'])&&str_starts_with($wsUrl,'wss://')&&!empty($ws['http_host'])&&!empty($ws['listen_port']);
+$checks[]=['WebSocket',$wsOk,$wsOk?$wsUrl:'pendente'];
 
 $allOk=true;foreach($checks as $c)$allOk=$allOk&&$c[1];
 ?>
