@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sala Reunião"
+            android:textStyle="bold"
+            android:textSize="28sp"
+            android:textColor="@color/text_primary"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="24dp"/>
+
+        <EditText
+            android:id="@+id/edtEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="E-mail"
+            android:inputType="textEmailAddress"
+            android:autofillHints="emailAddress"/>
+
+        <EditText
+            android:id="@+id/edtPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Senha"
+            android:inputType="textPassword"
+            android:autofillHints="password"/>
+
+        <EditText
+            android:id="@+id/edtApiBase"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="https://servidor/api/v1"
+            android:inputType="textUri"/>
+
+        <EditText
+            android:id="@+id/edtWebBase"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="https://servidor"
+            android:inputType="textUri"/>
+
+        <Button
+            android:id="@+id/btnLogin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Entrar"
+            android:layout_marginTop="18dp"/>
+
+        <Button
+            android:id="@+id/btnOpenInvite"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Abrir convite"
+            android:layout_marginTop="8dp"/>
+
+        <ProgressBar
+            android:id="@+id/progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:visibility="gone"
+            android:layout_marginTop="18dp"/>
+
+        <TextView
+            android:id="@+id/txtStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B91C1C"
+            android:layout_marginTop="12dp"/>
+    </LinearLayout>
+</ScrollView>
