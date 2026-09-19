@@ -130,3 +130,33 @@ WebSocket desconectado; usando fallback
 ```
 
 e o sistema continua operando via polling.
+
+
+## SMTP / PHPMailer
+
+Instale as dependências do cliente Web:
+
+```bash
+cd apps/web
+composer install --no-dev --optimize-autoloader
+```
+
+Configure em `apps/web/config.php`:
+
+```php
+'mail' => [
+    'driver' => 'smtp',
+    'host' => 'smtp.seu-dominio.example',
+    'port' => 587,
+    'auth' => true,
+    'username' => 'salareuniao@seu-dominio.example',
+    'password' => 'SENHA_SMTP',
+    'encryption' => 'tls',
+    'from' => 'salareuniao@seu-dominio.example',
+    'from_name' => 'Sala Reunião',
+    'reply_to' => 'salareuniao@seu-dominio.example',
+    'fallback_mail' => false,
+],
+```
+
+Não versione `config.php`. Após configurar, acesse **Administração > Diagnóstico** e use o botão de e-mail de teste.
