@@ -11,7 +11,9 @@ SELECT
  (SELECT COUNT(*) FROM rooms WHERE status='open') open_rooms,
  (SELECT COUNT(*) FROM rooms WHERE status='scheduled') scheduled_rooms,
  (SELECT COUNT(*) FROM room_presence WHERE last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND)) online_participants,
- (SELECT COUNT(*) FROM signaling_messages WHERE created_at>=DATE_SUB(NOW(),INTERVAL 5 MINUTE)) signaling_5m
+ (SELECT COUNT(*) FROM signaling_messages WHERE created_at>=DATE_SUB(NOW(),INTERVAL 5 MINUTE)) signaling_5m,
+ (SELECT COUNT(*) FROM devices WHERE active=1) active_devices,
+ (SELECT COUNT(*) FROM devices WHERE active=1 AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 90 SECOND)) online_devices
 ")->fetch();
 
 $rooms=$pdo->query("
@@ -50,6 +52,7 @@ body{font-family:Arial,sans-serif;margin:24px;background:#f5f7fa;color:#1f2937}.
 <div class="card">Salas abertas<strong><?=(int)$summary['open_rooms']?></strong><span class="muted">em uso agora</span></div>
 <div class="card">Participantes online<strong><?=(int)$summary['online_participants']?></strong><span class="muted">heartbeat &lt; 20 s</span></div>
 <div class="card">Sinalização / 5 min<strong><?=(int)$summary['signaling_5m']?></strong><span class="muted">offer/answer/ICE/eventos</span></div>
+<div class="card">Dispositivos online<strong><?=(int)$summary['online_devices']?></strong><span class="muted">de <?=(int)$summary['active_devices']?> ativos</span></div>
 </div>
 
 <div class="panel"><h2>Salas e uso atual</h2>
