@@ -105,4 +105,55 @@ class ApiClient(
     fun hostJoinToken(id: Long): String {
         return request("GET", "room.php?id=$id").optString("host_join_token")
     }
+
+    fun roomInvites(roomId: Long): List<InviteInfo> {
+        val arr = request("GET", "room_invites.php?room_id=$roomId").getJSONArray("invites")
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            InviteInfo(
+                o.getLong("id"),
+                o.optString("email"),
+                o.optString("status"),
+                o.optString("display_name"),
+                o.optString("requested_at"),
+                o.optString("approved_at")
+            )
+        }
+    }
+
+    fun addInvites(roomId: Long, emails: List<String>) {
+        val arr = org.json.JSONArray()
+        emails.forEach { arr.put(it) }
+        request(
+            "POST",
+            "room_invites.php",
+            JSONObject()
+                .put("room_id", roomId)
+                .put("action", "add")
+                .put("emails", arr)
+        )
+    }
+
+    fun inviteAction(roomId: Long, inviteId: Long, action: String) {
+        request(
+            "POST",
+            "room_invites.php",
+            JSONObject()
+                .put("room_id", roomId)
+                .put("invite_id", inviteId)
+                .put("action", action)
+        )
+    }
+
+    fun androidUpdate(): AndroidUpdateInfo {
+        val o = request("GET", "android_update.php")
+        return AndroidUpdateInfo(
+            o.optBoolean("enabled"),
+            o.optInt("version_code"),
+            o.optString("version"),
+            o.optBoolean("required"),
+            o.optString("notes"),
+            o.optString("apk_url")
+        )
+    }
 }
