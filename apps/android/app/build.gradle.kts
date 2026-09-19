@@ -12,6 +12,9 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
+
+        manifestPlaceholders["appHost"] = "meet.seu-dominio.example"
+        buildConfigField("String", "APP_HOST", "\"meet.seu-dominio.example\"")
     }
 
     buildFeatures {
@@ -39,4 +42,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.work:work-runtime:2.11.2")
 }
