@@ -1,0 +1,35 @@
+#pragma once
+
+// Copie este arquivo para config.h.
+// NÃO versione config.h com credenciais reais.
+
+#define FW_VERSION "1.0.0"
+
+// Provisionamento inicial opcional.
+// Se vazios, configure pela Serial e salve no NVS.
+#define DEFAULT_WIFI_SSID ""
+#define DEFAULT_WIFI_PASS ""
+#define DEFAULT_API_BASE "https://meet.seu-dominio.example/api/v1"
+#define DEFAULT_DEVICE_TOKEN ""
+
+// TLS:
+// Produção: cole abaixo a CA raiz/intermediária que valida o servidor HTTPS.
+// Desenvolvimento somente: defina TLS_ALLOW_INSECURE como 1.
+#define TLS_ALLOW_INSECURE 0
+
+static const char ROOT_CA[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+COLE_AQUI_A_CA_DO_SEU_SERVIDOR
+-----END CERTIFICATE-----
+)EOF";
+
+// Hardware básico.
+#define PIN_STATUS_LED 2
+#define PIN_ACTION_BUTTON 0
+#define BUTTON_ACTIVE_LEVEL LOW
+
+// Nextion opcional, sem biblioteca externa.
+#define ENABLE_NEXTION 0
+#define NEXTION_RX_PIN 16
+#define NEXTION_TX_PIN 17
+#define NEXTION_BAUD 9600
