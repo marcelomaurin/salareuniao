@@ -65,7 +65,7 @@ O WebRTC usa ICE para descobrir IPs/portas. STUN ajuda a descobrir o endereço p
 ## Próximos itens
 
 - SMTP autenticado/PHPMailer;
-- chat da reunião;
+- chat persistente da reunião (implementado);
 - convite/edição/cancelamento mais completos;
 - TURN/Coturn com credenciais temporárias (implementado; requer configuração do servidor);
 - limpeza automática de sinalização antiga;
@@ -81,3 +81,16 @@ O cliente gera credenciais TURN temporárias no servidor PHP usando o segredo co
 Consulte `../../docs/PRODUCTION.md` e `../../deployment/coturn/turnserver.conf.example`.
 
 O painel `admin_system.php` verifica os pré-requisitos básicos da instalação. Dentro da reunião, o indicador ICE mostra se a conexão está usando P2P direto ou TURN relay.
+
+
+## Chat e histórico
+
+O chat é persistido em MySQL na tabela `room_messages`. O cliente carrega as últimas mensagens ao entrar e faz polling incremental enquanto a reunião está aberta.
+
+Para bancos já existentes, aplique:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/003_chat.sql
+```
+
+O anfitrião e o administrador podem consultar o histórico em `room_history.php`.
