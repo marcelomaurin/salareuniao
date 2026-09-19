@@ -56,3 +56,12 @@ mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
 ```
 
 Cria `room_attendance`, que registra cada sessão de conexão, entrada, saída e duração do participante. A aplicação também fecha sessões abandonadas quando o heartbeat expira.
+
+
+## Migration 005 — recuperação de senha
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/005_password_reset.sql
+```
+
+Cria `password_reset_tokens`. Os tokens enviados por e-mail não são armazenados em texto puro: apenas o hash SHA-256 fica no banco, com expiração e marcação de uso.
