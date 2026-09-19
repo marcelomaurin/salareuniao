@@ -28,3 +28,22 @@ data class LoginResult(
     val token: String,
     val user: UserInfo
 )
+
+
+data class InviteInfo(
+    val id: Long,
+    val email: String,
+    val status: String,
+    val displayName: String,
+    val requestedAt: String,
+    val approvedAt: String
+)
+
+data class AndroidUpdateInfo(
+    val enabled: Boolean,
+    val versionCode: Int,
+    val version: String,
+    val required: Boolean,
+    val notes: String,
+    val apkUrl: String
+)
