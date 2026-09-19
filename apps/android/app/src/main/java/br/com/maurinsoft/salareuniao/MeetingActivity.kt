@@ -195,8 +195,11 @@ class MeetingActivity : AppCompatActivity() {
 
     private fun isTrustedOrigin(origin: Uri): Boolean {
         val trusted = Uri.parse(session.webBase)
+        val hostAllowed =
+            origin.host.equals(trusted.host, ignoreCase = true) ||
+            origin.host.equals(BuildConfig.APP_HOST, ignoreCase = true)
         return origin.scheme == "https" &&
-            origin.host.equals(trusted.host, ignoreCase = true) &&
+            hostAllowed &&
             effectivePort(origin) == effectivePort(trusted)
     }
 
