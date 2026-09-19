@@ -47,3 +47,12 @@ mysql -u root -p salareuniao < apps/web/sql/003_chat.sql
 ```
 
 A migration cria `room_messages`, usada para o chat persistente e para o histórico da reunião.
+
+
+## Migration 004 — histórico de participação
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
+```
+
+Cria `room_attendance`, que registra cada sessão de conexão, entrada, saída e duração do participante. A aplicação também fecha sessões abandonadas quando o heartbeat expira.
