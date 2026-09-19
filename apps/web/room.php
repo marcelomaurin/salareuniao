@@ -5,7 +5,19 @@ $st=$pdo->prepare("SELECT i.*,r.name room_name,r.status room_status FROM room_in
 $st->execute([$token]);$me=$st->fetch();
 if(!$me){http_response_code(403);exit('Entrada não autorizada.');}
 if($me['room_status']!=='open')exit('A sala ainda não foi aberta pelo administrador.');
-$ice=json_encode($config['webrtc']['ice_servers']??[],JSON_UNESCAPED_SLASHES);
+$iceServers=$config['webrtc']['ice_servers']??[];
+$turn=$config['webrtc']['turn']??[];
+if(!empty($turn['enabled'])&&!empty($turn['secret'])&&!empty($turn['urls'])){
+    $ttl=max(300,(int)($turn['ttl']??3600));
+    $turnUsername=(string)(time()+$ttl).':'.$me['participant_key'];
+    $turnCredential=base64_encode(hash_hmac('sha1',$turnUsername,(string)$turn['secret'],true));
+    $iceServers[]=[
+        'urls'=>$turn['urls'],
+        'username'=>$turnUsername,
+        'credential'=>$turnCredential,
+    ];
+}
+$ice=json_encode($iceServers,JSON_UNESCAPED_SLASHES);
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -35,7 +47,7 @@ button{border:0;border-radius:9px;padding:10px 15px;cursor:pointer;background:#e
 <body>
 <div class="top">
   <div><h1><?=e($me['room_name'])?></h1><small><?=e($me['display_name']?:$me['email'])?></small></div>
-  <div id="status">Conectando...</div>
+  <div><div id="status">Conectando...</div><div id="iceRoute" style="font-size:12px;color:#6b7280;text-align:right">ICE: aguardando</div></div>
 </div>
 
 <div class="layout">
@@ -94,6 +106,26 @@ function ensureTile(key){
   const state=document.createElement('div');state.className='state';state.id='state-'+key;state.textContent='Conectando...';
   tile.append(video,name,state);document.getElementById('videos').appendChild(tile);return tile;
 }
+async function updateIceRoute(key,pc){
+  try{
+    const stats=await pc.getStats();
+    let transport=null,pair=null,local=null,remote=null;
+    stats.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)transport=r;});
+    if(transport)pair=stats.get(transport.selectedCandidatePairId);
+    if(!pair){
+      stats.forEach(r=>{if(r.type==='candidate-pair'&&r.state==='succeeded'&&r.nominated)pair=r;});
+    }
+    if(pair){
+      local=stats.get(pair.localCandidateId);remote=stats.get(pair.remoteCandidateId);
+      const lt=local?.candidateType||'?';
+      const rt=remote?.candidateType||'?';
+      const via=(lt==='relay'||rt==='relay')?'TURN relay':'P2P direto';
+      document.getElementById('iceRoute').textContent='ICE: '+via+' ('+lt+' ↔ '+rt+')';
+      const state=document.getElementById('state-'+key);
+      if(state)state.dataset.route=via;
+    }
+  }catch(e){console.warn('ICE stats',e);}
+}
 function removePeer(key){
   pcs.get(key)?.close();pcs.delete(key);pendingIce.delete(key);
   document.getElementById('tile-'+key)?.remove();
@@ -113,6 +145,7 @@ function peer(key){
   pc.onconnectionstatechange=()=>{
     const state=document.getElementById('state-'+key);
     if(state) state.textContent=pc.connectionState;
+    if(pc.connectionState==='connected')updateIceRoute(key,pc);
     if(['failed','closed'].includes(pc.connectionState)) removePeer(key);
   };
   pcs.set(key,pc);return pc;
@@ -171,6 +204,7 @@ async function heartbeat(){
     renderParticipants(d.participants||[]);
     document.getElementById('status').textContent='Conectado';
   }catch(e){document.getElementById('status').textContent='Reconectando...';}
+  for(const [key,pc] of pcs) if(pc.connectionState==='connected') updateIceRoute(key,pc);
   setTimeout(heartbeat,4000);
 }
 function renderParticipants(list){
