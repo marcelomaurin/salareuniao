@@ -6,7 +6,8 @@ $d=api_device($pdo);
 if($_SERVER['REQUEST_METHOD']==='GET'){
     $q=$pdo->prepare("SELECT id,command_type,payload,created_at
         FROM device_commands
-        WHERE device_id=? AND status='pending'
+        WHERE device_id=?
+          AND (status='pending' OR (status='delivered' AND delivered_at<DATE_SUB(NOW(),INTERVAL 30 SECOND)))
         ORDER BY id ASC LIMIT 20");
     $q->execute([$d['id']]);
     $rows=$q->fetchAll();
@@ -14,7 +15,7 @@ if($_SERVER['REQUEST_METHOD']==='GET'){
     if($rows){
         $ids=array_map(fn($r)=>(int)$r['id'],$rows);
         $marks=implode(',',array_fill(0,count($ids),'?'));
-        $up=$pdo->prepare("UPDATE device_commands SET status='delivered',delivered_at=NOW() WHERE id IN ($marks)");
+        $up=$pdo->prepare("UPDATE device_commands SET status='delivered',delivered_at=NOW() WHERE id IN ($marks) AND status<>'acked'");
         $up->execute($ids);
         foreach($rows as &$r){
             $r['payload']=$r['payload']?json_decode($r['payload'],true):[];
