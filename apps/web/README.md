@@ -67,8 +67,17 @@ O WebRTC usa ICE para descobrir IPs/portas. STUN ajuda a descobrir o endereço p
 - SMTP autenticado/PHPMailer;
 - chat da reunião;
 - convite/edição/cancelamento mais completos;
-- TURN;
+- TURN/Coturn com credenciais temporárias (implementado; requer configuração do servidor);
 - limpeza automática de sinalização antiga;
 - troca do polling por WebSocket ou canal de eventos dedicado;
 - cliente Desktop;
 - integração ESP32.
+
+
+## TURN em produção
+
+O cliente gera credenciais TURN temporárias no servidor PHP usando o segredo compartilhado configurado em `webrtc.turn.secret`. O mesmo segredo deve ser configurado no Coturn em `static-auth-secret`.
+
+Consulte `../../docs/PRODUCTION.md` e `../../deployment/coturn/turnserver.conf.example`.
+
+O painel `admin_system.php` verifica os pré-requisitos básicos da instalação. Dentro da reunião, o indicador ICE mostra se a conexão está usando P2P direto ou TURN relay.
