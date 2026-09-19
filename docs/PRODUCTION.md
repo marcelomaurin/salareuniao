@@ -160,3 +160,28 @@ Configure em `apps/web/config.php`:
 ```
 
 Não versione `config.php`. Após configurar, acesse **Administração > Diagnóstico** e use o botão de e-mail de teste.
+
+
+## API REST
+
+Configure os TTLs em `apps/web/config.php`:
+
+```php
+'api' => [
+    'user_token_ttl' => 2592000,
+    'device_token_ttl' => 0,
+],
+```
+
+- `user_token_ttl`: validade dos tokens de Desktop em segundos.
+- `device_token_ttl = 0`: token do dispositivo permanece válido até revogação/rotação.
+
+Todos os endpoints externos devem ser publicados somente em HTTPS.
+
+O administrador pode cadastrar e rotacionar tokens de dispositivos em:
+
+```text
+Administração > Dispositivos
+```
+
+O token bruto é exibido somente no momento da criação/rotação. Armazene-o no dispositivo de forma segura.
