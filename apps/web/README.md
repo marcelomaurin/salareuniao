@@ -114,3 +114,10 @@ Para bancos existentes:
 ```bash
 mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
 ```
+
+
+## WebSocket em tempo real
+
+A sinalização WebRTC, presença e chat usam preferencialmente o serviço PHP Ratchet em `services/signaling`.
+
+Quando a conexão WebSocket está disponível, a tela mostra `Conectado em tempo real`. Em caso de falha, o cliente retorna automaticamente aos endpoints HTTP de polling, permitindo implantação gradual e maior tolerância a falhas.
