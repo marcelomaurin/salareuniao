@@ -65,3 +65,18 @@ mysql -u root -p salareuniao < apps/web/sql/005_password_reset.sql
 ```
 
 Cria `password_reset_tokens`. Os tokens enviados por e-mail não são armazenados em texto puro: apenas o hash SHA-256 fica no banco, com expiração e marcação de uso.
+
+
+## Migration 006 — API e dispositivos
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/006_api_devices.sql
+```
+
+Cria:
+- `api_tokens`;
+- `devices`;
+- `device_tokens`;
+- `device_events`.
+
+Tokens são armazenados somente em forma de hash SHA-256.
