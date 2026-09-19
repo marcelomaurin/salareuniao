@@ -51,7 +51,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font-size:12px}.muted{co
 <div class="panel">
 <form method="get" class="filters">
 <label>Ação<input name="action" list="actions" value="<?=e($action)?>"><datalist id="actions"><?php foreach($actions as $a):?><option value="<?=e($a)?>"><?php endforeach;?></datalist></label>
-<label>Usuário<select name="user_id"><option value="">Todos</option><?php foreach($users as $u):?><option value="<?=$u['id']?>" <?=$userId===$u['id']?'selected':''?>><?=e($u['name'].' · '.$u['email'])?></option><?php endforeach;?></select></label>
+<label>Usuário<select name="user_id"><option value="">Todos</option><?php foreach($users as $u):?><option value="<?=$u['id']?>" <?=$userId===(int)$u['id']?'selected':''?>><?=e($u['name'].' · '.$u['email'])?></option><?php endforeach;?></select></label>
 <label>Tipo do alvo<input name="target_type" value="<?=e($targetType)?>" placeholder="room/device/user"></label>
 <label>ID do alvo<input name="target_id" value="<?=e($targetId)?>"></label>
 <label>De<input type="date" name="from" value="<?=e($from)?>"></label>
