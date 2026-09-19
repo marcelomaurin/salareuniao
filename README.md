@@ -1,146 +1,65 @@
-# 📡 ESP8266 TCP Communication + Python Server
+# Sala Reunião — Plataforma de Videoconferência
 
-Projeto completo de comunicação entre um **ESP8266** e um **servidor Python** via **TCP**.
+O **Sala Reunião** está sendo evoluído de um painel de sala ESP8266/Nextion para uma **plataforma de comunicação e videoconferência multiplataforma**, inspirada no modelo de uso de ferramentas como Microsoft Teams.
 
-O ESP8266 envia e recebe comandos no formato `GET VARIAVEL:=[valor]` e atualiza variáveis locais, persistindo-as na flash.  
-O servidor Python recebe, processa, persiste os dados em JSON e responde ao ESP ou a outros clientes.
+A arquitetura passa a considerar quatro tipos principais de cliente:
 
----
+- **Web** — acesso pelo navegador, reuniões, chat, agenda e administração.
+- **Desktop** — cliente para Windows/Linux, com integração mais profunda com câmera, microfone, tela e sistema operacional.
+- **ESP32 / terminal de sala** — presença física da sala, status, agenda, automação, botões, display, sensores e integração com periféricos.
+- **Backend** — autenticação, usuários, salas, agenda, sinalização WebRTC, eventos, dispositivos e persistência.
 
-## ✨ Funcionalidades
+> O ESP32 não deve transportar vídeo de conferência como um PC. Ele funciona como **terminal/controlador da sala**, integrado à mesma plataforma.
 
-### 🖥️ ESP8266
-- Conexão Wi-Fi com SSID/senha salvos na EEPROM.
-- Variáveis persistentes na flash: **SSID**, **senha**, **host**, **porta**, **sala**.
-- Atualização de **hora/data** via NTP.
-- Comunicação serial com **Nextion** para exibir `sala`, `agenda`, `data`, `status`, `hora`.
-- Processa múltiplos comandos recebidos pela serial ou pela rede (TCP).
-- Suporte a comandos como:
-  - `GET SALA:=Sala Reunião`
-  - `GET AGENDA:=Reunião de TI`
-  - `GET STATUS:=Em uso`
-  - `GET HOST:=meu.servidor.local`
-  - `GET PORT:=8085`
-  - `GET ALL` → retorna todos os valores atuais.
+## Estrutura
 
-### 🐍 Servidor Python
-- Servidor TCP assíncrono (`asyncio`), suporta múltiplos clientes.
-- Processa os mesmos comandos `GET VAR:=VAL` que o ESP.
-- Persiste valores em `state.json`.
-- Responde com confirmações ou valores atuais.
-- Suporte a múltiplos comandos por conexão, inclusive separados por `;`.
-
----
-
-## 🗂 Estrutura do Projeto
-
-```
-📁 esp8266-tcp-project/
- ├── src/
- │   └── esp8266_firmware.ino      # Código completo do ESP8266
- ├── server.py                     # Servidor TCP em Python
- ├── state.json                    # Persistência dos dados (criado em runtime)
- └── README.md                     # Este arquivo
+```text
+salareuniao/
+├── apps/
+│   ├── web/                # Cliente Web
+│   ├── desktop/            # Cliente Desktop
+│   └── esp32/              # Firmware de terminais/controladores
+├── services/
+│   ├── api/                # API principal
+│   ├── signaling/          # Sinalização WebRTC
+│   └── device-gateway/     # Gateway TCP/WebSocket/MQTT para dispositivos
+├── packages/
+│   ├── protocol/           # Contratos e mensagens compartilhadas
+│   └── common/             # Tipos/utilitários compartilhados
+├── hardware/
+│   ├── nextion/            # Projeto da interface Nextion existente
+│   └── firmware/           # Firmware original preservado durante migração
+├── stl/                    # Modelos mecânicos
+├── docs/                   # Arquitetura, protocolos e migração
+└── IMG/                    # Imagens do projeto
 ```
 
----
+## Componentes da plataforma
 
-## 🔧 Instalação e Uso
+### Reunião e mídia
 
-### 1️⃣ Firmware ESP8266
-1. Abra o código `.ino` no Arduino IDE.
-2. Configure:
-   - Board: **NodeMCU 1.0 (ESP-12E)** ou equivalente.
-   - Porta serial correta.
-3. Compile e faça upload.
+A videoconferência deverá usar **WebRTC** nos clientes Web/Desktop. O servidor de sinalização coordena entrada em sala, oferta/resposta SDP, candidatos ICE e estado dos participantes. Para poucas pessoas pode-se iniciar com P2P; para salas maiores a arquitetura deverá permitir adoção posterior de um SFU.
 
-### 2️⃣ Servidor Python
-1. Tenha Python 3.8+ instalado.
-2. Clone este projeto e instale dependências (nenhuma extra além da stdlib).
-3. Execute o servidor:
-   ```bash
-   python3 server.py --host 0.0.0.0 --port 8090
-   ```
-4. O servidor criará/atualizará o arquivo `state.json` para salvar valores.
+### Salas, usuários e agenda
 
----
+O backend deverá centralizar usuários, autenticação, salas, reuniões, participantes, convites, agenda, permissões e presença.
 
-## 🔌 Protocolo de Comunicação
+### Dispositivos ESP32
 
-Cada comando enviado deve seguir o padrão:
+O ESP32 representa a sala física. Ele pode exibir agenda/status, indicar reunião em andamento, receber comandos, controlar LEDs/display/relés, publicar telemetria e permitir ações como iniciar, chamar ou encerrar uma reunião no equipamento principal.
 
-```
-GET VARIAVEL:=valor\n
-```
+### Device Gateway
 
-### Exemplos:
-- `GET SALA:=Laboratório`
-- `GET STATUS:=Livre`
-- `GET ALL`
+O antigo servidor TCP passa a ser tratado como **gateway de dispositivos**. Ele mantém compatibilidade com o protocolo atual `GET VAR:=valor`, mas a evolução prevista é um protocolo versionado e autenticado via WebSocket/MQTT/TCP.
 
-Também é aceito o formato sem `GET`:
-```
-SALA:=Laboratório
-STATUS:=Livre
-```
+## Migração
 
-E múltiplos comandos em uma única linha:
-```
-GET SALA:=Lab;AGENDA:=Teste;STATUS:=Livre
-```
+O código original foi preservado enquanto a nova estrutura é implantada. Consulte:
 
----
+- `docs/ARCHITECTURE.md`
+- `docs/PROTOCOL.md`
+- `docs/MIGRATION.md`
 
-## 📄 Exemplo de `state.json`
+## Autor
 
-```json
-{
-  "ssid": "maurinsrv_1",
-  "pass": "1425361425",
-  "host": "maurinsoft.com.br",
-  "port": 8090,
-  "sala": "Sala 1",
-  "agenda": "-",
-  "data": "",
-  "status": "Livre"
-}
-```
-
----
-
-## 📡 Testes Rápidos
-
-Para testar sem o ESP, use `netcat` ou `telnet`:
-
-```bash
-nc 127.0.0.1 8090
-```
-
-Digite:
-```
-GET SALA:=Reunião Geral
-GET STATUS:=
-GET ALL
-```
-
----
-
-## 🛠 Extensões Futuras
-
-- API HTTP REST para leitura/escrita dos valores.
-- Integração com banco de dados SQLite.
-- Painel web em Flask/Streamlit para visualização em tempo real.
-- Reconexão automática do ESP ao alterar SSID/PASS/HOST/PORT.
-
----
-
-## 📜 Licença
-
-Projeto open-source sob licença MIT.  
-Sinta-se à vontade para usar, modificar e contribuir!
-
----
-
-## 👨‍💻 Autor
-
-Desenvolvido com ❤️ por **Marcelo Maurin Martins** (MaurinSoft) e ChatGPT.
+Marcelo Maurin Martins — MaurinSoft
