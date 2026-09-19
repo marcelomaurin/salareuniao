@@ -1,0 +1,8 @@
+bin/
+lib/
+*.compiled
+*.bak
+*.ppu
+*.o
+*.or
+*.rst
