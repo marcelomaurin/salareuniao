@@ -29,6 +29,7 @@
                 <Button android:id="@+id/btnRefresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Atualizar"/>
                 <Button android:id="@+id/btnNewRoom" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Nova sala"/>
                 <Button android:id="@+id/btnEnter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Entrar"/>
+                <Button android:id="@+id/btnInvites" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Convidados"/>
                 <Button android:id="@+id/btnOpen" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Abrir"/>
                 <Button android:id="@+id/btnClose" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Encerrar"/>
                 <Button android:id="@+id/btnCancel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cancelar"/>
