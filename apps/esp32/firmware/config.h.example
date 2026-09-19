@@ -33,3 +33,11 @@ COLE_AQUI_A_CA_DO_SEU_SERVIDOR
 #define NEXTION_RX_PIN 16
 #define NEXTION_TX_PIN 17
 #define NEXTION_BAUD 9600
+
+
+// Portal captive / Access Point de configuração.
+#define ENABLE_CONFIG_PORTAL 1
+#define CONFIG_AP_PREFIX "SalaReuniao-"
+#define CONFIG_AP_PASSWORD "config123"
+#define CONFIG_PORTAL_TIMEOUT_MS 300000
+#define CONFIG_BUTTON_HOLD_MS 3000
