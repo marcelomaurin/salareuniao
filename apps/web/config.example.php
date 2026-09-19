@@ -18,7 +18,19 @@ return [
     ],
     'webrtc' => [
         'ice_servers' => [
-            ['urls' => ['stun:stun.l.google.com:19302']]
+            ['urls' => ['stun:turn.seu-dominio.example:3478']],
+        ],
+        'turn' => [
+            'enabled' => true,
+            'urls' => [
+                'turn:turn.seu-dominio.example:3478?transport=udp',
+                'turn:turn.seu-dominio.example:3478?transport=tcp',
+                'turns:turn.seu-dominio.example:5349?transport=tcp',
+            ],
+            // Deve ser o MESMO valor de static-auth-secret do Coturn.
+            // Nunca publique este segredo no Git.
+            'secret' => 'TROQUE_POR_UM_SEGREDO_FORTE',
+            'ttl' => 3600,
         ],
     ],
 ];
