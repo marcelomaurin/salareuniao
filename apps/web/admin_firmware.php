@@ -35,6 +35,8 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
               VALUES('esp32',?,?,?,?,?,?,1,?,?)");
             $q->execute([$version,$stored,$original,$size,$sha,$notes,$required,$admin['id']]);
             $pdo->commit();
+            $releaseId=(int)$pdo->lastInsertId();
+            audit_log('firmware.publish','firmware_release',$releaseId,['version'=>$version,'required'=>(bool)$required,'sha256'=>$sha,'size'=>$size]);
             $message='Firmware '.$version.' publicado e ativado.';
         }elseif($action==='activate'){
             $id=(int)($_POST['release_id']??0);
@@ -42,6 +44,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $pdo->prepare("UPDATE firmware_releases SET active=0 WHERE device_type='esp32'")->execute();
             $pdo->prepare("UPDATE firmware_releases SET active=1 WHERE id=? AND device_type='esp32'")->execute([$id]);
             $pdo->commit();
+            audit_log('firmware.activate','firmware_release',$id);
             $message='Release ativado.';
         }elseif($action==='delete'){
             $id=(int)($_POST['release_id']??0);
@@ -50,6 +53,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             if($r['active'])throw new RuntimeException('Não é possível excluir o release ativo.');
             $pdo->prepare('DELETE FROM firmware_releases WHERE id=?')->execute([$id]);
             @unlink($storage.'/'.$r['file_name']);
+            audit_log('firmware.delete','firmware_release',$id,['version'=>$r['version']]);
             $message='Release excluído.';
         }
     }catch(Throwable $e){
