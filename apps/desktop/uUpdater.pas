@@ -28,10 +28,12 @@ function CurrentPlatform: string;
 begin
   {$IFDEF Windows}
   Result := 'windows';
-  {$ELSEIF Defined(Linux)}
-  Result := 'linux';
   {$ELSE}
-  Result := 'other';
+    {$IFDEF Linux}
+    Result := 'linux';
+    {$ELSE}
+    Result := 'other';
+    {$ENDIF}
   {$ENDIF}
 end;
 
@@ -67,7 +69,11 @@ function CheckForUpdate(AApi: TSalaApiClient): TUpdateInfo;
 var
   J: TJSONObject;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result.Available := False;
+  Result.Required := False;
+  Result.Version := '';
+  Result.Notes := '';
+  Result.Url := '';
   J := nil;
   try
     J := AApi.DesktopUpdate(CurrentPlatform);
@@ -95,7 +101,7 @@ begin
   {$IFDEF Windows}
   Ext := '.exe';
   {$ELSE}
-  Ext := '.pkg';
+  Ext := '.bin';
   {$ENDIF}
 
   AFileName := IncludeTrailingPathDelimiter(GetTempDir(False)) +
