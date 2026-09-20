@@ -63,6 +63,7 @@ return [
         'reconnect_ms' => 2000,
     ],
     'webrtc' => [
+        'max_mesh_participants' => 4,
         'ice_servers' => [
             ['urls' => ['stun:turn.seu-dominio.example:3478']],
         ],
