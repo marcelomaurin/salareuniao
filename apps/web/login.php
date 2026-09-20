@@ -2,7 +2,17 @@
 declare(strict_types=1);
 
 require __DIR__ . '/lib/bootstrap.php';
+
+$redirect = trim((string)($_GET['redirect'] ?? ($_POST['redirect'] ?? '')));
+if ($redirect !== '' && preg_match('#^https?://#i', $redirect)) {
+    $redirect = '';
+}
+
 if (empty($_GET['logged_out']) && current_user()) {
+    if ($redirect !== '') {
+        header('Location: ' . $redirect);
+        exit;
+    }
     header('Location: index.php');
     exit;
 }
@@ -19,7 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_regenerate_id(true);
         $_SESSION['user_id'] = $u['id'];
         audit_log('auth.login', 'user', $u['id'], ['email' => $u['email']]);
-        header('Location: index.php');
+        
+        $target = ($redirect !== '') ? $redirect : 'index.php';
+        header('Location: ' . $target);
         exit;
     }
     $error = 'E-mail ou senha incorretos.';
@@ -63,10 +75,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if ($error): ?>
       <div class="sr-alert sr-alert-error"><?=e($error)?></div>
+    <?php elseif (!empty($redirect) && str_contains($redirect, 'room.php')): ?>
+      <div class="sr-alert sr-alert-info" style="margin-bottom: 20px; font-size: 0.86rem; background: rgba(0, 210, 255, 0.1); border: 1px solid rgba(0, 210, 255, 0.3); color: #00d2ff; padding: 10px 14px; border-radius: 8px;">
+        🔒 Faça login para entrar na sala de reunião.
+      </div>
     <?php endif; ?>
 
     <form method="post">
       <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+      <?php if (!empty($redirect)): ?>
+        <input type="hidden" name="redirect" value="<?=e($redirect)?>">
+      <?php endif; ?>
 
       <div class="sr-form-group">
         <label class="sr-label" for="email">E-mail Cadastrado</label>

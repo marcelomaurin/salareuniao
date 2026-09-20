@@ -241,7 +241,7 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
 
           <?php if (!empty($hostInvite['token'])): ?>
             <?php
-              $publicJoinLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/join.php?token=' . urlencode($hostInvite['token']);
+              $publicJoinLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/room.php?token=' . urlencode($hostInvite['token']);
             ?>
             <button type="button" class="sr-btn sr-btn-secondary" onclick="copyLink('<?=e($publicJoinLink)?>')">
               📋 Copiar Link Público
@@ -307,7 +307,7 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
 
                   <?php if (!empty($inv['token'])): ?>
                     <?php
-                      $invUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/join.php?token=' . urlencode($inv['token']);
+                      $invUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/room.php?token=' . urlencode($inv['token']);
                     ?>
                     <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" onclick="copyLink('<?=e($invUrl)?>')" title="Copiar Link deste convidado">
                       Link

@@ -6,25 +6,99 @@ header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 header("Expires: 0");
 
-$token = $_GET['token'] ?? '';
-$st = $pdo->prepare("SELECT i.*, r.name room_name, r.status room_status, r.owner_user_id FROM room_invites i JOIN rooms r ON r.id=i.room_id WHERE i.token=? AND i.status='approved' LIMIT 1");
-$st->execute([$token]);
-$me = $st->fetch();
-
-if (!$me) {
-    http_response_code(403);
-    exit('Entrada não autorizada.');
+$token = trim((string)($_GET['token'] ?? ''));
+if ($token === '') {
+    header('Location: index.php');
+    exit;
 }
-if ($me['room_status'] !== 'open') {
+
+// 1. OBRIGAÇÃO DE LOGIN: Se o usuário não estiver logado, redireciona para login.php
+$signedUser = current_user();
+if (!$signedUser || empty($signedUser['active'])) {
+    $redirectUrl = 'room.php?token=' . urlencode($token);
+    header('Location: login.php?redirect=' . urlencode($redirectUrl));
+    exit;
+}
+
+// 2. Valida o token e os dados da sala
+$st = $pdo->prepare("SELECT i.*, r.id as room_id, r.name as room_name, r.status as room_status, r.owner_user_id 
+                     FROM room_invites i 
+                     JOIN rooms r ON r.id=i.room_id 
+                     WHERE i.token=? LIMIT 1");
+$st->execute([$token]);
+$tokenInvite = $st->fetch();
+
+if (!$tokenInvite) {
+    http_response_code(404);
+    exit('Convite ou sala não encontrada.');
+}
+if ($tokenInvite['room_status'] !== 'open') {
     exit('A sala ainda não foi aberta pelo administrador ou foi encerrada.');
 }
 
-$signedUser = current_user();
-$canAdmit = $signedUser && !empty($signedUser['active']) && (int)$signedUser['id'] === (int)$me['owner_user_id'];
+$roomId = (int)$tokenInvite['room_id'];
+$userEmail = strtolower(trim((string)$signedUser['email']));
+$userName = trim((string)$signedUser['name']) ?: explode('@', $userEmail)[0];
+
+// 3. Garante que o usuário logado utilize seu próprio convite individual aprovado
+$stMyInvite = $pdo->prepare("SELECT * FROM room_invites WHERE room_id=? AND LOWER(email)=? LIMIT 1");
+$stMyInvite->execute([$roomId, $userEmail]);
+$myInvite = $stMyInvite->fetch();
+
+if (!$myInvite) {
+    $myToken = bin2hex(random_bytes(32));
+    $myKey = bin2hex(random_bytes(32));
+    $ins = $pdo->prepare("INSERT INTO room_invites (room_id, email, token, status, display_name, participant_key, requested_at, approved_at)
+                          VALUES (?, ?, ?, 'approved', ?, ?, NOW(), NOW())");
+    $ins->execute([$roomId, $userEmail, $myToken, $userName, $myKey]);
+
+    header('Location: room.php?token=' . urlencode($myToken));
+    exit;
+} else {
+    if ($myInvite['status'] !== 'approved') {
+        $myKey = !empty($myInvite['participant_key']) ? $myInvite['participant_key'] : bin2hex(random_bytes(32));
+        $up = $pdo->prepare("UPDATE room_invites SET status='approved', approved_at=NOW(), display_name=COALESCE(NULLIF(display_name, ''), ?), participant_key=? WHERE id=?");
+        $up->execute([$userName, $myKey, $myInvite['id']]);
+        $stMyInvite->execute([$roomId, $userEmail]);
+        $myInvite = $stMyInvite->fetch();
+    }
+    if ($myInvite['token'] !== $token) {
+        header('Location: room.php?token=' . urlencode($myInvite['token']));
+        exit;
+    }
+}
+
+$me = $myInvite;
+$me['room_name'] = $tokenInvite['room_name'];
+$me['room_status'] = $tokenInvite['room_status'];
+$me['owner_user_id'] = $tokenInvite['owner_user_id'];
+
+$canAdmit = !empty($signedUser['active']) && (int)$signedUser['id'] === (int)$me['owner_user_id'];
 
 $cursorQuery = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM signaling_messages WHERE room_id=?');
 $cursorQuery->execute([$me['room_id']]);
 $signalCursor = (int)$cursorQuery->fetchColumn();
+
+// Gera ou obtém o token compartilhado da sala para o botão Convidar
+$stRoomInvite = $pdo->prepare("SELECT token FROM room_invites WHERE room_id=? AND email='invite@sala.local' LIMIT 1");
+$stRoomInvite->execute([$me['room_id']]);
+$roomInviteToken = $stRoomInvite->fetchColumn();
+if (!$roomInviteToken) {
+    $roomInviteToken = bin2hex(random_bytes(32));
+    $stIns = $pdo->prepare("INSERT INTO room_invites (room_id, email, token, status, display_name, participant_key, requested_at, approved_at) 
+                            VALUES (?, 'invite@sala.local', ?, 'approved', 'Convite da Sala', ?, NOW(), NOW())");
+    $stIns->execute([$me['room_id'], $roomInviteToken, bin2hex(random_bytes(32))]);
+}
+
+$baseUrl = (string)($config['app']['base_url'] ?? '/salareuniao');
+if (str_starts_with($baseUrl, 'http://') || str_starts_with($baseUrl, 'https://')) {
+    $inviteBase = rtrim($baseUrl, '/');
+} else {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'https';
+    $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'maurinsoft.com.br';
+    $inviteBase = $scheme . '://' . $host . '/' . ltrim($baseUrl, '/');
+}
+$inviteUrl = rtrim($inviteBase, '/') . '/room.php?token=' . urlencode($roomInviteToken);
 
 $iceServers = $config['webrtc']['ice_servers'] ?? [];
 $turn = $config['webrtc']['turn'] ?? [];
@@ -43,7 +117,6 @@ $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocke
 $wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
 $wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
 $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
-$inviteUrl = rtrim((string)$config['app']['base_url'], '/') . '/join.php?room_id=' . (int)$me['room_id'];
 ?>
 <!doctype html>
 <html lang="pt-BR">

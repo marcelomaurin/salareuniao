@@ -4,7 +4,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/mailer.php';
 
 function room_invite_link(array $config, string $token): string {
-    return rtrim((string)$config['app']['base_url'], '/') . '/join.php?token=' . urlencode($token);
+    $baseUrl = (string)($config['app']['base_url'] ?? '/salareuniao');
+    if (str_starts_with($baseUrl, 'http://') || str_starts_with($baseUrl, 'https://')) {
+        $base = rtrim($baseUrl, '/');
+    } else {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'https';
+        $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'maurinsoft.com.br';
+        $base = $scheme . '://' . $host . '/' . ltrim($baseUrl, '/');
+    }
+    return rtrim($base, '/') . '/room.php?token=' . urlencode($token);
 }
 
 function send_room_invite_mail(array $config, array $room, string $email, string $token, string $kind = 'invite'): bool {
