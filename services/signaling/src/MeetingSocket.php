@@ -97,6 +97,8 @@ final class MeetingSocket implements MessageComponentInterface
                     !empty($data['mic']),!empty($data['cam']),!empty($data['screen'])
                 );
                 $this->broadcastPresence($meta['room_id']);
+            }elseif($type==='lobby-refresh'){
+                $this->broadcastPresence($meta['room_id']);
             }elseif($type==='ping'){
                 $from->send('{"type":"pong"}');
             }
@@ -222,7 +224,18 @@ final class MeetingSocket implements MessageComponentInterface
         $q=$this->pdo->prepare("SELECT participant_key,display_name,mic_enabled,cam_enabled,screen_sharing,joined_at,last_seen_at
             FROM room_presence WHERE room_id=? AND last_seen_at>=DATE_SUB(NOW(),INTERVAL 20 SECOND) ORDER BY joined_at");
         $q->execute([$roomId]);
-        $this->broadcast($roomId,['type'=>'presence','participants'=>$q->fetchAll()]);
+        $participants=$q->fetchAll();
+
+        $wq=$this->pdo->prepare("SELECT id, display_name, email, requested_at
+            FROM room_invites WHERE room_id=? AND status='waiting' ORDER BY requested_at ASC");
+        $wq->execute([$roomId]);
+        $waiting=$wq->fetchAll();
+
+        $this->broadcast($roomId,[
+            'type'=>'presence',
+            'participants'=>$participants,
+            'waiting'=>$waiting,
+        ]);
     }
 
     private function broadcast(int $roomId,array $data,?string $exceptKey=null): void
