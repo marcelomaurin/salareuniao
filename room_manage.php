@@ -57,7 +57,15 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $uSt->execute([$targetUserId]);
             $targetUser = $uSt->fetch();
             if (!$targetUser) throw new RuntimeException('Usuário selecionado não foi encontrado.');
-            if ($targetUserId === (int)$room['owner_user_id']) throw new RuntimeException('Este usuário já é o anfitrião proprietário da sala.');
+            if ($targetUserId === (int)$room['owner_user_id']) {
+                throw new RuntimeException('Este usuário (' . htmlspecialchars($targetUser['name']) . ') já é o anfitrião proprietário da sala.');
+            }
+
+            $checkAdmin = $pdo->prepare("SELECT 1 FROM room_admins WHERE room_id = ? AND user_id = ? LIMIT 1");
+            $checkAdmin->execute([$id, $targetUserId]);
+            if ($checkAdmin->fetch()) {
+                throw new RuntimeException('Este usuário (' . htmlspecialchars($targetUser['name']) . ') já é administrador desta sala.');
+            }
 
             $stAdd = $pdo->prepare("INSERT IGNORE INTO room_admins (room_id, user_id) VALUES (?, ?)");
             $stAdd->execute([$id, $targetUserId]);
@@ -173,6 +181,23 @@ $inv=$pdo->prepare("SELECT i.*,p.last_seen_at,p.mic_enabled,p.cam_enabled,p.scre
                     LEFT JOIN room_presence p ON p.room_id=i.room_id AND p.participant_key=i.participant_key
                     WHERE i.room_id=? ORDER BY i.created_at");
 $inv->execute([$id]);$invites=$inv->fetchAll();
+
+// Busca administradores desta sala
+$stRoomAdmins = $pdo->prepare("
+    SELECT ra.id, ra.user_id, ra.created_at, u.name, u.email, u.role, u.active
+    FROM room_admins ra
+    JOIN users u ON u.id = ra.user_id
+    WHERE ra.room_id = ?
+    ORDER BY u.name ASC
+");
+$stRoomAdmins->execute([$id]);
+$roomAdmins = $stRoomAdmins->fetchAll() ?: [];
+$adminUserIds = array_map(function($ra) { return (int)$ra['user_id']; }, $roomAdmins);
+$ownerId = (int)$room['owner_user_id'];
+
+// Busca TODOS os usuários cadastrados no sistema para o listbox de inclusão
+$stUsers = $pdo->query("SELECT id, name, email, role, active FROM users ORDER BY name ASC");
+$availableUsers = $stUsers ? $stUsers->fetchAll() : [];
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -217,7 +242,8 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
         <div class="sr-brand-title"><?=e($room['name'])?> <span style="font-weight: 400; font-size: 0.9rem; color: var(--text-muted);">&bull; Gestão do Anfitrião</span></div>
       </div>
       <div class="sr-nav-links">
-        <a href="index.php" class="sr-btn sr-btn-secondary sr-btn-sm">&larr; Central de Salas</a>
+        <a href="../" class="sr-btn sr-btn-secondary sr-btn-sm">&larr; Portal Principal</a>
+        <a href="index.php" class="sr-btn sr-btn-secondary sr-btn-sm">Central de Salas</a>
         <?php if (!empty($hostInvite['token']) && $room['status'] === 'open'): ?>
           <a href="room.php?token=<?=urlencode($hostInvite['token'])?>" class="sr-btn sr-btn-primary sr-btn-sm">
             🚀 Acessar Sala ao Vivo
@@ -364,10 +390,13 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
 
           <div style="flex: 1; min-width: 240px;">
             <select name="admin_user_id" class="sr-input" style="height: 42px;" required>
-              <option value="">Selecione um usuário cadastrado para ser administrador...</option>
-              <?php foreach ($availableUsers as $au): ?>
-                <option value="<?=(int)$au['id']?>">
-                  <?=e($au['name'])?> (<?=e($au['email'])?>)
+              <option value="">Selecione um usuário cadastrado para ser administrador (<?=count($availableUsers)?> cadastrados)...</option>
+              <?php foreach ($availableUsers as $au): 
+                $isOwner = ((int)$au['id'] === $ownerId);
+                $isAlreadyAdmin = in_array((int)$au['id'], $adminUserIds, true);
+              ?>
+                <option value="<?=(int)$au['id']?>" <?=$isOwner || $isAlreadyAdmin ? 'style="color: var(--text-dim);"' : ''?>>
+                  <?=e($au['name'])?> (<?=e($au['email'])?>)<?=$isOwner ? ' — [Proprietário da Sala]' : ($isAlreadyAdmin ? ' — [Já é Administrador]' : '')?>
                 </option>
               <?php endforeach; ?>
             </select>
