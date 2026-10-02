@@ -21,8 +21,16 @@
     // Tier 1: Tenta Câmera + Microfone
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: true
+        video: {
+          width: { ideal: 640, max: 854 },
+          height: { ideal: 360, max: 480 },
+          frameRate: { ideal: 24, max: 30 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
       hasVideo = true;
       hasAudio = true;
@@ -128,7 +136,11 @@
       try {
         if (window.showToast) window.showToast('Solicitando acesso à câmera...');
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: {
+            width: { ideal: 640, max: 854 },
+            height: { ideal: 360, max: 480 },
+            frameRate: { ideal: 24, max: 30 }
+          }
         });
         const newTrack = stream.getVideoTracks()[0];
         if (newTrack) {

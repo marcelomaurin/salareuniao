@@ -36,6 +36,12 @@
       });
 
       if (d.self) cfg.selfKey = d.self;
+      if (d.error === 'forbidden' || d.status === 'rejected') {
+        alert('Você foi desconectado ou expulso desta reunião pelo administrador.');
+        await leaveRoom(false);
+        window.location.href = 'join.php?left=1&room_id=' + (cfg.roomId || '');
+        return;
+      }
       if (d.room_status !== 'open') {
         alert('A reunião foi encerrada.');
         await leaveRoom(false);

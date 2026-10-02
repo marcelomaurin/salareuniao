@@ -134,7 +134,18 @@
     };
 
     pc.addTransceiver(audioTrack || 'audio', transceiverOptions);
-    pc.addTransceiver(videoTrack || 'video', transceiverOptions);
+    const videoTransceiver = pc.addTransceiver(videoTrack || 'video', transceiverOptions);
+
+    // Otimização de largura de banda: limita o bitrate máximo de vídeo da câmera a 400 kbps
+    if (videoTransceiver && videoTransceiver.sender && !screenTrack) {
+      try {
+        const pms = videoTransceiver.sender.getParameters();
+        if (!pms.encodings || pms.encodings.length === 0) pms.encodings = [{}];
+        pms.encodings[0].maxBitrate = 400000; // 400 kbps
+        pms.encodings[0].maxFramerate = 24;
+        videoTransceiver.sender.setParameters(pms);
+      } catch (e) {}
+    }
 
     // 7. Configuração de onconnectionstatechange e reconexão resiliente
     pc.onconnectionstatechange = () => {

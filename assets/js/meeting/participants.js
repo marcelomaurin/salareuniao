@@ -197,6 +197,21 @@
             };
           }
           actions.appendChild(muteBtn);
+
+          // Botão Expulsar (disponível apenas para administradores da sala)
+          if (cfg.CAN_ADMIT) {
+            const kickBtn = document.createElement('button');
+            kickBtn.type = 'button';
+            kickBtn.className = 'sr-btn sr-btn-danger sr-btn-sm';
+            kickBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 6px; cursor: pointer; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5;';
+            kickBtn.innerHTML = '🚫 Expulsar';
+            kickBtn.title = `Expulsar ${p.display_name} da reunião`;
+            kickBtn.onclick = (e) => {
+              e.stopPropagation();
+              kickParticipant(p.participant_key, p.display_name);
+            };
+            actions.appendChild(kickBtn);
+          }
         }
 
         wrap.appendChild(div);
@@ -365,9 +380,45 @@
     }
   }
 
+  async function kickParticipant(targetKey, displayName) {
+    if (!confirm(`Tem certeza que deseja expulsar "${displayName}" desta sala de reunião?\nO participante será desconectado imediatamente.`)) {
+      return;
+    }
+    const cfg = window.MEETING_CONFIG;
+    try {
+      const resp = await fetch('api/room_kick.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          target_key: targetKey
+        })
+      });
+      const data = await resp.json();
+      if (!data.ok) {
+        alert('Erro ao expulsar participante: ' + (data.error || 'Falha na operação'));
+        return;
+      }
+      if (window.showToast) {
+        window.showToast(`🚫 ${displayName} foi expulso da reunião.`);
+      }
+      if (window.MeetingWebRTC) {
+        window.MeetingWebRTC.closePeer(targetKey);
+      }
+      removeTile(targetKey);
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+    } catch (e) {
+      console.error('Falha ao expulsar participante:', e);
+      alert('Não foi possível expulsar o participante. Verifique a conexão.');
+    }
+  }
+
   window.MeetingParticipants = {
     renderParticipants,
     renderWaitingList,
+    kickParticipant,
     admitGuest,
     muteParticipant,
     ensureTile,

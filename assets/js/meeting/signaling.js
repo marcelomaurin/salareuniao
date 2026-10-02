@@ -85,6 +85,28 @@
       return;
     }
 
+    // Se for sinal de participante expulso
+    if (m.message_type === 'kicked') {
+      const payload = (typeof m.payload === 'object' && m.payload !== null) ? m.payload : {};
+      const cfg = window.MEETING_CONFIG;
+      if (m.recipient_key === cfg.selfKey || payload.target_key === cfg.selfKey) {
+        alert('Você foi expulso da reunião pelo administrador.');
+        if (window.MeetingApp) {
+          window.MeetingApp.leaveRoom(false);
+        }
+        window.location.href = 'join.php?left=1&room_id=' + (cfg.roomId || '');
+        return;
+      } else {
+        if (window.MeetingParticipants && payload.target_key) {
+          window.MeetingParticipants.removeTile(payload.target_key);
+        }
+        if (window.MeetingWebRTC && payload.target_key) {
+          window.MeetingWebRTC.closePeer(payload.target_key);
+        }
+      }
+      return;
+    }
+
     try {
       await queuePeerSignal(m.sender_key, () => {
         if (window.MeetingWebRTC && window.MeetingWebRTC.processSignal) {
