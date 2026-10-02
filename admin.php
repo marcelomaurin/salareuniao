@@ -124,29 +124,85 @@ try {
       backdrop-filter: blur(12px);
       overflow-x: auto;
     }
+    .sr-nav-links { flex-wrap: wrap; max-width: 100%; display: flex; align-items: center; gap: 10px; }
+    .sr-brand { max-width: 100%; flex-wrap: wrap; display: flex; align-items: center; gap: 12px; }
+    .sr-brand-logo, .sr-user-avatar { flex-shrink: 0; }
+    @media (max-width: 640px) {
+      .sr-topbar { position: static; padding: 14px 12px; }
+      .sr-nav-links { width: 100%; gap: 8px; }
+      .sr-nav-links .sr-btn { flex: 1 1 120px; min-height: 44px; }
+      .sr-user-pill { width: 100%; order: -1; }
+      .sr-brand-badge { display: none; }
+      .sr-brand-title { font-size: 1.1rem; }
+    }
   </style>
 </head>
 <body class="sr-body">
-  <header class="sr-header">
-    <div class="sr-header-inner">
+  <!-- Topbar -->
+  <header class="sr-topbar">
+    <div class="sr-topbar-inner">
       <div class="sr-brand">
         <div class="sr-brand-logo">M</div>
-        <div class="sr-brand-text">
-          <span>Sala Reunião</span>
-          <span class="sr-brand-sub">Painel Administrativo</span>
+        <div>
+          <div class="sr-brand-title">Maurinsoft <span style="font-weight: 400; color: var(--primary);">Sala Reunião</span></div>
         </div>
+        <span class="sr-brand-badge">WebRTC Pro</span>
       </div>
-      <nav class="sr-nav">
-        <a href="../" class="sr-nav-link">&larr; Portal Principal</a> <a href="index.php" class="sr-nav-link">Minhas Salas</a>
-        <a href="room_create.php" class="sr-nav-link">Nova Sala</a>
-        <a href="admin_users.php" class="sr-nav-link">👥 Usuários Cadastrados</a>
-        <a href="admin.php" class="sr-nav-link active">Admin Global</a>
+
+      <div class="sr-nav-links">
+        <a href="../" class="sr-btn sr-btn-secondary sr-btn-sm">&larr; Portal Principal</a>
+        <a href="index.php" class="sr-btn sr-btn-secondary sr-btn-sm">Central de Salas</a>
+        <?php if (!empty($user['role']) && $user['role'] === 'admin'): ?>
+          <div class="sr-dropdown" id="adminDropdownContainer">
+            <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" id="adminDropdownBtn" onclick="toggleAdminDropdown(event)">
+              ⚙️ Administração <span style="font-size: 0.72rem; margin-left: 3px;">▼</span>
+            </button>
+            <div class="sr-dropdown-menu" id="adminDropdownMenu">
+              <div class="sr-dropdown-header">Funções Administrativas</div>
+              <a href="admin_users.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">👥</span>
+                <div>
+                  <div class="sr-dropdown-title">Usuários Cadastrados</div>
+                  <div class="sr-dropdown-desc">Gerenciamento de contas e perfis</div>
+                </div>
+              </a>
+              <a href="admin.php" class="sr-dropdown-item" style="background: rgba(0, 210, 255, 0.1);">
+                <span class="sr-dropdown-icon">📊</span>
+                <div>
+                  <div class="sr-dropdown-title" style="color: var(--primary);">Painel WebRTC & Salas</div>
+                  <div class="sr-dropdown-desc">Telemetria ao vivo e monitoramento</div>
+                </div>
+              </a>
+              <a href="admin_devices.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">📟</span>
+                <div>
+                  <div class="sr-dropdown-title">Dispositivos & Terminais</div>
+                  <div class="sr-dropdown-desc">Controladores de sala ESP32</div>
+                </div>
+              </a>
+              <a href="admin_audit.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">📜</span>
+                <div>
+                  <div class="sr-dropdown-title">Auditoria do Sistema</div>
+                  <div class="sr-dropdown-desc">Logs de segurança e eventos</div>
+                </div>
+              </a>
+              <a href="admin_system.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">🛠️</span>
+                <div>
+                  <div class="sr-dropdown-title">Diagnóstico & Configurações</div>
+                  <div class="sr-dropdown-desc">SMTP, TURN e testes do ambiente</div>
+                </div>
+              </a>
+            </div>
+          </div>
+        <?php endif; ?>
         <div class="sr-user-pill">
-          <div class="sr-user-avatar"><?= strtoupper(substr($user['name'] ?? 'A', 0, 1)) ?></div>
-          <span class="sr-user-name"><?= e($user['name']) ?> (Admin)</span>
+          <div class="sr-user-avatar"><?=strtoupper(substr($user['name'] ?? 'A', 0, 1))?></div>
+          <span><?=e($user['name'] ?? 'Admin')?></span>
         </div>
-        <a href="logout.php" class="sr-btn sr-btn-outline" style="padding: 6px 14px; font-size: 0.82rem;">Sair</a>
-      </nav>
+        <a href="logout.php" class="sr-btn sr-btn-danger sr-btn-sm">Sair</a>
+      </div>
     </div>
   </header>
 
@@ -295,5 +351,20 @@ try {
       </table>
     </div>
   </main>
+
+  <script>
+    function toggleAdminDropdown(e) {
+      e.stopPropagation();
+      const dropdown = document.getElementById('adminDropdownContainer');
+      if (dropdown) dropdown.classList.toggle('active');
+    }
+
+    document.addEventListener('click', function(e) {
+      const dropdown = document.getElementById('adminDropdownContainer');
+      if (dropdown && !dropdown.contains(e.target)) {
+        dropdown.classList.remove('active');
+      }
+    });
+  </script>
 </body>
 </html>
