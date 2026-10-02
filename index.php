@@ -221,7 +221,6 @@ try {
       <div class="sr-nav-links">
         <a href="../" class="sr-btn sr-btn-secondary sr-btn-sm">&larr; Portal Principal</a>
         <?php if (!empty($user['role']) && $user['role'] === 'admin'): ?>
-          <a href="../restrita/admin/index.php" class="sr-btn sr-btn-secondary sr-btn-sm">Painel Restrito</a>
           <a href="admin.php" class="sr-btn sr-btn-secondary sr-btn-sm">Admin WebRTC</a>
         <?php endif; ?>
         <div class="sr-user-pill">
