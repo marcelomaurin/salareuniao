@@ -288,7 +288,49 @@ try {
       <div class="sr-nav-links">
         <a href="../" class="sr-btn sr-btn-secondary sr-btn-sm">&larr; Portal Principal</a>
         <?php if (!empty($user['role']) && $user['role'] === 'admin'): ?>
-          <a href="admin.php" class="sr-btn sr-btn-secondary sr-btn-sm">Admin WebRTC</a>
+          <div class="sr-dropdown" id="adminDropdownContainer">
+            <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" id="adminDropdownBtn" onclick="toggleAdminDropdown(event)">
+              ⚙️ Administração <span style="font-size: 0.72rem; margin-left: 3px;">▼</span>
+            </button>
+            <div class="sr-dropdown-menu" id="adminDropdownMenu">
+              <div class="sr-dropdown-header">Funções Administrativas</div>
+              <a href="admin_users.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">👥</span>
+                <div>
+                  <div class="sr-dropdown-title">Usuários Cadastrados</div>
+                  <div class="sr-dropdown-desc">Gerenciamento de contas e perfis</div>
+                </div>
+              </a>
+              <a href="admin.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">📊</span>
+                <div>
+                  <div class="sr-dropdown-title">Painel WebRTC & Salas</div>
+                  <div class="sr-dropdown-desc">Telemetria ao vivo e monitoramento</div>
+                </div>
+              </a>
+              <a href="admin_devices.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">📟</span>
+                <div>
+                  <div class="sr-dropdown-title">Dispositivos & Terminais</div>
+                  <div class="sr-dropdown-desc">Controladores de sala ESP32</div>
+                </div>
+              </a>
+              <a href="admin_audit.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">📜</span>
+                <div>
+                  <div class="sr-dropdown-title">Auditoria do Sistema</div>
+                  <div class="sr-dropdown-desc">Logs de segurança e eventos</div>
+                </div>
+              </a>
+              <a href="admin_system.php" class="sr-dropdown-item">
+                <span class="sr-dropdown-icon">🛠️</span>
+                <div>
+                  <div class="sr-dropdown-title">Diagnóstico & Configurações</div>
+                  <div class="sr-dropdown-desc">SMTP, TURN e testes do ambiente</div>
+                </div>
+              </a>
+            </div>
+          </div>
         <?php endif; ?>
         <div class="sr-user-pill">
           <div class="sr-user-avatar"><?=strtoupper(substr($user['name'], 0, 1))?></div>
@@ -491,6 +533,19 @@ try {
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 3000);
     }
+
+    function toggleAdminDropdown(e) {
+      e.stopPropagation();
+      const dropdown = document.getElementById('adminDropdownContainer');
+      if (dropdown) dropdown.classList.toggle('active');
+    }
+
+    document.addEventListener('click', function(e) {
+      const dropdown = document.getElementById('adminDropdownContainer');
+      if (dropdown && !dropdown.contains(e.target)) {
+        dropdown.classList.remove('active');
+      }
+    });
   </script>
 </body>
 </html>

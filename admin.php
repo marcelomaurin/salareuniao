@@ -139,6 +139,7 @@ try {
       <nav class="sr-nav">
         <a href="../" class="sr-nav-link">&larr; Portal Principal</a> <a href="index.php" class="sr-nav-link">Minhas Salas</a>
         <a href="room_create.php" class="sr-nav-link">Nova Sala</a>
+        <a href="admin_users.php" class="sr-nav-link">👥 Usuários Cadastrados</a>
         <a href="admin.php" class="sr-nav-link active">Admin Global</a>
         <div class="sr-user-pill">
           <div class="sr-user-avatar"><?= strtoupper(substr($user['name'] ?? 'A', 0, 1)) ?></div>
@@ -156,8 +157,9 @@ try {
         <p style="color: var(--text-muted); font-size: 0.9rem;">Telemetria em tempo real, monitoramento de salas e auditoria WebRTC.</p>
       </div>
       <div style="display: flex; gap: 10px;">
-        <a href="room_create.php" class="sr-btn sr-btn-primary">+ Criar Reunião</a>
-        <a href="../restrita/admin/index.php" class="sr-btn sr-btn-outline">Painel Restrito</a> <a href="../" class="sr-btn sr-btn-outline">&larr; Portal Principal</a>
+        <a href="admin_users.php" class="sr-btn sr-btn-primary">👥 Gerenciar Usuários</a>
+        <a href="room_create.php" class="sr-btn sr-btn-secondary">+ Criar Reunião</a>
+        <a href="../" class="sr-btn sr-btn-outline">&larr; Portal Principal</a>
       </div>
     </div>
 
