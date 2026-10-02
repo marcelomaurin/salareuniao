@@ -18,7 +18,7 @@ if ($hostToken === '' || $inviteId <= 0) {
     exit;
 }
 
-// Qualquer participante aprovado dentro da sala aberta pode aprovar/recusar participantes da sala de espera
+// Apenas administradores da sala ou do sistema podem autorizar/recusar participantes da sala de espera
 $st = $pdo->prepare("SELECT i.*, r.owner_user_id, r.status as room_status 
                      FROM room_invites i 
                      JOIN rooms r ON r.id = i.room_id 
@@ -29,6 +29,12 @@ $member = $st->fetch();
 if (!$member || $member['room_status'] !== 'open') {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'unauthorized_or_room_closed']);
+    exit;
+}
+
+if (!is_token_room_admin($pdo, $hostToken)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'only_administrators_can_authorize']);
     exit;
 }
 

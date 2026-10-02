@@ -397,3 +397,58 @@ function get_room_storage_dir(int $roomId): string {
     return $dir;
 }
 
+function is_token_room_admin(PDO $pdo, string $token): bool {
+    if ($token === '') {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare("
+            SELECT i.id, i.room_id, i.email, r.owner_user_id, u.id as user_id, u.role as user_role, u.active
+            FROM room_invites i
+            JOIN rooms r ON r.id = i.room_id
+            LEFT JOIN users u ON LOWER(u.email) = LOWER(i.email)
+            WHERE i.token = ?
+            LIMIT 1
+        ");
+        $st->execute([$token]);
+        $row = $st->fetch();
+        if (!$row) {
+            return false;
+        }
+
+        $roomId = (int)$row['room_id'];
+        $ownerUserId = (int)$row['owner_user_id'];
+        $userId = !empty($row['user_id']) ? (int)$row['user_id'] : 0;
+        $userRole = (string)($row['user_role'] ?? '');
+
+        // 1. Administrador global do sistema
+        if ($userRole === 'admin' && !empty($row['active'])) {
+            return true;
+        }
+
+        // 2. Proprietário da sala
+        if ($userId > 0 && $userId === $ownerUserId) {
+            return true;
+        }
+
+        // 3. Cadastrado na tabela room_admins para esta sala
+        if ($userId > 0) {
+            $stAdm = $pdo->prepare("SELECT 1 FROM room_admins WHERE room_id = ? AND user_id = ? LIMIT 1");
+            $stAdm->execute([$roomId, $userId]);
+            if ($stAdm->fetchColumn()) {
+                return true;
+            }
+        }
+
+        // 4. Se houver um usuário logado na sessão ativa que seja admin desta sala
+        $sessionUser = current_user();
+        if ($sessionUser && is_room_admin($pdo, $sessionUser, $roomId, $ownerUserId)) {
+            return true;
+        }
+
+        return false;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+

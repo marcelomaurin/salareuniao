@@ -88,8 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Se veio por convite existente, coloca em espera caso ainda não esteja aprovado
         if ($invite) {
             $pKey = !empty($invite['participant_key']) ? $invite['participant_key'] : bin2hex(random_bytes(32));
-            $signedUser = current_user();
-            $isHost = is_room_admin($pdo, $signedUser, (int)$room['id'], (int)$room['owner_user_id']);
+            $isHost = is_token_room_admin($pdo, $token);
 
             // Se for administrador da sala ou do sistema, aprova direto; senão, entra na sala de espera
             $newStatus = $isHost ? 'approved' : 'waiting';
