@@ -38,7 +38,8 @@ if ($tokenInvite['status'] === 'invited' || $tokenInvite['email'] === 'invite@sa
     exit;
 }
 if ($tokenInvite['status'] === 'rejected') {
-    exit('Sua entrada nesta reunião não foi autorizada.');
+    header('Location: kicked.php?room_name=' . urlencode($tokenInvite['room_name']));
+    exit;
 }
 
 // 3. O token está aprovado (status === 'approved')
@@ -1376,6 +1377,7 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       MAX_MESH_PARTICIPANTS: <?=$maxMeshParticipants?>,
       selfKey: <?=json_encode($me['participant_key'])?>,
       roomId: <?=(int)$me['room_id']?>,
+      roomName: <?=json_encode($me['room_name'])?>,
       displayName: <?=json_encode($me['display_name'])?>,
       inviteUrl: <?=json_encode($inviteUrl)?>
     };

@@ -15,14 +15,32 @@ if ($token === '') {
     exit;
 }
 
-$st = $pdo->prepare("SELECT i.*, r.status room_status, r.owner_user_id 
+$st = $pdo->prepare("SELECT i.*, r.status room_status, r.owner_user_id, r.name as room_name 
                      FROM room_invites i 
                      JOIN rooms r ON r.id=i.room_id 
-                     WHERE i.token=? AND i.status='approved' LIMIT 1");
+                     WHERE i.token=? LIMIT 1");
 $st->execute([$token]);
 $me = $st->fetch();
 
-if (!$me || empty($me['participant_key'])) {
+if (!$me) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'forbidden']);
+    exit;
+}
+
+if ($me['status'] === 'rejected') {
+    echo json_encode([
+        'ok' => false,
+        'kicked' => true,
+        'error' => 'kicked',
+        'status' => 'rejected',
+        'room_name' => $me['room_name'] ?? '',
+        'message' => 'Você foi expulso da sala de reunião.'
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if ($me['status'] !== 'approved' || empty($me['participant_key'])) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'forbidden']);
     exit;

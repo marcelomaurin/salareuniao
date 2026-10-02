@@ -31,11 +31,30 @@
     } catch(e) {}
   }
 
-  function updateVideoGridCount() {
+    function updateVideoGridCount() {
     const wrap = document.getElementById('videos');
     if (!wrap) return;
     const count = wrap.querySelectorAll('.tile').length;
     wrap.dataset.count = String(count);
+  }
+
+  function removeTile(key) {
+    const tile = document.getElementById('tile-' + key);
+    if (tile) {
+      tile.remove();
+    }
+    const peerVideo = document.getElementById('peer-' + key);
+    if (peerVideo) {
+      try {
+        if (peerVideo.srcObject) {
+          peerVideo.srcObject.getTracks().forEach(t => t.stop());
+          peerVideo.srcObject = null;
+        }
+      } catch(e) {}
+      peerVideo.remove();
+    }
+    updateCounters();
+    updateVideoGridCount();
   }
 
   function ensureTile(key) {
@@ -380,8 +399,9 @@
     }
   }
 
-  async function kickParticipant(targetKey, displayName) {
-    if (!confirm(`Tem certeza que deseja expulsar "${displayName}" desta sala de reunião?\nO participante será desconectado imediatamente.`)) {
+    async function kickParticipant(targetKey, displayName) {
+    if (!confirm(`Tem certeza que deseja expulsar "${displayName}" desta sala de reunião?
+O participante será desconectado imediatamente.`)) {
       return;
     }
     const cfg = window.MEETING_CONFIG;
@@ -389,21 +409,38 @@
       const resp = await fetch('api/room_kick.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           token: cfg.TOKEN,
           target_key: targetKey
         })
       });
-      const data = await resp.json();
-      if (!data.ok) {
-        alert('Erro ao expulsar participante: ' + (data.error || 'Falha na operação'));
+      let data;
+      try {
+        data = await resp.json();
+      } catch (jsonErr) {
+        throw new Error('Falha na resposta do servidor (HTTP ' + resp.status + ')');
+      }
+
+      if (!resp.ok || !data.ok) {
+        const errMsg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+        let userMsg = 'Não foi possível expulsar o participante: ' + errMsg;
+        if (errMsg === 'only_administrators_can_kick') {
+          userMsg = 'Apenas administradores da sala possuem permissão para expulsar participantes.';
+        } else if (errMsg === 'cannot_kick_room_owner') {
+          userMsg = 'Não é permitido expulsar o proprietário da sala.';
+        } else if (errMsg === 'participant_not_found') {
+          userMsg = 'O participante já não está mais na sala ou foi desconectado.';
+        }
+        alert(userMsg);
         return;
       }
+
       if (window.showToast) {
         window.showToast(`🚫 ${displayName} foi expulso da reunião.`);
       }
-      if (window.MeetingWebRTC) {
-        window.MeetingWebRTC.closePeer(targetKey);
+      if (window.MeetingWebRTC && window.MeetingWebRTC.removePeer) {
+        window.MeetingWebRTC.removePeer(targetKey);
       }
       removeTile(targetKey);
       if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
@@ -411,7 +448,7 @@
       }
     } catch (e) {
       console.error('Falha ao expulsar participante:', e);
-      alert('Não foi possível expulsar o participante. Verifique a conexão.');
+      alert('Não foi possível expulsar o participante: ' + (e.message || 'Verifique a conexão.'));
     }
   }
 
@@ -421,6 +458,7 @@
     kickParticipant,
     admitGuest,
     muteParticipant,
+    removeTile,
     ensureTile,
     updateCounters,
     updateVideoGridCount,

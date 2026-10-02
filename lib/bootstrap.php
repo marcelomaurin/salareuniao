@@ -446,6 +446,19 @@ function is_token_room_admin(PDO $pdo, string $token): bool {
             return true;
         }
 
+        // 5. Host padrão do sistema
+        if (strtolower((string)$row['email']) === 'host@sala.local') {
+            return true;
+        }
+
+        // 6. Host inicial da sala (primeiro convite aprovado criado com a sala)
+        $firstInv = $pdo->prepare("SELECT id FROM room_invites WHERE room_id = ? AND status = 'approved' ORDER BY id ASC LIMIT 1");
+        $firstInv->execute([$roomId]);
+        $firstId = (int)$firstInv->fetchColumn();
+        if ($firstId > 0 && (int)$row['id'] === $firstId) {
+            return true;
+        }
+
         return false;
     } catch (Throwable $e) {
         return false;

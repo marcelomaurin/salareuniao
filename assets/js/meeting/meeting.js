@@ -8,10 +8,24 @@
   let leaving = false;
   let heartbeatTimer = null;
 
-  async function jsonFetch(url, options = {}) {
+    async function jsonFetch(url, options = {}) {
     const r = await fetch(url, options);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+    let data;
+    try {
+      data = await r.json();
+    } catch(e) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      throw e;
+    }
+    if (!r.ok) {
+      if (data && (data.error === 'kicked' || data.status === 'rejected' || data.kicked)) {
+        return data;
+      }
+      const err = new Error(data && data.error ? data.error : 'HTTP ' + r.status);
+      err.response = data;
+      throw err;
+    }
+    return data;
   }
 
   async function heartbeat() {
@@ -36,10 +50,9 @@
       });
 
       if (d.self) cfg.selfKey = d.self;
-      if (d.error === 'forbidden' || d.status === 'rejected') {
-        alert('Você foi desconectado ou expulso desta reunião pelo administrador.');
+      if (d.kicked || d.error === 'kicked' || d.status === 'rejected') {
         await leaveRoom(false);
-        window.location.href = 'join.php?left=1&room_id=' + (cfg.roomId || '');
+        window.location.href = 'kicked.php?room_name=' + encodeURIComponent(d.room_name || cfg.roomName || '');
         return;
       }
       if (d.room_status !== 'open') {

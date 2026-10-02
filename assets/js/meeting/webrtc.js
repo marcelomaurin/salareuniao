@@ -600,6 +600,7 @@
     peerState,
     getOrCreatePeer,
     removePeer,
+    closePeer: removePeer,
     processSignal,
     flushPendingIce,
     closeAllPeers,
