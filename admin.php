@@ -137,7 +137,7 @@ try {
         </div>
       </div>
       <nav class="sr-nav">
-        <a href="index.php" class="sr-nav-link">Minhas Salas</a>
+        <a href="../" class="sr-nav-link">&larr; Portal Principal</a> <a href="index.php" class="sr-nav-link">Minhas Salas</a>
         <a href="room_create.php" class="sr-nav-link">Nova Sala</a>
         <a href="admin.php" class="sr-nav-link active">Admin Global</a>
         <div class="sr-user-pill">
@@ -157,7 +157,7 @@ try {
       </div>
       <div style="display: flex; gap: 10px;">
         <a href="room_create.php" class="sr-btn sr-btn-primary">+ Criar Reunião</a>
-        <a href="/restrita/admin/index.php" class="sr-btn sr-btn-outline">Painel Geral Maurinsoft</a>
+        <a href="../restrita/admin/index.php" class="sr-btn sr-btn-outline">Painel Restrito</a> <a href="../" class="sr-btn sr-btn-outline">&larr; Portal Principal</a>
       </div>
     </div>
 
