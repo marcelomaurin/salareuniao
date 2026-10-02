@@ -43,11 +43,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $description=trim($_POST['description']??'');
             $starts=trim($_POST['starts_at']??'')?:null;
             $ends=trim($_POST['ends_at']??'')?:null;
+            if($starts) $starts = str_replace('T', ' ', $starts);
+            if($ends) $ends = str_replace('T', ' ', $ends);
             if($name==='') throw new RuntimeException('Informe o nome da reunião.');
             $q=$pdo->prepare('UPDATE rooms SET name=?,description=?,starts_at=?,ends_at=? WHERE id=?');
             $q->execute([$name,$description,$starts,$ends,$id]);
             audit_log('room.edit','room',$id,['name'=>$name,'starts_at'=>$starts,'ends_at'=>$ends]);
-            $msg='Dados da reunião atualizados.';
+            $msg='Dados da reunião atualizados com sucesso.';
         }elseif($action==='add_admin'){
             $targetUserId = (int)($_POST['admin_user_id'] ?? 0);
             if ($targetUserId <= 0) throw new RuntimeException('Selecione um usuário válido.');
@@ -119,13 +121,13 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 audit_log('room.participant_reject','invite',$inviteId,['room_id'=>$id]);
                 $msg='Participante recusado.';
             }
-        }elseif($action==='open'){
+        }elseif($action==='open' || ($action==='set_status' && ($_POST['status']??'')==='open')){
             if($room['status']==='cancelled') throw new RuntimeException('Uma reunião cancelada não pode ser aberta.');
             $pdo->prepare("UPDATE rooms SET status='open' WHERE id=?")->execute([$id]);
             audit_log('room.open','room',$id);
-            $msg='Sala aberta.';
-        }elseif(in_array($action,['close','cancel'],true)){
-            $newStatus=$action==='cancel'?'cancelled':'closed';
+            $msg='Sala aberta com sucesso.';
+        }elseif(in_array($action,['close','cancel'],true) || ($action==='set_status' && in_array($_POST['status']??'',['closed','cancelled'],true))){
+            $newStatus=($action==='cancel'||($_POST['status']??'')==='cancelled')?'cancelled':'closed';
             $pdo->beginTransaction();
             $pdo->prepare('UPDATE room_attendance a JOIN room_presence p ON p.room_id=a.room_id AND p.participant_key=a.participant_key SET a.left_at=p.last_seen_at,a.duration_seconds=TIMESTAMPDIFF(SECOND,a.joined_at,p.last_seen_at) WHERE a.room_id=? AND a.left_at IS NULL')->execute([$id]);
             $pdo->prepare("UPDATE rooms SET status=?,ends_at=NOW() WHERE id=?")->execute([$newStatus,$id]);
@@ -238,9 +240,12 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
     <!-- Master Control Bar -->
     <div class="sr-card" style="margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-        <div>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <h1 style="font-size: 1.5rem;"><?=e($room['name'])?></h1>
+        <div style="flex: 1; min-width: 280px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h1 style="font-size: 1.5rem; margin: 0;"><?=e($room['name'])?></h1>
+            <button type="button" class="sr-btn sr-btn-secondary sr-btn-sm" onclick="toggleEditModal(true)" style="padding: 4px 10px; font-size: 0.82rem; cursor: pointer;">
+              ✏️ Alterar Nome / Dados
+            </button>
             <?php
               $isOpen = ($room['status'] === 'open');
               $badgeClass = $isOpen ? 'sr-badge-open' : ($room['status'] === 'scheduled' ? 'sr-badge-scheduled' : 'sr-badge-closed');
@@ -250,25 +255,35 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
               Status: <?=strtoupper(e($room['status']))?>
             </span>
           </div>
+          <?php if (!empty($room['description'])): ?>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 6px; margin-bottom: 4px;"><?=nl2br(e($room['description']))?></p>
+          <?php endif; ?>
           <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
             Anfitrião: <strong><?=e($room['owner_name'])?></strong> (<?=e($room['owner_email'])?>) &bull;
             Início previsto: <?=!empty($room['starts_at']) ? date('d/m/Y H:i', strtotime($room['starts_at'])) : 'Livre'?>
+            <?php if (!empty($room['ends_at'])): ?>
+              &bull; Fim previsto: <?=date('d/m/Y H:i', strtotime($room['ends_at']))?>
+            <?php endif; ?>
           </div>
         </div>
 
         <!-- Room Action Controls -->
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <form method="post" style="display: inline;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <button type="button" class="sr-btn sr-btn-secondary" onclick="toggleEditModal(true)">
+            ✏️ Editar Nome da Sala
+          </button>
+
+          <form method="post" style="display: inline; margin: 0;">
             <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
             <input type="hidden" name="id" value="<?=$id?>">
             <?php if ($room['status'] !== 'open'): ?>
               <input type="hidden" name="status" value="open">
-              <button type="submit" name="action" value="set_status" class="sr-btn sr-btn-success">
+              <button type="submit" name="action" value="open" class="sr-btn sr-btn-success">
                 🟢 Abrir Sala Agora
               </button>
             <?php else: ?>
               <input type="hidden" name="status" value="closed">
-              <button type="submit" name="action" value="set_status" class="sr-btn sr-btn-danger">
+              <button type="submit" name="action" value="close" class="sr-btn sr-btn-danger">
                 🔴 Encerrar Sala
               </button>
             <?php endif; ?>
@@ -486,12 +501,79 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
       </div>
 
     </div>
+      <!-- Modal: Editar Nome e Dados da Sala -->
+    <div id="modalEditRoom" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 999; align-items: center; justify-content: center; padding: 20px;">
+      <div class="sr-card" style="max-width: 540px; width: 100%; border: 1px solid var(--border-accent); box-shadow: var(--shadow-glow);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 style="font-size: 1.25rem; margin: 0; display: flex; align-items: center; gap: 8px;">
+            <span>✏️</span> Alterar Dados da Sala
+          </h2>
+          <button type="button" onclick="toggleEditModal(false)" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+        </div>
+
+        <form method="post">
+          <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+          <input type="hidden" name="id" value="<?=$id?>">
+          <input type="hidden" name="action" value="edit">
+
+          <div style="margin-bottom: 16px;">
+            <label class="sr-label" for="edit_room_name">Nome da Sala / Reunião *</label>
+            <input type="text" id="edit_room_name" name="name" class="sr-input" required value="<?=e($room['name'])?>" placeholder="Ex: Reunião Geral de Planejamento">
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label class="sr-label" for="edit_room_description">Descrição / Pauta da Reunião</label>
+            <textarea id="edit_room_description" name="description" class="sr-textarea" rows="3" placeholder="Pauta ou descrição dos tópicos abordados..."><?=e($room['description'] ?? '')?></textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px;">
+            <div>
+              <label class="sr-label" for="edit_starts_at">Início Previsto</label>
+              <input type="datetime-local" id="edit_starts_at" name="starts_at" class="sr-input" value="<?=!empty($room['starts_at']) ? date('Y-m-d\TH:i', strtotime($room['starts_at'])) : ''?>">
+            </div>
+            <div>
+              <label class="sr-label" for="edit_ends_at">Término Previsto</label>
+              <input type="datetime-local" id="edit_ends_at" name="ends_at" class="sr-input" value="<?=!empty($room['ends_at']) ? date('Y-m-d\TH:i', strtotime($room['ends_at'])) : ''?>">
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="sr-btn sr-btn-secondary" onclick="toggleEditModal(false)">Cancelar</button>
+            <button type="submit" class="sr-btn sr-btn-primary">💾 Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
 
   <!-- Toast Notification -->
   <div id="sr-toast">Link copiado para a área de transferência!</div>
 
   <script>
+    function toggleEditModal(show) {
+      const modal = document.getElementById('modalEditRoom');
+      if (modal) {
+        modal.style.display = show ? 'flex' : 'none';
+        if (show) {
+          setTimeout(() => {
+            const input = document.getElementById('edit_room_name');
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          }, 50);
+        }
+      }
+    }
+
+    // Fechar modal ao clicar fora da caixa
+    window.addEventListener('click', function(e) {
+      const modal = document.getElementById('modalEditRoom');
+      if (e.target === modal) {
+        toggleEditModal(false);
+      }
+    });
+
     function copyLink(url) {
       if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(url).then(showToast);
