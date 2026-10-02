@@ -32,22 +32,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick
 
 // Ação de Excluir Sala de Reunião
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_room') {
-    verify_csrf();
+    $token = $_POST['csrf'] ?? null;
+    if (!check_csrf($token)) {
+        header('Location: index.php?err=' . urlencode('Sua sessão expirou ou token inválido. Por favor, tente novamente.'));
+        exit;
+    }
+
     $delRoomId = (int)($_POST['room_id'] ?? 0);
-    if ($delRoomId > 0) {
-        $stCheck = $pdo->prepare("SELECT id, name FROM rooms WHERE id = ? AND (owner_user_id = ? OR ? = 'admin')");
-        $stCheck->execute([$delRoomId, $user['id'], $user['role'] ?? 'user']);
+    if ($delRoomId <= 0) {
+        header('Location: index.php?err=' . urlencode('Identificador da sala inválido.'));
+        exit;
+    }
+
+    try {
+        // Busca a sala para validar existência e permissão
+        $stCheck = $pdo->prepare("SELECT id, name, owner_user_id FROM rooms WHERE id = ? LIMIT 1");
+        $stCheck->execute([$delRoomId]);
         $roomToDelete = $stCheck->fetch();
-        if ($roomToDelete) {
-            $stDel = $pdo->prepare("DELETE FROM rooms WHERE id = ?");
-            $stDel->execute([$delRoomId]);
-            audit_log('room.delete', 'room', $delRoomId, ['name' => $roomToDelete['name']]);
-            header('Location: index.php?msg=deleted');
+
+        if (!$roomToDelete) {
+            header('Location: index.php?err=' . urlencode('A sala de reunião selecionada não foi encontrada.'));
             exit;
         }
+
+        $isAdmin = (!empty($user['role']) && $user['role'] === 'admin');
+        $isOwner = ((int)$roomToDelete['owner_user_id'] === (int)$user['id']);
+
+        if (!$isAdmin && !$isOwner) {
+            header('Location: index.php?err=' . urlencode('Você não tem permissão para excluir esta sala de reunião.'));
+            exit;
+        }
+
+        // Exclusão em cascata segura de todos os vínculos da sala
+        try {
+            $pdo->beginTransaction();
+
+            $pdo->prepare("DELETE FROM room_presence WHERE room_id = ?")->execute([$delRoomId]);
+            $pdo->prepare("DELETE FROM signaling_messages WHERE room_id = ?")->execute([$delRoomId]);
+
+            try {
+                $pdo->prepare("DELETE FROM room_messages WHERE room_id = ?")->execute([$delRoomId]);
+            } catch (Throwable $e) {}
+
+            try {
+                $pdo->prepare("DELETE FROM room_attendance WHERE room_id = ?")->execute([$delRoomId]);
+            } catch (Throwable $e) {}
+
+            $pdo->prepare("DELETE FROM room_invites WHERE room_id = ?")->execute([$delRoomId]);
+
+            try {
+                $pdo->prepare("UPDATE devices SET room_id = NULL WHERE room_id = ?")->execute([$delRoomId]);
+            } catch (Throwable $e) {}
+
+            $stDel = $pdo->prepare("DELETE FROM rooms WHERE id = ?");
+            $stDel->execute([$delRoomId]);
+
+            $pdo->commit();
+        } catch (Throwable $eCascade) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            // Fallback caso restrições de Foreign Key rígidas estejam presentes no banco
+            $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+            $pdo->prepare("DELETE FROM room_presence WHERE room_id = ?")->execute([$delRoomId]);
+            $pdo->prepare("DELETE FROM signaling_messages WHERE room_id = ?")->execute([$delRoomId]);
+            try { $pdo->prepare("DELETE FROM room_messages WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
+            try { $pdo->prepare("DELETE FROM room_attendance WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
+            $pdo->prepare("DELETE FROM room_invites WHERE room_id = ?")->execute([$delRoomId]);
+            try { $pdo->prepare("UPDATE devices SET room_id = NULL WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
+            $pdo->prepare("DELETE FROM rooms WHERE id = ?")->execute([$delRoomId]);
+            $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+        }
+
+        audit_log('room.delete', 'room', $delRoomId, ['name' => $roomToDelete['name']]);
+        header('Location: index.php?msg=deleted');
+        exit;
+
+    } catch (Throwable $e) {
+        try { $pdo->exec("SET FOREIGN_KEY_CHECKS=1"); } catch (Throwable $eRest) {}
+        error_log('Erro ao excluir sala ' . $delRoomId . ': ' . $e->getMessage());
+        header('Location: index.php?err=' . urlencode('Não foi possível excluir a sala: ' . $e->getMessage()));
+        exit;
     }
-    header('Location: index.php');
-    exit;
 }
 
 // Busca salas do usuário (compatível com schema sem coluna role em room_invites)
@@ -236,8 +303,14 @@ try {
   <main class="sr-container">
 
     <?php if (($_GET['msg'] ?? '') === 'deleted'): ?>
-      <div style="margin-bottom: 20px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+      <div style="margin-bottom: 20px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
         <span>🗑️</span> Sala de reunião excluída com sucesso.
+      </div>
+    <?php endif; ?>
+
+    <?php if (!empty($_GET['err'])): ?>
+      <div style="margin-bottom: 20px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+        <span>⚠️</span> <?=e($_GET['err'])?>
       </div>
     <?php endif; ?>
 
