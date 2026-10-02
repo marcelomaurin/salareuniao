@@ -119,6 +119,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
     }
 }
 
+// Limpa todos os arquivos vinculados a uma sala de reunião no storage e banco
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear_room_files') {
+    verify_csrf();
+    $targetRoomId = (int)($_POST['room_id'] ?? 0);
+
+    try {
+        if ($targetRoomId <= 0) {
+            throw new RuntimeException('ID de sala inválido.');
+        }
+
+        $stCheck = $pdo->prepare("SELECT id, name, owner_user_id FROM rooms WHERE id = ? LIMIT 1");
+        $stCheck->execute([$targetRoomId]);
+        $targetRoom = $stCheck->fetch();
+
+        if (!$targetRoom) {
+            header('Location: index.php?err=' . urlencode('A sala de reunião selecionada não foi encontrada.'));
+            exit;
+        }
+
+        // Permissão: administrador do sistema, proprietário da sala ou administrador da sala
+        $isAdmin = (!empty($user['role']) && $user['role'] === 'admin');
+        $isOwner = ((int)$targetRoom['owner_user_id'] === (int)$user['id']);
+        $isRoomAdm = is_room_admin($pdo, $user, $targetRoomId, (int)$targetRoom['owner_user_id']);
+
+        if (!$isAdmin && !$isOwner && !$isRoomAdm) {
+            header('Location: index.php?err=' . urlencode('Você não tem permissão para limpar os arquivos desta sala.'));
+            exit;
+        }
+
+        // 1. Apaga os arquivos físicos armazenados na subpasta dinâmica storage/<room_id>/
+        $roomStorageDir = get_room_storage_dir($targetRoomId);
+        $deletedCount = 0;
+        if (is_dir($roomStorageDir)) {
+            $files = glob($roomStorageDir . '/*');
+            if ($files) {
+                foreach ($files as $file) {
+                    if (is_file($file)) {
+                        @unlink($file);
+                        $deletedCount++;
+                    }
+                }
+            }
+        }
+
+        // 2. Remove registros da tabela room_files
+        try {
+            $pdo->prepare("DELETE FROM room_files WHERE room_id = ?")->execute([$targetRoomId]);
+        } catch (Throwable $e) {}
+
+        // 3. Remove mensagens de arquivo do chat desta sala
+        try {
+            $pdo->prepare("DELETE FROM room_messages WHERE room_id = ? AND message LIKE '[FILE:%'")->execute([$targetRoomId]);
+        } catch (Throwable $e) {}
+
+        audit_log('room.clear_files', 'room', $targetRoomId, [
+            'name' => $targetRoom['name'],
+            'deleted_files_count' => $deletedCount
+        ]);
+
+        header('Location: index.php?msg=cleared');
+        exit;
+
+    } catch (Throwable $e) {
+        error_log('Erro ao limpar arquivos da sala ' . $targetRoomId . ': ' . $e->getMessage());
+        header('Location: index.php?err=' . urlencode('Não foi possível limpar os arquivos da sala: ' . $e->getMessage()));
+        exit;
+    }
+}
+
 // Busca salas do usuário (compatível com schema sem coluna role em room_invites)
 try {
     $st = $pdo->prepare("
@@ -352,6 +421,12 @@ try {
       </div>
     <?php endif; ?>
 
+    <?php if (($_GET['msg'] ?? '') === 'cleared'): ?>
+      <div style="margin-bottom: 20px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+        <span>🧹</span> Todos os arquivos da sala de reunião foram removidos com sucesso do storage.
+      </div>
+    <?php endif; ?>
+
     <?php if (!empty($_GET['err'])): ?>
       <div style="margin-bottom: 20px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
         <span>⚠️</span> <?=e($_GET['err'])?>
@@ -495,6 +570,15 @@ try {
                   <input type="hidden" name="room_id" value="<?=(int)$r['id']?>">
                   <button type="submit" class="sr-btn sr-btn-danger sr-btn-sm" title="Excluir sala de reunião permanentemente">
                     🗑️ Excluir
+                  </button>
+                </form>
+
+                <form method="post" style="display: inline-flex; margin: 0;" onsubmit="return confirm('Tem certeza que deseja limpar todos os arquivos desta sala de reunião? Todos os arquivos transferidos no storage e no chat serão excluídos.');">
+                  <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+                  <input type="hidden" name="action" value="clear_room_files">
+                  <input type="hidden" name="room_id" value="<?=(int)$r['id']?>">
+                  <button type="submit" class="sr-btn sr-btn-secondary sr-btn-sm" style="border-color: rgba(245, 158, 11, 0.4); color: #fcd34d;" title="Limpar todos os arquivos transferidos nesta sala">
+                    🧹 Limpar Sala
                   </button>
                 </form>
               </div>
