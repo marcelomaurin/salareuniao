@@ -30,6 +30,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick
     exit;
 }
 
+// Ação de Excluir Sala de Reunião
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_room') {
+    verify_csrf();
+    $delRoomId = (int)($_POST['room_id'] ?? 0);
+    if ($delRoomId > 0) {
+        $stCheck = $pdo->prepare("SELECT id, name FROM rooms WHERE id = ? AND (owner_user_id = ? OR ? = 'admin')");
+        $stCheck->execute([$delRoomId, $user['id'], $user['role'] ?? 'user']);
+        $roomToDelete = $stCheck->fetch();
+        if ($roomToDelete) {
+            $stDel = $pdo->prepare("DELETE FROM rooms WHERE id = ?");
+            $stDel->execute([$delRoomId]);
+            audit_log('room.delete', 'room', $delRoomId, ['name' => $roomToDelete['name']]);
+            header('Location: index.php?msg=deleted');
+            exit;
+        }
+    }
+    header('Location: index.php');
+    exit;
+}
+
 // Busca salas do usuário (compatível com schema sem coluna role em room_invites)
 try {
     $st = $pdo->prepare("
@@ -53,6 +73,17 @@ try {
     ");
     $stats->execute([$user['id']]);
     $my = $stats->fetch();
+
+    // Determina a URL base completa com protocolo e domínio para links de convite
+    $rawBaseUrl = (string)($config['app']['base_url'] ?? '/salareuniao');
+    if (str_starts_with($rawBaseUrl, 'http://') || str_starts_with($rawBaseUrl, 'https://')) {
+        $fullBaseUrl = rtrim($rawBaseUrl, '/');
+    } else {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'https';
+        $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'maurinsoft.com.br';
+        $fullBaseUrl = $scheme . '://' . $host . '/' . ltrim($rawBaseUrl, '/');
+    }
+    $fullBaseUrl = rtrim($fullBaseUrl, '/');
 } catch (Throwable $e) {
     http_response_code(500);
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'
@@ -120,6 +151,10 @@ try {
       padding-top: 14px;
       border-top: 1px solid var(--border-glass);
     }
+    .sr-room-actions form {
+      display: inline-flex;
+      margin: 0;
+    }
     .sr-hero {
       background: linear-gradient(135deg, rgba(13, 20, 36, 0.95), rgba(7, 11, 20, 0.95));
       border: 1px solid var(--border-glass);
@@ -163,6 +198,8 @@ try {
       .sr-stat-card { padding: 14px 18px; }
       .sr-room-card { padding: 18px 14px; }
       .sr-room-actions .sr-btn { flex: 1 1 120px !important; min-height: 44px; }
+      .sr-room-actions form { flex: 1 1 120px; }
+      .sr-room-actions form .sr-btn { width: 100%; }
       .sr-section-heading h2 { font-size: 1.25rem; }
       #sr-toast { max-width: calc(100% - 24px); white-space: normal; text-align: center; }
     }
@@ -198,6 +235,12 @@ try {
 
   <!-- Container -->
   <main class="sr-container">
+
+    <?php if (($_GET['msg'] ?? '') === 'deleted'): ?>
+      <div style="margin-bottom: 20px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+        <span>🗑️</span> Sala de reunião excluída com sucesso.
+      </div>
+    <?php endif; ?>
 
     <!-- Hero Banner -->
     <section class="sr-hero">
@@ -271,7 +314,7 @@ try {
               $statusLabel = $isOpen ? 'Aberta Agora' : ($isScheduled ? 'Agendada' : 'Encerrada');
               $hostToken = $r['host_token'] ?? '';
               $enterUrl = $hostToken ? 'room.php?token=' . urlencode($hostToken) : 'room_manage.php?id=' . (int)$r['id'];
-              $inviteLink = rtrim((string)$config['app']['base_url'], '/') . '/join.php?room_id=' . (int)$r['id'];
+              $inviteLink = $fullBaseUrl . '/join.php?room_id=' . (int)$r['id'];
             ?>
             <div class="sr-room-card">
               <div>
@@ -329,6 +372,15 @@ try {
                 <a href="room_history.php?id=<?=(int)$r['id']?>" class="sr-btn sr-btn-secondary sr-btn-sm" title="Histórico de presenças">
                   Histórico
                 </a>
+
+                <form method="post" style="display: inline-flex; margin: 0;" onsubmit="return confirm('Tem certeza que deseja excluir esta sala de reunião? Todos os convites, presenças e mensagens associados serão removidos.');">
+                  <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+                  <input type="hidden" name="action" value="delete_room">
+                  <input type="hidden" name="room_id" value="<?=(int)$r['id']?>">
+                  <button type="submit" class="sr-btn sr-btn-danger sr-btn-sm" title="Excluir sala de reunião permanentemente">
+                    🗑️ Excluir
+                  </button>
+                </form>
               </div>
             </div>
           <?php endforeach; ?>
@@ -343,11 +395,17 @@ try {
 
   <script>
     function copyInvite(url) {
+      let fullUrl = url;
+      try {
+        fullUrl = new URL(url, window.location.href).href;
+      } catch (e) {
+        fullUrl = window.location.origin + (url.startsWith('/') ? url : '/' + url);
+      }
       if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(url).then(showToast);
+        navigator.clipboard.writeText(fullUrl).then(showToast);
       } else {
         const input = document.createElement('input');
-        input.value = url;
+        input.value = fullUrl;
         document.body.appendChild(input);
         input.select();
         document.execCommand('copy');
