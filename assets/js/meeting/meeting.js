@@ -45,7 +45,8 @@
           token: cfg.TOKEN,
           mic: media ? media.isMicEnabled() : true,
           cam: media ? media.isCamEnabled() : true,
-          screen: media ? media.isScreenSharing() : false
+          screen: media ? media.isScreenSharing() : false,
+          hand: (window.MeetingParticipants && window.MeetingParticipants.isHandRaised()) ? 1 : 0
         })
       });
 

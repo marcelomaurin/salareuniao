@@ -61,23 +61,41 @@ try {
     $pdo->prepare("DELETE FROM room_presence WHERE room_id=? AND last_seen_at<DATE_SUB(NOW(), INTERVAL 20 SECOND)")->execute([$roomId]);
 } catch (Throwable $e) {}
 
+$isAdmin = is_token_room_admin($pdo, $token);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mic = !empty($input['mic']) ? 1 : 0;
     $cam = !empty($input['cam']) ? 1 : 0;
     $screen = !empty($input['screen']) ? 1 : 0;
+    $hand = isset($input['hand']) ? ($input['hand'] ? 1 : 0) : null;
 
     try {
-        $existing = $pdo->prepare('SELECT 1 FROM room_presence WHERE room_id=? AND participant_key=? LIMIT 1');
+        $existing = $pdo->prepare('SELECT video_granted, hand_raised FROM room_presence WHERE room_id=? AND participant_key=? LIMIT 1');
         $existing->execute([$roomId, $key]);
-        if (!$existing->fetchColumn()) {
+        $rowExisting = $existing->fetch();
+
+        if (!$rowExisting) {
             $att = $pdo->prepare('INSERT INTO room_attendance(room_id, participant_key, display_name, joined_at) VALUES (?, ?, ?, NOW())');
             $att->execute([$roomId, $key, $name]);
+            // O administrador da sala já entra com video_granted = 1
+            $initVideoGranted = $isAdmin ? 1 : 0;
+            $q = $pdo->prepare("INSERT INTO room_presence(room_id, participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, video_granted, hand_raised, joined_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
+            $q->execute([$roomId, $key, $name, $mic, $cam, $screen, $initVideoGranted, ($hand !== null ? $hand : 0)]);
+        } else {
+            $handVal = ($hand !== null) ? $hand : (int)$rowExisting['hand_raised'];
+            $vidVal = $isAdmin ? 1 : (int)$rowExisting['video_granted'];
+            $q = $pdo->prepare("UPDATE room_presence SET 
+                display_name = ?, 
+                mic_enabled = ?, 
+                cam_enabled = ?, 
+                screen_sharing = ?, 
+                video_granted = ?,
+                hand_raised = ?,
+                last_seen_at = NOW() 
+                WHERE room_id = ? AND participant_key = ?");
+            $q->execute([$name, $mic, $cam, $screen, $vidVal, $handVal, $roomId, $key]);
         }
-
-        $q = $pdo->prepare("INSERT INTO room_presence(room_id, participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, joined_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), mic_enabled=VALUES(mic_enabled), cam_enabled=VALUES(cam_enabled), screen_sharing=VALUES(screen_sharing), last_seen_at=NOW()");
-        $q->execute([$roomId, $key, $name, $mic, $cam, $screen]);
     } catch (Throwable $e) {
         $q = $pdo->prepare("INSERT INTO room_presence(room_id, participant_key, display_name, last_seen_at)
             VALUES (?, ?, ?, NOW())
@@ -88,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $participants = [];
 try {
-    $q = $pdo->prepare("SELECT participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, joined_at, last_seen_at
+    $q = $pdo->prepare("SELECT participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, hand_raised, video_granted, joined_at, last_seen_at
                         FROM room_presence WHERE room_id=? AND last_seen_at>=DATE_SUB(NOW(), INTERVAL 20 SECOND) ORDER BY joined_at");
     $q->execute([$roomId]);
     $participants = $q->fetchAll();

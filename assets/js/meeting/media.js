@@ -24,7 +24,7 @@
         video: {
           width: { ideal: 640, max: 854 },
           height: { ideal: 360, max: 480 },
-          frameRate: { ideal: 24, max: 30 }
+          frameRate: { ideal: 24, max: 24 }
         },
         audio: {
           echoCancellation: true,
@@ -56,7 +56,13 @@
     cameraTrack = (localStream && localStream.getVideoTracks().length > 0) ? localStream.getVideoTracks()[0] : null;
     const audioTracks = localStream ? localStream.getAudioTracks() : [];
     
-    camEnabled = hasVideo && (cameraTrack !== null);
+    const cfg = window.MEETING_CONFIG || {};
+    // Apenas administradores entram com câmera já ativa nos 5 slots; demais entram sem vídeo até pedir a palavra
+    const canStartVideo = Boolean(cfg.CAN_ADMIT);
+    camEnabled = hasVideo && (cameraTrack !== null) && canStartVideo;
+    if (cameraTrack && !canStartVideo) {
+      cameraTrack.enabled = false;
+    }
     micEnabled = hasAudio && (audioTracks.length > 0);
 
     const localVideo = document.getElementById('local');
@@ -120,7 +126,25 @@
     }
   }
 
+    async function setCameraEnabled(enable) {
+    camEnabled = enable;
+    if (cameraTrack) {
+      cameraTrack.enabled = enable;
+    }
+    const localVideo = document.getElementById('local');
+    const localAvatar = document.getElementById('localAvatar');
+    if (localVideo) localVideo.style.display = enable ? 'block' : 'none';
+    if (localAvatar) localAvatar.style.display = enable ? 'none' : 'flex';
+    updateControlsUI();
+    if (window.MeetingSignaling) window.MeetingSignaling.broadcastPresence();
+  }
+
   async function toggleCamera() {
+    const cfg = window.MEETING_CONFIG || {};
+    if (!cfg.CAN_ADMIT && window.MeetingParticipants && !window.MeetingParticipants.hasVideoGranted()) {
+      if (window.showToast) window.showToast('✋ Para transmitir vídeo, clique no botão "Pedir Palavra" e aguarde a aprovação do anfitrião.');
+      return;
+    }
     const localVideo = document.getElementById('local');
     const localAvatar = document.getElementById('localAvatar');
 
@@ -139,7 +163,7 @@
           video: {
             width: { ideal: 640, max: 854 },
             height: { ideal: 360, max: 480 },
-            frameRate: { ideal: 24, max: 30 }
+            frameRate: { ideal: 24, max: 24 }
           }
         });
         const newTrack = stream.getVideoTracks()[0];
@@ -286,6 +310,7 @@
   window.MeetingMedia = {
     initLocalMedia,
     toggleCamera,
+    setCameraEnabled,
     toggleMicrophone,
     setMicrophoneEnabled,
     toggleScreen,

@@ -34,11 +34,40 @@ $dsn = sprintf(
 );
 
 try {
-    $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
+    // Garante colunas de Pedir a Palavra e Limite de Vídeo na tabela room_presence
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL");
+} catch (Throwable $e) {}
+
+$pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+
+// Garante colunas de Pedir a Palavra e Limite de Vídeo na tabela room_presence
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0");
+} catch (Throwable $e) {}
+try {
+    $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL");
+} catch (Throwable $e) {}
+
 } catch (Throwable $e) {
     http_response_code(500);
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'

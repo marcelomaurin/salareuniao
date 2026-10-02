@@ -77,7 +77,25 @@
     if (id && deliveredSignals.has(id)) return;
     if (id) deliveredSignals.add(id);
 
-    // Se for sinal de convidado admitido na sala, dispara imediatamente atualizacao de presenca
+    const payload = (typeof m.payload === 'object' && m.payload !== null) ? m.payload : {};
+
+    // Se for sinal de Pedido da Palavra ou Concessão de Vídeo
+    if (payload.action === 'hand_raised') {
+      if (window.MeetingParticipants && window.MeetingParticipants.playHandChime) {
+        window.MeetingParticipants.playHandChime();
+      }
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+      return;
+    }
+    if (payload.action === 'speaker_granted' || payload.action === 'speaker_revoked') {
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+      return;
+    }
+
     if (m.message_type === 'guest-admitted') {
       if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
         window.MeetingApp.triggerHeartbeat();

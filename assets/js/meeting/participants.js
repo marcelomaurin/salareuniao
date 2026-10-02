@@ -9,6 +9,27 @@
   let currentWaiting = [];
   const knownWaitingIds = new Set();
   let participantList = [];
+  let isLocalHandRaised = false;
+  let localVideoGranted = false;
+  const knownHandKeys = new Set();
+
+  function playHandChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+      osc.frequency.setValueAtTime(987.77, ctx.currentTime + 0.15); // B5
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch(e) {}
+  }
+
 
   function escapeHtml(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -53,6 +74,40 @@
       } catch(e) {}
       peerVideo.remove();
     }
+    
+    // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
+    const handRequesters = participantList.filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey);
+    let hasNewHand = false;
+    handRequesters.forEach(hr => {
+      if (!knownHandKeys.has(hr.participant_key)) {
+        knownHandKeys.add(hr.participant_key);
+        hasNewHand = true;
+      }
+    });
+    if (hasNewHand && handRequesters.length > 0) {
+      playHandChime();
+    }
+
+    // Toast de Mão Levantada no Palco para Administrador
+    const handToast = document.getElementById('handToast');
+    const handToastText = document.getElementById('handToastText');
+    const handToastBtns = document.getElementById('handToastButtons');
+
+    if (cfg.CAN_ADMIT && handToast && handToastText && handToastBtns) {
+      if (handRequesters.length > 0) {
+        const topH = handRequesters[0];
+        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
+        handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
+        handToastBtns.innerHTML = `
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.grantWord('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">Conceder Vídeo</button>
+          <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
+        `;
+        handToast.style.display = 'flex';
+      } else {
+        handToast.style.display = 'none';
+      }
+    }
+
     updateCounters();
     updateVideoGridCount();
   }
@@ -217,6 +272,27 @@
           }
           actions.appendChild(muteBtn);
 
+          // Botão Conceder / Retirar Palavra (Vídeo)
+          if (cfg.CAN_ADMIT) {
+            const isGranted = Number(p.video_granted) === 1;
+            const wordBtn = document.createElement('button');
+            wordBtn.type = 'button';
+            wordBtn.className = 'sr-btn sr-btn-sm ' + (isGranted ? 'sr-btn-warning' : 'sr-btn-primary');
+            wordBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 4px; cursor: pointer; ' + 
+              (isGranted ? 'background: rgba(234, 179, 8, 0.2); border: 1px solid rgba(234, 179, 8, 0.5); color: #fef08a;' : 'background: rgba(0, 210, 255, 0.15); border: 1px solid rgba(0, 210, 255, 0.4); color: #00d2ff;');
+            wordBtn.innerHTML = isGranted ? '🚫 Retirar Vídeo' : (Number(p.hand_raised) === 1 ? '✋ Conceder Vídeo' : '📹 Conceder Vídeo');
+            wordBtn.title = isGranted ? `Recolher vídeo de ${p.display_name}` : `Conceder espaço de vídeo a ${p.display_name}`;
+            wordBtn.onclick = (e) => {
+              e.stopPropagation();
+              if (isGranted) {
+                revokeWord(p.participant_key, p.display_name);
+              } else {
+                grantWord(p.participant_key, p.display_name);
+              }
+            };
+            actions.appendChild(wordBtn);
+          }
+
           // Botão Expulsar (disponível apenas para administradores da sala)
           if (cfg.CAN_ADMIT) {
             const kickBtn = document.createElement('button');
@@ -236,21 +312,61 @@
         wrap.appendChild(div);
       }
 
-      // Atualiza tile remoto (nome, avatar e estado de câmera)
+            // Atualiza tile remoto (nome, avatar e estado de câmera)
       const nameEl = document.getElementById('name-' + p.participant_key);
       if (nameEl) nameEl.textContent = p.display_name;
 
       const avatarEl = document.getElementById('avatar-' + p.participant_key);
       const peerVideo = document.getElementById('peer-' + p.participant_key);
       const camOn = Number(p.cam_enabled) === 1;
+      const videoGranted = Number(p.video_granted) === 1;
+      const handOn = Number(p.hand_raised) === 1;
 
+      const tileEl = document.getElementById('tile-' + p.participant_key);
+
+      // Distintivo de Mão Levantada no Tile
+      if (tileEl) {
+        let handBadge = document.getElementById('hand-badge-' + p.participant_key);
+        if (handOn) {
+          if (!handBadge) {
+            handBadge = document.createElement('div');
+            handBadge.className = 'tile-hand-badge';
+            handBadge.id = 'hand-badge-' + p.participant_key;
+            handBadge.innerHTML = '✋ Pediu Palavra';
+            tileEl.appendChild(handBadge);
+          }
+          tileEl.classList.add('hand-raised-glow');
+        } else {
+          if (handBadge) handBadge.remove();
+          tileEl.classList.remove('hand-raised-glow');
+        }
+      }
+
+      // Se for o próprio usuário, sincroniza se o moderador concedeu/revogou o vídeo
+      if (p.participant_key === cfg.selfKey) {
+        if (videoGranted !== localVideoGranted) {
+          localVideoGranted = videoGranted;
+          if (localVideoGranted) {
+            if (window.showToast) window.showToast('🎉 O anfitrião concedeu a palavra a você! Seu vídeo agora está ativo.');
+            if (window.MeetingMedia && window.MeetingMedia.setCameraEnabled) {
+              window.MeetingMedia.setCameraEnabled(true);
+            }
+            updateHandBtnUI(false, true);
+          } else if (!cfg.CAN_ADMIT) {
+            if (window.showToast) window.showToast('Seu tempo de vídeo foi encerrado para dar a palavra a outro participante.');
+            if (window.MeetingMedia && window.MeetingMedia.setCameraEnabled) {
+              window.MeetingMedia.setCameraEnabled(false);
+            }
+            updateHandBtnUI(false, false);
+          }
+        }
+      }
+
+      // Para participantes remotos: apenas exibe o elemento <video> se video_granted === 1 e cam_enabled === 1
+      // Do contrário, exibe o avatar estático reduzindo o consumo de banda e CPU
       if (avatarEl && peerVideo && p.participant_key !== cfg.selfKey) {
         avatarEl.textContent = (p.display_name.trim().charAt(0) || 'U').toUpperCase();
-        // Se ja temos stream com track de video ativo recebido via WebRTC, mantem o video visivel
-        const hasLiveVideoTrack = Boolean(peerVideo.srcObject && 
-          peerVideo.srcObject.getVideoTracks && 
-          peerVideo.srcObject.getVideoTracks().some(t => t.readyState === 'live' && t.enabled));
-        const showVideo = camOn || hasLiveVideoTrack;
+        const showVideo = videoGranted && camOn;
         avatarEl.style.display = showVideo ? 'none' : 'flex';
         peerVideo.style.display = showVideo ? 'block' : 'none';
       }
@@ -266,6 +382,40 @@
         if (!activeKeys.has(key) && Date.now() - (lastPresence.get(key) || Date.now()) > 25000) {
           window.MeetingWebRTC.removePeer(key);
         }
+      }
+    }
+
+    
+    // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
+    const handRequesters = participantList.filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey);
+    let hasNewHand = false;
+    handRequesters.forEach(hr => {
+      if (!knownHandKeys.has(hr.participant_key)) {
+        knownHandKeys.add(hr.participant_key);
+        hasNewHand = true;
+      }
+    });
+    if (hasNewHand && handRequesters.length > 0) {
+      playHandChime();
+    }
+
+    // Toast de Mão Levantada no Palco para Administrador
+    const handToast = document.getElementById('handToast');
+    const handToastText = document.getElementById('handToastText');
+    const handToastBtns = document.getElementById('handToastButtons');
+
+    if (cfg.CAN_ADMIT && handToast && handToastText && handToastBtns) {
+      if (handRequesters.length > 0) {
+        const topH = handRequesters[0];
+        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
+        handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
+        handToastBtns.innerHTML = `
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.grantWord('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">Conceder Vídeo</button>
+          <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
+        `;
+        handToast.style.display = 'flex';
+      } else {
+        handToast.style.display = 'none';
       }
     }
 
@@ -452,10 +602,126 @@ O participante será desconectado imediatamente.`)) {
     }
   }
 
+    function updateHandBtnUI(raised, granted) {
+    const btn = document.getElementById('btnHand');
+    const lbl = document.getElementById('handLabel');
+    if (!btn) return;
+    if (granted) {
+      btn.classList.add('hand-active');
+      if (lbl) lbl.textContent = 'Palavra Concedida';
+      btn.title = 'Você está com o vídeo ativo. Clique para devolver a palavra.';
+    } else if (raised) {
+      btn.classList.add('hand-active');
+      if (lbl) lbl.textContent = 'Mão Levantada';
+      btn.title = 'Mão levantada aguardando o anfitrião. Clique para cancelar o pedido.';
+    } else {
+      btn.classList.remove('hand-active');
+      if (lbl) lbl.textContent = 'Pedir Palavra';
+      btn.title = 'Pedir a palavra para ativar seu vídeo';
+    }
+  }
+
+  async function toggleRaiseHand() {
+    const cfg = window.MEETING_CONFIG;
+    const newAction = isLocalHandRaised ? 'lower' : 'raise';
+    try {
+      const resp = await fetch('api/room_hand.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: newAction
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        isLocalHandRaised = Boolean(data.hand_raised);
+        updateHandBtnUI(isLocalHandRaised, localVideoGranted);
+        if (isLocalHandRaised) {
+          if (window.showToast) window.showToast('✋ Você pediu a palavra. Aguarde o anfitrião conceder o vídeo.');
+        } else {
+          if (window.showToast) window.showToast('Você baixou a mão.');
+        }
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+      }
+    } catch(e) {
+      console.warn('Erro ao alternar pedido de palavra:', e);
+    }
+  }
+
+  async function grantWord(targetKey, targetName) {
+    const cfg = window.MEETING_CONFIG;
+    try {
+      const resp = await fetch('api/room_hand.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'grant',
+          target_key: targetKey
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        let msg = `📹 Vídeo concedido a ${data.granted_name || targetName}!`;
+        if (data.revoked_name) {
+          msg += ` (${data.revoked_name} foi recolhido para manter o limite de 5 vídeos).`;
+        }
+        if (window.showToast) window.showToast(msg);
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+      } else {
+        alert('Não foi possível conceder o vídeo: ' + (data.error || 'Falha na operação'));
+      }
+    } catch(e) {
+      alert('Erro na comunicação com o servidor.');
+    }
+  }
+
+  async function revokeWord(targetKey, targetName) {
+    const cfg = window.MEETING_CONFIG;
+    try {
+      const resp = await fetch('api/room_hand.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'revoke',
+          target_key: targetKey
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        if (window.showToast) window.showToast(`Vídeo de ${targetName} foi recolhido.`);
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+      }
+    } catch(e) {}
+  }
+
+  function dismissHandToast() {
+    const handToast = document.getElementById('handToast');
+    if (handToast) handToast.style.display = 'none';
+  }
+
   window.MeetingParticipants = {
     renderParticipants,
     renderWaitingList,
     kickParticipant,
+    toggleRaiseHand,
+    playHandChime,
+    grantWord,
+    revokeWord,
+    dismissHandToast,
+    hasVideoGranted: () => localVideoGranted || Boolean(window.MEETING_CONFIG && window.MEETING_CONFIG.CAN_ADMIT),
+    isHandRaised: () => isLocalHandRaised,
     admitGuest,
     muteParticipant,
     removeTile,

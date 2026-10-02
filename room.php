@@ -263,22 +263,89 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
     }
 
     /* Regra para múltiplos participantes */
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      padding-bottom: 84px;
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Grid de Vídeo Padronizado: Exatamente 5 participantes por linha */
     .tile {
       position: relative;
       background: #0b1120;
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
+      border-radius: 14px;
       overflow: hidden;
       aspect-ratio: 16/9;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      flex: 1 1 360px;
-      max-width: calc(50% - 12px);
-      max-height: calc(50% - 12px);
-      min-width: 280px;
+      flex: 0 0 calc(20% - 10px);
+      width: calc(20% - 10px);
+      max-width: calc(20% - 10px);
+      min-width: 180px;
+    }
+
+    @media (max-width: 1180px) {
+      .tile {
+        flex: 0 0 calc(33.333% - 10px);
+        max-width: calc(33.333% - 10px);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .tile {
+        flex: 0 0 calc(50% - 8px);
+        max-width: calc(50% - 8px);
+        min-width: 140px;
+      }
+    }
+
+    .tile.hand-raised-glow {
+      border: 2px solid #eab308 !important;
+      box-shadow: 0 0 20px rgba(234, 179, 8, 0.5) !important;
+    }
+
+    .tile-hand-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(234, 179, 8, 0.95);
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.74rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      animation: pulseHand 1.6s infinite ease-in-out;
+    }
+
+    @keyframes pulseHand {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+
+    .controls button.hand-active {
+      background: rgba(234, 179, 8, 0.25) !important;
+      border-color: #eab308 !important;
+      color: #fef08a !important;
+      box-shadow: 0 0 15px rgba(234, 179, 8, 0.35);
     }
 
     .tile video {
@@ -1140,6 +1207,11 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       </div>
 
       <!-- Grid de Vídeos Centralizado -->
+            <!-- Notificação Flutuante de Pedido da Palavra (Teams Style Toast) -->
+      <div id="handToast" style="display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 30px; padding: 8px 18px; z-index: 75; box-shadow: 0 10px 30px rgba(0,0,0,0.6); align-items: center; gap: 14px;">
+        <span id="handToastText" style="color: #fef08a; font-weight: 600; font-size: 0.88rem;">✋ Convidado pediu a palavra</span>
+        <div style="display: flex; gap: 8px;" id="handToastButtons"></div>
+      </div>
       <div class="grid" id="videos">
         <div class="tile" id="tile-local">
           <video id="local" autoplay muted playsinline webkit-playsinline></video>
@@ -1158,6 +1230,9 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
         </button>
         <button type="button" id="cam" class="active" onclick="MeetingMedia.toggleCamera()" title="Ligar/Desligar Câmera">
           📹 <span class="btn-label" id="camLabel">Câmera</span>
+        </button>
+        <button type="button" id="btnHand" onclick="MeetingParticipants.toggleRaiseHand()" title="Pedir a Palavra (Levantar a Mão)">
+          ✋ <span class="btn-label" id="handLabel">Pedir Palavra</span>
         </button>
         <button type="button" id="screen" onclick="MeetingMedia.toggleScreen()" title="Compartilhar Tela">
           🖥️ <span class="btn-label">Compartilhar</span>
