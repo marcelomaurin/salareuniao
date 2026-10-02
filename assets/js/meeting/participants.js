@@ -80,15 +80,30 @@
     
 
 
-            // O compartilhamento é entendido como um tipo de exibição full automática
+            // Detecção de compartilhamento de tela com controle exclusivo de aprovação pelo Administrador
     const screenSharer = participantList.find(p => Number(p.screen_sharing) === 1 && p.participant_key !== cfg.selfKey);
+    const scrToast = document.getElementById('screenShareToast');
+    const scrToastText = document.getElementById('screenShareToastText');
+    const scrToastBtns = document.getElementById('screenShareToastButtons');
+
     if (screenSharer) {
-      if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
-        enterFullMode(screenSharer.participant_key, true);
+      if (cfg.CAN_ADMIT && scrToast && scrToastText && scrToastBtns) {
+        if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
+          scrToastText.textContent = `🖥️ ${screenSharer.display_name} iniciou compartilhamento de tela`;
+          scrToastBtns.innerHTML = `
+            <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.approveFullMode('${screenSharer.participant_key}', true)">Aprovar Exibição Full</button>
+            <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissScreenToast()">Manter Grade Normal</button>
+          `;
+          scrToast.style.display = 'flex';
+        } else {
+          scrToast.style.display = 'none';
+        }
       }
-    } else if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
-      // O participante parou de compartilhar a tela
-      exitFullMode();
+    } else {
+      if (scrToast) scrToast.style.display = 'none';
+      if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
+        exitFullMode();
+      }
     }
 
     // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
@@ -306,6 +321,25 @@
               }
             };
             actions.appendChild(wordBtn);
+
+            // Botão Exibição Full / Exibição Normal
+            const isTargetFull = isFullModeActive && fullTargetKey === p.participant_key;
+            const fullActionBtn = document.createElement('button');
+            fullActionBtn.type = 'button';
+            fullActionBtn.className = 'sr-btn sr-btn-sm ' + (isTargetFull ? 'sr-btn-primary' : 'sr-btn-secondary');
+            fullActionBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 4px; cursor: pointer; ' +
+              (isTargetFull ? 'background: #00d2ff; color: #050811; font-weight: 700;' : 'background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15);');
+            fullActionBtn.innerHTML = isTargetFull ? '▦ Exibição Normal' : '⛶ Exibição Full';
+            fullActionBtn.title = isTargetFull ? 'Voltar para a exibição normal' : `Aprovar exibição full para ${p.display_name}`;
+            fullActionBtn.onclick = (e) => {
+              e.stopPropagation();
+              if (isTargetFull) {
+                revokeFullMode();
+              } else {
+                approveFullMode(p.participant_key, Number(p.screen_sharing) === 1);
+              }
+            };
+            actions.appendChild(fullActionBtn);
           }
 
           // Botão Expulsar (disponível apenas para administradores da sala)
@@ -403,15 +437,30 @@
     
 
 
-            // O compartilhamento é entendido como um tipo de exibição full automática
+            // Detecção de compartilhamento de tela com controle exclusivo de aprovação pelo Administrador
     const screenSharer = participantList.find(p => Number(p.screen_sharing) === 1 && p.participant_key !== cfg.selfKey);
+    const scrToast = document.getElementById('screenShareToast');
+    const scrToastText = document.getElementById('screenShareToastText');
+    const scrToastBtns = document.getElementById('screenShareToastButtons');
+
     if (screenSharer) {
-      if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
-        enterFullMode(screenSharer.participant_key, true);
+      if (cfg.CAN_ADMIT && scrToast && scrToastText && scrToastBtns) {
+        if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
+          scrToastText.textContent = `🖥️ ${screenSharer.display_name} iniciou compartilhamento de tela`;
+          scrToastBtns.innerHTML = `
+            <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.approveFullMode('${screenSharer.participant_key}', true)">Aprovar Exibição Full</button>
+            <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissScreenToast()">Manter Grade Normal</button>
+          `;
+          scrToast.style.display = 'flex';
+        } else {
+          scrToast.style.display = 'none';
+        }
       }
-    } else if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
-      // O participante parou de compartilhar a tela
-      exitFullMode();
+    } else {
+      if (scrToast) scrToast.style.display = 'none';
+      if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
+        exitFullMode();
+      }
     }
 
     // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
@@ -733,7 +782,65 @@ O participante será desconectado imediatamente.`)) {
     } catch(e) {}
   }
 
-    function enterFullMode(targetKey, isScreenShare = false) {
+      async function approveFullMode(targetKey, isScreen = false) {
+    const cfg = window.MEETING_CONFIG;
+    if (!cfg.CAN_ADMIT) {
+      if (window.showToast) window.showToast('Apenas o administrador pode aprovar a exibição full.');
+      return;
+    }
+
+    try {
+      const resp = await fetch('api/room_hand.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'set_full',
+          target_key: targetKey,
+          is_screen: isScreen ? 1 : 0
+        })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        enterFullMode(targetKey, isScreen);
+        dismissScreenToast();
+        if (window.showToast) window.showToast('⛶ Exibição Full ativada em resolução máxima para toda a sala.');
+      } else {
+        alert('Não foi possível aprovar exibição full: ' + (data.error || 'Falha na operação'));
+      }
+    } catch (e) {
+      // Fallback local caso rede falhe
+      enterFullMode(targetKey, isScreen);
+    }
+  }
+
+  async function revokeFullMode() {
+    const cfg = window.MEETING_CONFIG;
+    if (cfg.CAN_ADMIT) {
+      try {
+        await fetch('api/room_hand.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            token: cfg.TOKEN,
+            action: 'exit_full'
+          })
+        });
+      } catch(e) {}
+    }
+    exitFullMode();
+    dismissScreenToast();
+    if (window.showToast) window.showToast('▦ Retornado para a Exibição Normal (Grade).');
+  }
+
+  function dismissScreenToast() {
+    const scrToast = document.getElementById('screenShareToast');
+    if (scrToast) scrToast.style.display = 'none';
+  }
+
+  function enterFullMode(targetKey, isScreenShare = false) {
     const cfg = window.MEETING_CONFIG;
     const grid = document.getElementById('videos');
     if (!grid) return;
@@ -789,6 +896,8 @@ O participante será desconectado imediatamente.`)) {
       titleEl.textContent = isScreenShare ? `🖥️ Compartilhamento de Tela - ${targetName}` : `⛶ Exibição Full - ${targetName}`;
       banner.style.display = 'flex';
     }
+    const dockBtn = document.getElementById('btnNormalViewDock');
+    if (dockBtn) dockBtn.style.display = 'inline-flex';
   }
 
   function exitFullMode() {
@@ -803,6 +912,8 @@ O participante será desconectado imediatamente.`)) {
 
     const banner = document.getElementById('fullModeBanner');
     if (banner) banner.style.display = 'none';
+    const dockBtn = document.getElementById('btnNormalViewDock');
+    if (dockBtn) dockBtn.style.display = 'none';
 
     // 1. Despausa os vídeos dos participantes
     document.querySelectorAll('#videos .tile video').forEach(v => {
@@ -849,6 +960,9 @@ O participante será desconectado imediatamente.`)) {
     renderWaitingList,
     kickParticipant,
     toggleRaiseHand,
+        approveFullMode,
+    revokeFullMode,
+    dismissScreenToast,
     enterFullMode,
     exitFullMode,
     toggleFullMode,

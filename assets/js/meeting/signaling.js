@@ -89,6 +89,19 @@
       }
       return;
     }
+        if (payload.action === 'set_full_mode') {
+      if (window.MeetingParticipants && window.MeetingParticipants.enterFullMode) {
+        window.MeetingParticipants.enterFullMode(payload.target_key, Boolean(payload.is_screen));
+      }
+      return;
+    }
+    if (payload.action === 'exit_full_mode') {
+      if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
+        window.MeetingParticipants.exitFullMode();
+      }
+      return;
+    }
+
     if (payload.action === 'speaker_granted' || payload.action === 'speaker_revoked') {
       if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
         window.MeetingApp.triggerHeartbeat();

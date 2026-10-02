@@ -91,6 +91,71 @@ if (!$isAdmin) {
     exit;
 }
 
+// Ações de Exibição Full (Spotlight / Resolução Máxima) - Restritas ao Administrador
+if ($action === 'set_full') {
+    if (!$isAdmin) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'only_administrators_can_approve_full_mode']);
+        exit;
+    }
+    if ($targetKey === '') {
+        $targetKey = $myKey;
+    }
+    $targetName = ($targetKey === $myKey) ? $myName : 'Participante';
+    $stTarget = $pdo->prepare("SELECT display_name FROM room_presence WHERE room_id = ? AND participant_key = ? LIMIT 1");
+    $stTarget->execute([$roomId, $targetKey]);
+    $pName = $stTarget->fetchColumn();
+    if ($pName) $targetName = $pName;
+
+    $isScreen = !empty($input['is_screen']) ? 1 : 0;
+
+    try {
+        $sig = $pdo->prepare("INSERT INTO signaling_messages (room_id, sender_key, recipient_key, message_type, payload, created_at) 
+                              VALUES (?, ?, NULL, 'peer-ready', ?, NOW())");
+        $sig->execute([
+            $roomId,
+            $myKey,
+            json_encode([
+                'action' => 'set_full_mode',
+                'target_key' => $targetKey,
+                'target_name' => $targetName,
+                'is_screen' => $isScreen
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        ]);
+    } catch (Throwable $e) {}
+
+    echo json_encode([
+        'ok' => true, 
+        'target_key' => $targetKey, 
+        'target_name' => $targetName, 
+        'is_screen' => $isScreen
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($action === 'exit_full') {
+    if (!$isAdmin) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'only_administrators_can_revoke_full_mode']);
+        exit;
+    }
+
+    try {
+        $sig = $pdo->prepare("INSERT INTO signaling_messages (room_id, sender_key, recipient_key, message_type, payload, created_at) 
+                              VALUES (?, ?, NULL, 'peer-ready', ?, NOW())");
+        $sig->execute([
+            $roomId,
+            $myKey,
+            json_encode([
+                'action' => 'exit_full_mode'
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        ]);
+    } catch (Throwable $e) {}
+
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 if ($targetKey === '') {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'target_key_required']);

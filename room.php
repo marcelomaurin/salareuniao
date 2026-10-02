@@ -1307,13 +1307,21 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
           <strong id="fullModeTitle" style="color: #fff; font-size: 0.9rem;">Exibição Full</strong>
           <span style="font-size: 0.72rem; background: rgba(0, 210, 255, 0.2); color: #00d2ff; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(0, 210, 255, 0.4); font-weight: 600;">Resolução Máxima</span>
         </div>
-        <button type="button" class="sr-btn sr-btn-sm" onclick="MeetingParticipants.exitFullMode()" style="border-radius: 20px; padding: 4px 14px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff;">
-          ✕ Sair da Exibição Full
+        <button type="button" id="btnNormalViewBanner" class="sr-btn sr-btn-sm sr-btn-primary" onclick="MeetingParticipants.revokeFullMode()" style="border-radius: 20px; padding: 6px 18px; font-weight: 700; cursor: pointer; background: #00d2ff; color: #050811; border: none; box-shadow: 0 0 15px rgba(0,210,255,0.4); display: inline-flex; align-items: center; gap: 6px;">
+          ▦ Exibição Normal
         </button>
       </div>
+
+      <!-- Toast de Compartilhamento de Tela para Aprovação do Administrador -->
+      <div id="screenShareToast" style="display: none; position: absolute; top: 62px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(16px); border: 1px solid rgba(0, 210, 255, 0.5); border-radius: 30px; padding: 8px 18px; z-index: 76; box-shadow: 0 10px 30px rgba(0,0,0,0.6); align-items: center; gap: 14px;">
+        <span id="screenShareToastText" style="color: #00d2ff; font-weight: 600; font-size: 0.88rem;">🖥️ Convidado iniciou compartilhamento</span>
+        <div style="display: flex; gap: 8px;" id="screenShareToastButtons"></div>
+      </div>
       <div class="grid" id="videos">
-        <div class="tile" id="tile-local" ondblclick="MeetingParticipants.toggleFullMode('local')">
-          <button type="button" class="tile-full-btn" onclick="event.stopPropagation(); MeetingParticipants.toggleFullMode('local');" title="Exibição Full / Maximizar">⛶</button>
+        <div class="tile" id="tile-local" <?php if ($canAdmit): ?>ondblclick="MeetingParticipants.approveFullMode('local')"<?php endif; ?>>
+          <?php if ($canAdmit): ?>
+            <button type="button" class="tile-full-btn" onclick="event.stopPropagation(); MeetingParticipants.approveFullMode('local');" title="Aprovar Exibição Full (Destaque em Resolução Máxima)">⛶</button>
+          <?php endif; ?>
           <video id="local" autoplay muted playsinline webkit-playsinline></video>
           <div id="localAvatar" style="display: none; width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 2.2rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
             <?= strtoupper(substr(trim($me['display_name'] ?: 'U'), 0, 1)) ?>
@@ -1333,6 +1341,9 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
         </button>
         <button type="button" id="btnHand" onclick="MeetingParticipants.toggleRaiseHand()" title="Pedir a Palavra (Levantar a Mão)">
           ✋ <span class="btn-label" id="handLabel">Pedir Palavra</span>
+        </button>
+        <button type="button" id="btnNormalViewDock" style="display: none; background: rgba(0, 210, 255, 0.2); border: 1px solid #00d2ff; color: #00d2ff; font-weight: 700;" onclick="MeetingParticipants.revokeFullMode()" title="Voltar para a Exibição Normal (Grade)">
+          ▦ <span class="btn-label">Exibição Normal</span>
         </button>
         <button type="button" id="screen" onclick="MeetingMedia.toggleScreen()" title="Compartilhar Tela">
           🖥️ <span class="btn-label">Compartilhar</span>

@@ -183,7 +183,10 @@
 
           if (!screenSharing) {
             await replaceOutgoingTrack('video', cameraTrack);
-    if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
+    const cfg = window.MEETING_CONFIG || {};
+    if (cfg.CAN_ADMIT && window.MeetingParticipants && window.MeetingParticipants.revokeFullMode) {
+      window.MeetingParticipants.revokeFullMode();
+    } else if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
       window.MeetingParticipants.exitFullMode();
     }
           }
@@ -270,7 +273,10 @@
 
       updateControlsUI();
       window.rtcLog && window.rtcLog('LOCAL', 'screenshare-started');
-      if (window.MeetingParticipants && window.MeetingParticipants.enterFullMode) {
+      const cfg = window.MEETING_CONFIG || {};
+      if (cfg.CAN_ADMIT && window.MeetingParticipants && window.MeetingParticipants.approveFullMode) {
+        window.MeetingParticipants.approveFullMode('local', true);
+      } else if (window.MeetingParticipants && window.MeetingParticipants.enterFullMode) {
         window.MeetingParticipants.enterFullMode('local', true);
       }
       if (window.MeetingSignaling) window.MeetingSignaling.broadcastPresence();
@@ -290,7 +296,10 @@
       screenTrack = null;
     }
     await replaceOutgoingTrack('video', cameraTrack);
-    if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
+    const cfg = window.MEETING_CONFIG || {};
+    if (cfg.CAN_ADMIT && window.MeetingParticipants && window.MeetingParticipants.revokeFullMode) {
+      window.MeetingParticipants.revokeFullMode();
+    } else if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
       window.MeetingParticipants.exitFullMode();
     }
 
