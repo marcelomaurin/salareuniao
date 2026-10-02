@@ -191,6 +191,20 @@ CREATE TABLE room_attendance (
   CONSTRAINT fk_attendance_room FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS room_files (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  room_id BIGINT UNSIGNED NOT NULL,
+  participant_key CHAR(64) NOT NULL,
+  display_name VARCHAR(120) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  stored_name VARCHAR(255) NOT NULL,
+  file_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  mime_type VARCHAR(100) NOT NULL DEFAULT 'application/octet-stream',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_room_files_room (room_id, id),
+  CONSTRAINT fk_room_files_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE room_messages (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   room_id BIGINT UNSIGNED NOT NULL,

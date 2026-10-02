@@ -63,6 +63,9 @@ if (!$isRoomAdmin) {
 
 $canAdmit = true;
 
+// Garante subpasta storage/<room_id> dinâmica criada
+get_room_storage_dir((int)$me['room_id']);
+
 $cursorQuery = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM signaling_messages WHERE room_id=?');
 $cursorQuery->execute([$me['room_id']]);
 $signalCursor = (int)$cursorQuery->fetchColumn();
@@ -563,6 +566,88 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       border-color: var(--primary, #00d2ff);
     }
 
+    /* Estilos do Espaço de Transferência de Arquivos */
+    .chat-file-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-accent, rgba(0, 210, 255, 0.3));
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .chat-file-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .chat-file-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .chat-file-name {
+      font-weight: 600;
+      font-size: 0.86rem;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-file-size {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .chat-file-btn {
+      background: var(--primary, #00d2ff);
+      color: #0b1120 !important;
+      font-weight: 600;
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .chat-file-btn:hover {
+      background: var(--primary-hover, #38bdf8);
+      transform: translateY(-1px);
+    }
+    .file-upload-btn {
+      background: transparent;
+      border: 1px solid var(--border-glass);
+      color: var(--text-muted);
+      border-radius: 8px;
+      width: 44px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .file-upload-btn:hover {
+      border-color: var(--primary, #00d2ff);
+      color: var(--primary, #00d2ff);
+      background: rgba(0, 210, 255, 0.08);
+    }
+    .room-file-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-glass);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
     .person {
       padding: 10px 12px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -1026,6 +1111,10 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
         💬 <span class="header-btn-text">Chat</span> <span id="chatBadgeCount" style="display:none; background: #ef4444; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
       </button>
 
+      <button type="button" class="header-btn" id="topBtnFiles" onclick="openSidebarTab('files')" title="Arquivos Compartilhados">
+        📁 <span class="header-btn-text">Arquivos</span> <span id="filesBadgeCount" style="display:none; background: var(--primary, #00d2ff); color: #0b1120; font-weight: 700; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
+      </button>
+
       <button type="button" class="header-btn" id="topBtnInvite" onclick="copyInvite()" title="Copiar link de convite">
         📋 <span class="header-btn-text">Convidar</span>
       </button>
@@ -1087,6 +1176,9 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
         <button type="button" id="btnDockChat" onclick="openSidebarTab('chat')" title="Abrir Chat">
           💬 <span class="btn-label">Chat</span>
         </button>
+        <button type="button" id="btnDockFiles" onclick="openSidebarTab('files')" title="Ver Arquivos da Sala">
+          📁 <span class="btn-label">Arquivos</span>
+        </button>
         <button type="button" id="btnDockParticipants" onclick="openSidebarTab('participants')" title="Ver Participantes">
           👥 <span class="btn-label">Participantes</span>
         </button>
@@ -1106,6 +1198,9 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
           <button type="button" id="tabChat" class="sidebar-tab-btn active" onclick="setSideTab('chat')">
             💬 Chat <span id="chatUnread" class="sr-badge sr-badge-scheduled" style="display:none; padding: 1px 6px; font-size: 10px;">0</span>
           </button>
+          <button type="button" id="tabFiles" class="sidebar-tab-btn" onclick="setSideTab('files')">
+            📁 Arquivos (<span id="sidebarFilesCount">0</span>)
+          </button>
           <button type="button" id="tabParticipants" class="sidebar-tab-btn" onclick="setSideTab('participants')">
             👥 Participantes (<span id="sidebarParticipantCount">1</span>)
           </button>
@@ -1123,11 +1218,41 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
             </div>
           </div>
           <form id="chatForm" class="chatForm">
-            <textarea id="chatInput" placeholder="Digite uma mensagem e pressione Enter..." rows="2"></textarea>
+            <input type="file" id="chatFileInput" style="display: none;" onchange="MeetingFiles.uploadFileFromInput(this)">
+            <button type="button" class="file-upload-btn" onclick="document.getElementById('chatFileInput').click()" title="Anexar e transferir arquivo para a sala">
+              📎
+            </button>
+            <textarea id="chatInput" placeholder="Digite uma mensagem e pressione Enter (ou anexe com 📎)..." rows="2"></textarea>
             <button type="submit" class="sr-btn sr-btn-primary sr-btn-sm" style="align-self: flex-end; height: 48px; padding: 0 16px;">
               Enviar
             </button>
           </form>
+        </div>
+      </div>
+
+      <!-- Files Pane (Espaço de Transferência de Arquivos) -->
+      <div id="paneFiles" class="sidepane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <strong style="font-size: 0.88rem; color: #fff;">📁 Arquivos Compartilhados</strong>
+          <button type="button" class="sr-btn sr-btn-primary sr-btn-sm" onclick="document.getElementById('paneFileInput').click()" style="padding: 4px 10px; font-size: 0.78rem;">
+            📤 Enviar Arquivo
+          </button>
+          <input type="file" id="paneFileInput" style="display: none;" onchange="MeetingFiles.uploadFileFromInput(this)">
+        </div>
+
+        <div id="fileUploadProgress" style="display: none; margin-bottom: 12px; background: rgba(0, 210, 255, 0.1); border: 1px solid rgba(0, 210, 255, 0.3); border-radius: 8px; padding: 10px; font-size: 0.82rem; color: var(--primary, #00d2ff);">
+          <span class="sr-pulse-dot"></span> Enviando arquivo para o storage da sala...
+        </div>
+
+        <!-- Drop / Upload Box -->
+        <div id="fileDropZone" style="border: 2px dashed var(--border-glass); border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 16px; background: rgba(255, 255, 255, 0.02); cursor: pointer;" onclick="document.getElementById('paneFileInput').click()">
+          <div style="font-size: 1.6rem; margin-bottom: 4px;">📂</div>
+          <div style="font-size: 0.84rem; color: #cbd5e1; font-weight: 600;">Clique ou arraste arquivos aqui</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Armazenado na subpasta dinâmica desta sala</div>
+        </div>
+
+        <div id="roomFilesList" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: calc(100vh - 350px);">
+          <div style="color: var(--text-dim); font-size: 0.84rem; text-align: center; padding: 20px;">Carregando arquivos...</div>
         </div>
       </div>
 
@@ -1211,27 +1336,42 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       const sb = document.getElementById('roomSidebar');
       const isVisible = sb && !sb.classList.contains('sr-hidden');
       const isChat = isVisible && document.getElementById('paneChat').classList.contains('active');
+      const isFiles = isVisible && document.getElementById('paneFiles').classList.contains('active');
       const isPart = isVisible && document.getElementById('paneParticipants').classList.contains('active');
       
       const topChat = document.getElementById('topBtnChat');
+      const topFiles = document.getElementById('topBtnFiles');
       const topPart = document.getElementById('topBtnParticipants');
       const dockChat = document.getElementById('btnDockChat');
+      const dockFiles = document.getElementById('btnDockFiles');
       const dockPart = document.getElementById('btnDockParticipants');
 
       if (topChat) topChat.classList.toggle('active', isChat);
+      if (topFiles) topFiles.classList.toggle('active', isFiles);
       if (topPart) topPart.classList.toggle('active', isPart);
       if (dockChat) dockChat.classList.toggle('active', isChat);
+      if (dockFiles) dockFiles.classList.toggle('active', isFiles);
       if (dockPart) dockPart.classList.toggle('active', isPart);
     }
 
     function setSideTab(tab) {
       const isChat = (tab === 'chat');
-      document.getElementById('paneParticipants').classList.toggle('active', !isChat);
+      const isFiles = (tab === 'files');
+      const isPart = (tab === 'participants');
+
+      document.getElementById('paneParticipants').classList.toggle('active', isPart);
       document.getElementById('paneChat').classList.toggle('active', isChat);
-      document.getElementById('tabParticipants').classList.toggle('active', !isChat);
+      document.getElementById('paneFiles').classList.toggle('active', isFiles);
+
+      document.getElementById('tabParticipants').classList.toggle('active', isPart);
       document.getElementById('tabChat').classList.toggle('active', isChat);
+      document.getElementById('tabFiles').classList.toggle('active', isFiles);
+
       if (window.MeetingChat) {
         window.MeetingChat.setChatOpen(isChat);
+      }
+      if (isFiles && window.MeetingFiles) {
+        window.MeetingFiles.loadFiles();
       }
       updateSidebarActiveButtons();
     }
@@ -1259,7 +1399,8 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
   <script src="assets/js/meeting/signaling.js?v=20260920_1"></script>
   <script src="assets/js/meeting/webrtc.js?v=20260920_1"></script>
   <script src="assets/js/meeting/participants.js?v=20260920_1"></script>
-  <script src="assets/js/meeting/chat.js?v=20260920_1"></script>
+  <script src="assets/js/meeting/files.js?v=20261002_1"></script>
+  <script src="assets/js/meeting/chat.js?v=20261002_1"></script>
   <script src="assets/js/meeting/diagnostics.js?v=20260920_1"></script>
   <script src="assets/js/meeting/meeting.js?v=20260920_1"></script>
 
@@ -1289,7 +1430,11 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       }
     });
 
-    // Inicia a aplicação
+    // Inicia a aplicação e central de arquivos
+    if (window.MeetingFiles) {
+      MeetingFiles.initDropZone();
+      MeetingFiles.loadFiles();
+    }
     MeetingSignaling.setSignalCursor(<?=$signalCursor?>);
     MeetingApp.initMeeting();
   </script>

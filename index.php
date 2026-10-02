@@ -97,6 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
             $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
             $pdo->prepare("DELETE FROM room_presence WHERE room_id = ?")->execute([$delRoomId]);
             $pdo->prepare("DELETE FROM signaling_messages WHERE room_id = ?")->execute([$delRoomId]);
+            try { $pdo->prepare("DELETE FROM room_admins WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
+            try { $pdo->prepare("DELETE FROM room_files WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
             try { $pdo->prepare("DELETE FROM room_messages WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
             try { $pdo->prepare("DELETE FROM room_attendance WHERE room_id = ?")->execute([$delRoomId]); } catch (Throwable $e) {}
             $pdo->prepare("DELETE FROM room_invites WHERE room_id = ?")->execute([$delRoomId]);

@@ -28,7 +28,33 @@
 
     const text = document.createElement('div');
     text.className = 'chatText';
-    text.textContent = m.message;
+
+    // Suporte a mensagens de transferência de arquivos
+    const fileMatch = String(m.message || '').match(/^\[FILE:(.+?)\]$/);
+    if (fileMatch) {
+      try {
+        const fileData = JSON.parse(fileMatch[1]);
+        const icon = (window.MeetingFiles && window.MeetingFiles.getFileIcon) ? window.MeetingFiles.getFileIcon(fileData.name, fileData.mime) : '📁';
+        const formattedSize = (window.MeetingFiles && window.MeetingFiles.formatBytes) ? window.MeetingFiles.formatBytes(fileData.size) : (fileData.size + ' B');
+        const dlUrl = `api/file_download.php?token=${encodeURIComponent(cfg.TOKEN)}&id=${encodeURIComponent(fileData.id)}`;
+
+        const card = document.createElement('div');
+        card.className = 'chat-file-card';
+        card.innerHTML = `
+          <div class="chat-file-icon">${icon}</div>
+          <div class="chat-file-info">
+            <div class="chat-file-name" title="${encodeURIComponent(fileData.name)}">${fileData.name}</div>
+            <div class="chat-file-size">${formattedSize} &bull; Transferência de Arquivo</div>
+          </div>
+          <a href="${dlUrl}" class="chat-file-btn" download="${encodeURIComponent(fileData.name)}" title="Baixar Arquivo">⬇️ Baixar</a>
+        `;
+        text.appendChild(card);
+      } catch (err) {
+        text.textContent = m.message;
+      }
+    } else {
+      text.textContent = m.message;
+    }
 
     div.append(meta, text);
     wrap.appendChild(div);
