@@ -183,6 +183,9 @@
 
           if (!screenSharing) {
             await replaceOutgoingTrack('video', cameraTrack);
+    if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
+      window.MeetingParticipants.exitFullMode();
+    }
           }
           updateControlsUI();
           if (window.showToast) window.showToast('Câmera ativada com sucesso!');
@@ -243,7 +246,14 @@
       return;
     }
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const display = await navigator.mediaDevices.getDisplayMedia({ 
+        video: { 
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 60 }
+        }, 
+        audio: false 
+      });
       screenTrack = display.getVideoTracks()[0];
       screenSharing = true;
 
@@ -260,6 +270,9 @@
 
       updateControlsUI();
       window.rtcLog && window.rtcLog('LOCAL', 'screenshare-started');
+      if (window.MeetingParticipants && window.MeetingParticipants.enterFullMode) {
+        window.MeetingParticipants.enterFullMode('local', true);
+      }
       if (window.MeetingSignaling) window.MeetingSignaling.broadcastPresence();
     } catch (e) {
       if (e.name !== 'NotAllowedError') {
@@ -277,6 +290,9 @@
       screenTrack = null;
     }
     await replaceOutgoingTrack('video', cameraTrack);
+    if (window.MeetingParticipants && window.MeetingParticipants.exitFullMode) {
+      window.MeetingParticipants.exitFullMode();
+    }
 
     const localVideo = document.getElementById('local');
     const localAvatar = document.getElementById('localAvatar');

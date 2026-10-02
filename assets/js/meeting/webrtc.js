@@ -595,12 +595,30 @@
     pendingIce.clear();
   }
 
+    async function setSpotlightBitrate(isHighQuality) {
+    for (const pc of pcs.values()) {
+      for (const sender of pc.getSenders()) {
+        if (sender.track && sender.track.kind === 'video') {
+          try {
+            const params = sender.getParameters();
+            if (params.encodings && params.encodings.length > 0) {
+              params.encodings[0].maxBitrate = isHighQuality ? 2500000 : 350000;
+              params.encodings[0].maxFramerate = isHighQuality ? 30 : 24;
+              await sender.setParameters(params);
+            }
+          } catch(e) {}
+        }
+      }
+    }
+  }
+
   window.MeetingWebRTC = {
     pcs,
     peerState,
     getOrCreatePeer,
     removePeer,
     closePeer: removePeer,
+    setSpotlightBitrate,
     processSignal,
     flushPendingIce,
     closeAllPeers,

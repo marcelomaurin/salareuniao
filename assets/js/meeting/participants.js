@@ -10,6 +10,9 @@
   const knownWaitingIds = new Set();
   let participantList = [];
   let isLocalHandRaised = false;
+  let isFullModeActive = false;
+  let fullTargetKey = null;
+  let isScreenShareFull = false;
   let localVideoGranted = false;
   const knownHandKeys = new Set();
 
@@ -75,6 +78,19 @@
       peerVideo.remove();
     }
     
+
+
+            // O compartilhamento é entendido como um tipo de exibição full automática
+    const screenSharer = participantList.find(p => Number(p.screen_sharing) === 1 && p.participant_key !== cfg.selfKey);
+    if (screenSharer) {
+      if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
+        enterFullMode(screenSharer.participant_key, true);
+      }
+    } else if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
+      // O participante parou de compartilhar a tela
+      exitFullMode();
+    }
+
     // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
     const handRequesters = participantList.filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey);
     let hasNewHand = false;
@@ -107,7 +123,6 @@
         handToast.style.display = 'none';
       }
     }
-
     updateCounters();
     updateVideoGridCount();
   }
@@ -386,6 +401,19 @@
     }
 
     
+
+
+            // O compartilhamento é entendido como um tipo de exibição full automática
+    const screenSharer = participantList.find(p => Number(p.screen_sharing) === 1 && p.participant_key !== cfg.selfKey);
+    if (screenSharer) {
+      if (!isFullModeActive || fullTargetKey !== screenSharer.participant_key) {
+        enterFullMode(screenSharer.participant_key, true);
+      }
+    } else if (isFullModeActive && isScreenShareFull && fullTargetKey !== 'local') {
+      // O participante parou de compartilhar a tela
+      exitFullMode();
+    }
+
     // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
     const handRequesters = participantList.filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey);
     let hasNewHand = false;
@@ -418,7 +446,6 @@
         handToast.style.display = 'none';
       }
     }
-
     updateCounters();
     updateVideoGridCount();
   }
@@ -706,6 +733,112 @@ O participante será desconectado imediatamente.`)) {
     } catch(e) {}
   }
 
+    function enterFullMode(targetKey, isScreenShare = false) {
+    const cfg = window.MEETING_CONFIG;
+    const grid = document.getElementById('videos');
+    if (!grid) return;
+
+    const targetTile = (targetKey === 'local') ? document.getElementById('tile-local') : document.getElementById('tile-' + targetKey);
+    if (!targetTile) return;
+
+    isFullModeActive = true;
+    fullTargetKey = targetKey;
+    isScreenShareFull = isScreenShare;
+
+    grid.classList.add('full-mode');
+    document.querySelectorAll('#videos .tile').forEach(t => t.classList.remove('full-spotlight'));
+    targetTile.classList.add('full-spotlight');
+
+    // 1. Pausa as demais exibições de vídeo para economia total de banda e CPU
+    document.querySelectorAll('#videos .tile:not(.full-spotlight) video').forEach(v => {
+      try { v.pause(); } catch(e) {}
+    });
+
+    // Desativa tracks de vídeo dos outros participantes no WebRTC para não puxar dados desnecessários
+    if (window.MeetingWebRTC && window.MeetingWebRTC.pcs) {
+      window.MeetingWebRTC.pcs.forEach((pc, pKey) => {
+        pc.getReceivers().forEach(r => {
+          if (r.track && r.track.kind === 'video') {
+            r.track.enabled = (pKey === targetKey);
+          }
+        });
+      });
+    }
+
+    // 2. Garante reprodução ativa e resolução máxima para a exibição full
+    const spotlightVideo = targetTile.querySelector('video');
+    if (spotlightVideo) {
+      try {
+        spotlightVideo.play().catch(() => {});
+        spotlightVideo.style.display = 'block';
+      } catch(e) {}
+    }
+    const avatar = targetTile.querySelector('.peer-avatar, #localAvatar');
+    if (avatar) avatar.style.display = 'none';
+
+    // Eleva bitrate para máxima qualidade se o stream for transmitido localmente (câmera ou tela)
+    if (targetKey === 'local' && window.MeetingWebRTC && window.MeetingWebRTC.setSpotlightBitrate) {
+      window.MeetingWebRTC.setSpotlightBitrate(true);
+    }
+
+    // 3. Exibe o banner de controle de modo full
+    const banner = document.getElementById('fullModeBanner');
+    const titleEl = document.getElementById('fullModeTitle');
+    const targetName = (targetKey === 'local') ? `Você (${cfg.displayName || ''})` : (participantNames.get(targetKey) || 'Participante');
+    if (banner && titleEl) {
+      titleEl.textContent = isScreenShare ? `🖥️ Compartilhamento de Tela - ${targetName}` : `⛶ Exibição Full - ${targetName}`;
+      banner.style.display = 'flex';
+    }
+  }
+
+  function exitFullMode() {
+    if (!isFullModeActive) return;
+    isFullModeActive = false;
+    fullTargetKey = null;
+    isScreenShareFull = false;
+
+    const grid = document.getElementById('videos');
+    if (grid) grid.classList.remove('full-mode');
+    document.querySelectorAll('#videos .tile').forEach(t => t.classList.remove('full-spotlight'));
+
+    const banner = document.getElementById('fullModeBanner');
+    if (banner) banner.style.display = 'none';
+
+    // 1. Despausa os vídeos dos participantes
+    document.querySelectorAll('#videos .tile video').forEach(v => {
+      try { v.play().catch(() => {}); } catch(e) {}
+    });
+
+    // 2. Restaura estado dos tracks de vídeo recebidos no WebRTC
+    if (window.MeetingWebRTC && window.MeetingWebRTC.pcs) {
+      window.MeetingWebRTC.pcs.forEach((pc, pKey) => {
+        const pData = participantList.find(p => p.participant_key === pKey);
+        const shouldShow = pData && Number(pData.video_granted) === 1 && Number(pData.cam_enabled) === 1;
+        pc.getReceivers().forEach(r => {
+          if (r.track && r.track.kind === 'video') {
+            r.track.enabled = Boolean(shouldShow);
+          }
+        });
+      });
+    }
+
+    // Retorna bitrate de envio para o padrão otimizado (350 kbps)
+    if (window.MeetingWebRTC && window.MeetingWebRTC.setSpotlightBitrate) {
+      window.MeetingWebRTC.setSpotlightBitrate(false);
+    }
+
+    // Re-renderiza o estado da grade normal
+    renderParticipants(participantList);
+  }
+
+  function toggleFullMode(targetKey) {
+    if (isFullModeActive && fullTargetKey === targetKey) {
+      exitFullMode();
+    } else {
+      enterFullMode(targetKey, false);
+    }
+  }
+
   function dismissHandToast() {
     const handToast = document.getElementById('handToast');
     if (handToast) handToast.style.display = 'none';
@@ -716,6 +849,10 @@ O participante será desconectado imediatamente.`)) {
     renderWaitingList,
     kickParticipant,
     toggleRaiseHand,
+    enterFullMode,
+    exitFullMode,
+    toggleFullMode,
+    isFullMode: () => isFullModeActive,
     playHandChime,
     grantWord,
     revokeWord,

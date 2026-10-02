@@ -341,6 +341,94 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       100% { transform: scale(1); }
     }
 
+    
+    /* ========================================================
+       MODO DE EXIBIÇÃO FULL (SPOTLIGHT / COMPARTILHAMENTO)
+       As demais exibições são pausadas e o destaque ganha resolução máxima
+       ======================================================== */
+    .grid.full-mode {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 8px !important;
+      padding-bottom: 84px !important;
+      gap: 0 !important;
+      overflow: hidden !important;
+    }
+
+    .grid.full-mode .tile {
+      display: none !important;
+    }
+
+    .grid.full-mode .tile.full-spotlight {
+      display: flex !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: calc(100vh - 110px) !important;
+      flex: 1 1 100% !important;
+      border-radius: 14px !important;
+      border: 2px solid var(--primary, #00d2ff) !important;
+      box-shadow: 0 0 45px rgba(0, 210, 255, 0.35) !important;
+      background: #000 !important;
+    }
+
+    .grid.full-mode .tile.full-spotlight video {
+      object-fit: contain !important; /* Preserva proporção exata e nitidez máxima */
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .tile-full-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 8;
+      transition: all 0.2s;
+    }
+
+    .tile-full-btn:hover {
+      background: rgba(0, 210, 255, 0.3);
+      border-color: #00d2ff;
+      transform: scale(1.1);
+    }
+
+    .full-mode-banner {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 210, 255, 0.5);
+      border-radius: 30px;
+      padding: 8px 20px;
+      z-index: 90;
+      display: none;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.7);
+      animation: fadeInDown 0.25s ease-out;
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
     .controls button.hand-active {
       background: rgba(234, 179, 8, 0.25) !important;
       border-color: #eab308 !important;
@@ -1212,8 +1300,20 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
         <span id="handToastText" style="color: #fef08a; font-weight: 600; font-size: 0.88rem;">✋ Convidado pediu a palavra</span>
         <div style="display: flex; gap: 8px;" id="handToastButtons"></div>
       </div>
+            <!-- Banner de Controle da Exibição Full (Resolução Máxima / Compartilhamento) -->
+      <div id="fullModeBanner" class="full-mode-banner">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.1rem; color: #00d2ff;">⛶</span>
+          <strong id="fullModeTitle" style="color: #fff; font-size: 0.9rem;">Exibição Full</strong>
+          <span style="font-size: 0.72rem; background: rgba(0, 210, 255, 0.2); color: #00d2ff; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(0, 210, 255, 0.4); font-weight: 600;">Resolução Máxima</span>
+        </div>
+        <button type="button" class="sr-btn sr-btn-sm" onclick="MeetingParticipants.exitFullMode()" style="border-radius: 20px; padding: 4px 14px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff;">
+          ✕ Sair da Exibição Full
+        </button>
+      </div>
       <div class="grid" id="videos">
-        <div class="tile" id="tile-local">
+        <div class="tile" id="tile-local" ondblclick="MeetingParticipants.toggleFullMode('local')">
+          <button type="button" class="tile-full-btn" onclick="event.stopPropagation(); MeetingParticipants.toggleFullMode('local');" title="Exibição Full / Maximizar">⛶</button>
           <video id="local" autoplay muted playsinline webkit-playsinline></video>
           <div id="localAvatar" style="display: none; width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 2.2rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
             <?= strtoupper(substr(trim($me['display_name'] ?: 'U'), 0, 1)) ?>
