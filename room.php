@@ -317,6 +317,67 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       box-shadow: 0 0 20px rgba(234, 179, 8, 0.5) !important;
     }
 
+        /* Ícone / Imagem de Mãozinha na Janela do Participante */
+    .tile-hand-action {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: linear-gradient(135deg, #f59e0b, #eab308);
+      color: #0f172a;
+      font-size: 1.35rem;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.65), 0 4px 10px rgba(0,0,0,0.5);
+      border: 2px solid #fef08a;
+      z-index: 12;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: pulseHandTile 1.3s infinite alternate ease-in-out;
+      user-select: none;
+    }
+
+    @keyframes pulseHandTile {
+      0% { transform: scale(1); box-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
+      100% { transform: scale(1.15); box-shadow: 0 0 28px rgba(245, 158, 11, 0.95); }
+    }
+
+    .tile-hand-action.admin-clickable {
+      cursor: pointer;
+    }
+
+    .tile-hand-action.admin-clickable:hover {
+      transform: scale(1.25) !important;
+      background: linear-gradient(135deg, #eab308, #facc15) !important;
+      box-shadow: 0 0 35px rgba(250, 204, 21, 1), 0 0 15px #fff !important;
+    }
+
+    .tile-hand-action.admin-clickable::after {
+      content: "Aprovar Full";
+      position: absolute;
+      left: 48px;
+      white-space: nowrap;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid #facc15;
+      color: #fef08a;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      transform: translateX(-4px);
+    }
+
+    .tile-hand-action.admin-clickable:hover::after {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
     .tile-hand-badge {
       position: absolute;
       top: 10px;

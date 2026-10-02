@@ -130,7 +130,7 @@
         const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
         handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
         handToastBtns.innerHTML = `
-          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.grantWord('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">Conceder Vídeo</button>
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ Aprovar e Exibir Full</button>
           <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
         `;
         handToast.style.display = 'flex';
@@ -316,6 +316,8 @@
               e.stopPropagation();
               if (isGranted) {
                 revokeWord(p.participant_key, p.display_name);
+              } else if (Number(p.hand_raised) === 1) {
+                approveHandWithFullMode(p.participant_key, p.display_name);
               } else {
                 grantWord(p.participant_key, p.display_name);
               }
@@ -373,21 +375,50 @@
 
       const tileEl = document.getElementById('tile-' + p.participant_key);
 
-      // Distintivo de Mão Levantada no Tile
+      // Imagem / Botão de Mãozinha na Janela de quem pediu a palavra (Apenas o Administrador pode aprovar ao clicar nela)
       if (tileEl) {
-        let handBadge = document.getElementById('hand-badge-' + p.participant_key);
+        let handAction = document.getElementById('hand-action-' + p.participant_key);
         if (handOn) {
-          if (!handBadge) {
-            handBadge = document.createElement('div');
-            handBadge.className = 'tile-hand-badge';
-            handBadge.id = 'hand-badge-' + p.participant_key;
-            handBadge.innerHTML = '✋ Pediu Palavra';
-            tileEl.appendChild(handBadge);
+          if (!handAction) {
+            handAction = document.createElement('div');
+            handAction.id = 'hand-action-' + p.participant_key;
+            handAction.className = 'tile-hand-action' + (cfg.CAN_ADMIT ? ' admin-clickable' : '');
+            handAction.innerHTML = '✋';
+            if (cfg.CAN_ADMIT) {
+              handAction.title = `✋ Clique na mãozinha para aprovar a palavra e exibir ${p.display_name} em Exibição Full (Resolução Máxima)`;
+              handAction.onclick = (e) => {
+                e.stopPropagation();
+                approveHandWithFullMode(p.participant_key, p.display_name);
+              };
+            } else {
+              handAction.title = `✋ ${p.display_name} pediu a palavra`;
+            }
+            tileEl.appendChild(handAction);
           }
           tileEl.classList.add('hand-raised-glow');
         } else {
-          if (handBadge) handBadge.remove();
+          if (handAction) handAction.remove();
           tileEl.classList.remove('hand-raised-glow');
+        }
+      }
+
+      // Exibe a mãozinha na janela do próprio usuário quando ele pede a palavra
+      const localTile = document.getElementById('tile-local');
+      if (localTile) {
+        let localHandIcon = document.getElementById('hand-action-local');
+        if (isLocalHandRaised) {
+          if (!localHandIcon) {
+            localHandIcon = document.createElement('div');
+            localHandIcon.id = 'hand-action-local';
+            localHandIcon.className = 'tile-hand-action';
+            localHandIcon.innerHTML = '✋';
+            localHandIcon.title = '✋ Você pediu a palavra';
+            localTile.appendChild(localHandIcon);
+          }
+          localTile.classList.add('hand-raised-glow');
+        } else {
+          if (localHandIcon) localHandIcon.remove();
+          localTile.classList.remove('hand-raised-glow');
         }
       }
 
@@ -487,7 +518,7 @@
         const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
         handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
         handToastBtns.innerHTML = `
-          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.grantWord('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">Conceder Vídeo</button>
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ Aprovar e Exibir Full</button>
           <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
         `;
         handToast.style.display = 'flex';
@@ -728,6 +759,47 @@ O participante será desconectado imediatamente.`)) {
     }
   }
 
+    async function approveHandWithFullMode(targetKey, targetName) {
+    const cfg = window.MEETING_CONFIG;
+    if (!cfg.CAN_ADMIT) return;
+
+    if (window.showToast) {
+      window.showToast(`Aprovando palavra e exibição full para ${targetName}...`);
+    }
+
+    try {
+      // 1. Concede a palavra/vídeo ao participante (mantendo o teto de 5 vídeos e liberando a câmera dele)
+      const respWord = await fetch('api/room_hand.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'grant',
+          target_key: targetKey
+        })
+      });
+      const dataWord = await respWord.json();
+
+      // 2. Coloca imediatamente a pessoa em Exibição Full (Resolução Máxima) para toda a sala
+      await approveFullMode(targetKey, false);
+
+      dismissHandToast();
+      let msg = `🎉 Palavra aprovada para ${targetName} em Exibição Full (Resolução Máxima)!`;
+      if (dataWord && dataWord.revoked_name) {
+        msg += ` (${dataWord.revoked_name} foi recolhido para manter o limite de 5 vídeos).`;
+      }
+      if (window.showToast) window.showToast(msg);
+
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+    } catch (e) {
+      console.error('Erro ao aprovar palavra com exibição full:', e);
+      enterFullMode(targetKey, false);
+    }
+  }
+
   async function grantWord(targetKey, targetName) {
     const cfg = window.MEETING_CONFIG;
     try {
@@ -960,7 +1032,8 @@ O participante será desconectado imediatamente.`)) {
     renderWaitingList,
     kickParticipant,
     toggleRaiseHand,
-        approveFullMode,
+        approveHandWithFullMode,
+    approveFullMode,
     revokeFullMode,
     dismissScreenToast,
     enterFullMode,
