@@ -125,10 +125,10 @@ try {
          (SELECT COUNT(*) FROM room_presence p WHERE p.room_id=r.id AND p.last_seen_at>=DATE_SUB(NOW(), INTERVAL 20 SECOND)) online,
          (SELECT token FROM room_invites i WHERE i.room_id=r.id AND i.status='approved' AND i.email=? ORDER BY i.id ASC LIMIT 1) host_token
         FROM rooms r
-        WHERE r.owner_user_id=?
+        WHERE r.owner_user_id=? OR EXISTS (SELECT 1 FROM room_admins ra WHERE ra.room_id=r.id AND ra.user_id=?)
         ORDER BY CASE WHEN r.status='open' THEN 1 WHEN r.status='scheduled' THEN 2 ELSE 3 END, COALESCE(r.starts_at, r.created_at) DESC
     ");
-    $st->execute([$user['email'], $user['id']]);
+    $st->execute([$user['email'], $user['id'], $user['id']]);
     $rooms = $st->fetchAll();
 
     $stats = $pdo->prepare("
@@ -136,9 +136,9 @@ try {
          COUNT(*) total_rooms,
          SUM(status='open') open_rooms,
          SUM(status='scheduled') scheduled_rooms
-        FROM rooms WHERE owner_user_id=?
+        FROM rooms WHERE owner_user_id=? OR EXISTS (SELECT 1 FROM room_admins ra WHERE ra.room_id=rooms.id AND ra.user_id=?)
     ");
-    $stats->execute([$user['id']]);
+    $stats->execute([$user['id'], $user['id']]);
     $my = $stats->fetch();
 
     // Determina a URL base completa com protocolo e domínio para links de convite

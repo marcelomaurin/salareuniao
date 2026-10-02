@@ -135,6 +135,19 @@ CREATE TABLE rooms (
 ALTER TABLE devices
   ADD CONSTRAINT fk_devices_room FOREIGN KEY(room_id) REFERENCES rooms(id) ON DELETE SET NULL;
 
+
+CREATE TABLE IF NOT EXISTS room_admins (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  room_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_room_admin (room_id, user_id),
+  INDEX idx_room_admins_room (room_id),
+  INDEX idx_room_admins_user (user_id),
+  CONSTRAINT fk_room_admins_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+  CONSTRAINT fk_room_admins_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE room_invites (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   room_id BIGINT UNSIGNED NOT NULL,

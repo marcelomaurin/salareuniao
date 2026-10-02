@@ -41,11 +41,26 @@ if ($tokenInvite['status'] === 'rejected') {
     exit('Sua entrada nesta reunião não foi autorizada.');
 }
 
-// 3. O token está aprovado (status === 'approved') - Convidado acessa diretamente sem exigir login
+// 3. O token está aprovado (status === 'approved')
 $me = $tokenInvite;
 $signedUser = current_user();
 
-// Qualquer pessoa dentro da sala aberta pode aprovar novos participantes
+// Verifica se o usuário atual é administrador desta sala ou administrador do sistema
+$isRoomAdmin = is_room_admin($pdo, $signedUser, (int)$tokenInvite['room_id'], (int)$tokenInvite['owner_user_id']);
+
+if (!$isRoomAdmin) {
+    http_response_code(403);
+    die('<div style="font-family: sans-serif; padding: 40px; text-align: center; background: #0b1120; color: #f87171; min-height: 100vh;">'
+        . '<div style="font-size: 3.5rem; margin-bottom: 16px;">🔒</div>'
+        . '<h1 style="font-size: 1.8rem; margin-bottom: 8px;">Acesso Restrito a Administradores</h1>'
+        . '<p style="color: #94a3b8; max-width: 550px; margin: 0 auto 20px; line-height: 1.6;">'
+        . 'Esta sala de reunião é exclusiva para administradores. Você precisa ser administrador desta sala ou administrador geral da plataforma para ingressar.'
+        . '</p>'
+        . ($signedUser ? '<p style="color: #cbd5e1; font-size: 0.9rem;">Conectado como: <strong>' . htmlspecialchars($signedUser['name']) . '</strong> (' . htmlspecialchars($signedUser['email']) . ')</p>' : '<p><a href="login.php" style="color: #38bdf8; font-weight: 600;">Clique aqui para fazer login com uma conta de administrador &rarr;</a></p>')
+        . '<p style="margin-top: 24px;"><a href="index.php" style="color: #38bdf8;">&larr; Voltar à Central de Salas</a></p>'
+        . '</div>');
+}
+
 $canAdmit = true;
 
 $cursorQuery = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM signaling_messages WHERE room_id=?');

@@ -75,6 +75,16 @@ try {
             INDEX idx_rooms_status (status)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+        CREATE TABLE IF NOT EXISTS room_admins (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            room_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_room_admin (room_id, user_id),
+            INDEX idx_room_admins_room (room_id),
+            INDEX idx_room_admins_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
         CREATE TABLE IF NOT EXISTS room_invites (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             room_id BIGINT UNSIGNED NOT NULL,
@@ -332,6 +342,37 @@ function audit_log(string $action, ?string $targetType = null, $targetId = null,
         ]);
     } catch (Throwable $e) {
         error_log('audit_log error: ' . $e->getMessage());
+    }
+}
+
+function is_room_admin(PDO $pdo, ?array $user, int $roomId, ?int $roomOwnerId = null): bool {
+    if (!$user || empty($user['active'])) {
+        return false;
+    }
+    // 1. Administrador global do sistema ("com excessão do usuario administrador")
+    if (!empty($user['role']) && $user['role'] === 'admin') {
+        return true;
+    }
+    // 2. Se o roomOwnerId não foi informado, busca da tabela rooms
+    if ($roomOwnerId === null || $roomOwnerId <= 0) {
+        try {
+            $st = $pdo->prepare("SELECT owner_user_id FROM rooms WHERE id = ? LIMIT 1");
+            $st->execute([$roomId]);
+            $roomOwnerId = (int)$st->fetchColumn();
+        } catch (Throwable $e) {
+            $roomOwnerId = 0;
+        }
+    }
+    if ((int)$user['id'] === (int)$roomOwnerId) {
+        return true;
+    }
+    // 3. Verifica se está cadastrado na tabela room_admins para esta sala
+    try {
+        $st = $pdo->prepare("SELECT 1 FROM room_admins WHERE room_id = ? AND user_id = ? LIMIT 1");
+        $st->execute([$roomId, $user['id']]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
     }
 }
 

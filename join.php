@@ -89,11 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($invite) {
             $pKey = !empty($invite['participant_key']) ? $invite['participant_key'] : bin2hex(random_bytes(32));
             $signedUser = current_user();
-            $isHost = $signedUser && !empty($signedUser['active'])
-                && (int)$signedUser['id'] === (int)$room['owner_user_id']
-                && strcasecmp($signedUser['email'], $invite['email']) === 0;
+            $isHost = is_room_admin($pdo, $signedUser, (int)$room['id'], (int)$room['owner_user_id']);
 
-            // Se for o próprio anfitrião, aprova direto; senão, entra na sala de espera
+            // Se for administrador da sala ou do sistema, aprova direto; senão, entra na sala de espera
             $newStatus = $isHost ? 'approved' : 'waiting';
 
             $up = $pdo->prepare("UPDATE room_invites SET 

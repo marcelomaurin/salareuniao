@@ -7,12 +7,12 @@ $id=(int)($_GET['id']??$_POST['id']??0);
 $msg='';$error='';
 
 function load_room_for_manager(PDO $pdo,array $user,int $id): ?array {
-    if($user['role']==='admin'){
+    if(!empty($user['role']) && $user['role']==='admin'){
         $st=$pdo->prepare('SELECT r.*,u.name owner_name,u.email owner_email FROM rooms r JOIN users u ON u.id=r.owner_user_id WHERE r.id=? LIMIT 1');
         $st->execute([$id]);
     }else{
-        $st=$pdo->prepare('SELECT r.*,u.name owner_name,u.email owner_email FROM rooms r JOIN users u ON u.id=r.owner_user_id WHERE r.id=? AND r.owner_user_id=? LIMIT 1');
-        $st->execute([$id,$user['id']]);
+        $st=$pdo->prepare('SELECT r.*,u.name owner_name,u.email owner_email FROM rooms r JOIN users u ON u.id=r.owner_user_id WHERE r.id=? AND (r.owner_user_id=? OR EXISTS(SELECT 1 FROM room_admins ra WHERE ra.room_id=r.id AND ra.user_id=?)) LIMIT 1');
+        $st->execute([$id,$user['id'],$user['id']]);
     }
     return $st->fetch()?:null;
 }
@@ -20,15 +20,16 @@ function load_room_for_manager(PDO $pdo,array $user,int $id): ?array {
 $room=load_room_for_manager($pdo,$user,$id);
 if(!$room){http_response_code(404);exit('Sala não encontrada.');}
 
-$hst=$pdo->prepare("SELECT * FROM room_invites WHERE room_id=? AND email=? AND status='approved' ORDER BY id LIMIT 1");
-$hst->execute([$id,strtolower($room['owner_email'])]);
+$loginEmail = strtolower(trim($user['email']));
+$hst=$pdo->prepare("SELECT * FROM room_invites WHERE room_id=? AND LOWER(email)=? AND status='approved' ORDER BY id LIMIT 1");
+$hst->execute([$id,$loginEmail]);
 $hostInvite=$hst->fetch();
 if(!$hostInvite){
     $hostToken=bin2hex(random_bytes(32));$hostKey=bin2hex(random_bytes(32));
     $ins=$pdo->prepare("INSERT INTO room_invites(room_id,email,token,status,display_name,participant_key,requested_at,approved_at)
                         VALUES(?,?,?,'approved',?,?,NOW(),NOW())");
-    $ins->execute([$id,strtolower($room['owner_email']),$hostToken,$room['owner_name'],$hostKey]);
-    $hst->execute([$id,strtolower($room['owner_email'])]);$hostInvite=$hst->fetch();
+    $ins->execute([$id,$loginEmail,$hostToken,$user['name'],$hostKey]);
+    $hst->execute([$id,$loginEmail]);$hostInvite=$hst->fetch();
 }
 
 if($_SERVER['REQUEST_METHOD']==='POST'){
@@ -47,6 +48,40 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $q->execute([$name,$description,$starts,$ends,$id]);
             audit_log('room.edit','room',$id,['name'=>$name,'starts_at'=>$starts,'ends_at'=>$ends]);
             $msg='Dados da reunião atualizados.';
+        }elseif($action==='add_admin'){
+            $targetUserId = (int)($_POST['admin_user_id'] ?? 0);
+            if ($targetUserId <= 0) throw new RuntimeException('Selecione um usuário válido.');
+            $uSt = $pdo->prepare("SELECT id, name, email FROM users WHERE id = ? LIMIT 1");
+            $uSt->execute([$targetUserId]);
+            $targetUser = $uSt->fetch();
+            if (!$targetUser) throw new RuntimeException('Usuário selecionado não foi encontrado.');
+            if ($targetUserId === (int)$room['owner_user_id']) throw new RuntimeException('Este usuário já é o anfitrião proprietário da sala.');
+
+            $stAdd = $pdo->prepare("INSERT IGNORE INTO room_admins (room_id, user_id) VALUES (?, ?)");
+            $stAdd->execute([$id, $targetUserId]);
+
+            // Garante que o administrador tenha convite aprovado para entrar diretamente
+            $tEmail = strtolower($targetUser['email']);
+            $stInv = $pdo->prepare("SELECT id FROM room_invites WHERE room_id = ? AND LOWER(email) = ? LIMIT 1");
+            $stInv->execute([$id, $tEmail]);
+            $existingInv = $stInv->fetch();
+            if (!$existingInv) {
+                $tToken = bin2hex(random_bytes(32));
+                $tKey = bin2hex(random_bytes(32));
+                $insInv = $pdo->prepare("INSERT INTO room_invites (room_id, email, token, status, display_name, participant_key, requested_at, approved_at) VALUES (?, ?, ?, 'approved', ?, ?, NOW(), NOW())");
+                $insInv->execute([$id, $tEmail, $tToken, $targetUser['name'], $tKey]);
+            } else {
+                $pdo->prepare("UPDATE room_invites SET status = 'approved', approved_at = NOW() WHERE id = ?")->execute([$existingInv['id']]);
+            }
+
+            audit_log('room.admin_add', 'room', $id, ['user_id' => $targetUserId, 'name' => $targetUser['name']]);
+            $msg = 'Administrador ' . htmlspecialchars($targetUser['name']) . ' adicionado com sucesso à sala.';
+        }elseif($action==='remove_admin'){
+            $targetUserId = (int)($_POST['admin_user_id'] ?? 0);
+            if ($targetUserId === (int)$room['owner_user_id']) throw new RuntimeException('O proprietário da sala não pode ser removido.');
+            $pdo->prepare("DELETE FROM room_admins WHERE room_id = ? AND user_id = ?")->execute([$id, $targetUserId]);
+            audit_log('room.admin_remove', 'room', $id, ['user_id' => $targetUserId]);
+            $msg = 'Administrador removido da sala.';
         }elseif($action==='add_invites'){
             if($room['status']==='cancelled') throw new RuntimeException('Não é possível convidar pessoas para uma reunião cancelada.');
             $emails=preg_split('/[\s,;]+/',trim($_POST['emails']??''),-1,PREG_SPLIT_NO_EMPTY);
@@ -251,6 +286,82 @@ $inv->execute([$id]);$invites=$inv->fetchAll();
             </a>
           <?php endif; ?>
         </div>
+      </div>
+    </div>
+
+
+    <!-- Card: Administradores da Sala -->
+    <div class="sr-card" style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 1.25rem; margin-bottom: 4px;">🛡️ Administradores desta Sala</h2>
+          <p style="color: var(--text-muted); font-size: 0.88rem;">
+            Apenas administradores desta sala (ou administradores gerais) podem abrir e ingressar nesta videoconferência.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        <!-- Anfitrião Criador -->
+        <div class="sr-invite-item" style="border-color: rgba(0, 210, 255, 0.3); background: rgba(0, 210, 255, 0.05);">
+          <div>
+            <div style="font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <span>👑</span> <?=e($room['owner_name'])?>
+              <span class="sr-badge sr-badge-open" style="font-size: 9px; padding: 1px 6px;">Proprietário</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+              <?=e($room['owner_email'])?>
+            </div>
+          </div>
+        </div>
+
+        <!-- Demais Administradores da Sala -->
+        <?php foreach ($roomAdmins as $radm): ?>
+          <div class="sr-invite-item" style="border-color: rgba(59, 130, 246, 0.3);">
+            <div>
+              <div style="font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+                <span>🛡️</span> <?=e($radm['name'])?>
+                <span class="sr-badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 9px; padding: 1px 6px;">Admin da Sala</span>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                <?=e($radm['email'])?>
+              </div>
+            </div>
+            <form method="post" style="display: inline; margin: 0;" onsubmit="return confirm('Remover o acesso de administrador deste usuário nesta sala?');">
+              <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+              <input type="hidden" name="id" value="<?=$id?>">
+              <input type="hidden" name="action" value="remove_admin">
+              <input type="hidden" name="admin_user_id" value="<?=(int)$radm['user_id']?>">
+              <button type="submit" class="sr-btn sr-btn-danger sr-btn-sm" title="Remover administrador">
+                ✕ Remover
+              </button>
+            </form>
+          </div>
+        <?php endforeach; ?>
+      </div>
+
+      <!-- Formulário para Incluir Administrador -->
+      <div style="padding-top: 14px; border-top: 1px solid var(--border-glass);">
+        <form method="post" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+          <input type="hidden" name="id" value="<?=$id?>">
+          <input type="hidden" name="action" value="add_admin">
+
+          <div style="flex: 1; min-width: 240px;">
+            <select name="admin_user_id" class="sr-input" style="height: 42px;" required>
+              <option value="">Selecione um usuário cadastrado para ser administrador...</option>
+              <?php foreach ($availableUsers as $au): ?>
+                <option value="<?=(int)$au['id']?>">
+                  <?=e($au['name'])?> (<?=e($au['email'])?>)
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <button type="submit" class="sr-btn sr-btn-primary sr-btn-sm" style="min-height: 42px;">
+            ➕ Incluir como Administrador da Sala
+          </button>
+        </form>
       </div>
     </div>
 
