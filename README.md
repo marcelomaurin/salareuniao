@@ -1,75 +1,149 @@
-# Sala Reunião — Plataforma de Videoconferência
+# Cliente Web — PHP + MySQL + WebRTC P2P
 
-O **Sala Reunião** está sendo evoluído de um painel de sala ESP8266/Nextion para uma **plataforma de comunicação e videoconferência multiplataforma**, inspirada no modelo de uso de ferramentas como Microsoft Teams.
+O cliente Web do Sala Reunião usa **PHP 8.1+**, **MySQL/MariaDB** e **WebRTC** no navegador.
 
-A arquitetura passa a considerar quatro tipos principais de cliente:
+## Recursos implementados
 
-- **Web** — acesso pelo navegador, reuniões, chat, agenda e administração.
-- **Desktop** — cliente para Windows/Linux, com integração mais profunda com câmera, microfone, tela e sistema operacional.
-- **ESP32 / terminal de sala** — presença física da sala, status, agenda, automação, botões, display, sensores, telemetria e comandos remotos.
-- **Backend** — autenticação, usuários, salas, agenda, sinalização WebRTC, eventos, dispositivos e persistência.
+- login por sessão PHP;
+- perfis `admin` e `user`;
+- administração de usuários;
+- criação e abertura/encerramento de salas;
+- convite por e-mail com token individual;
+- sala de espera;
+- aprovação/recusa pelo responsável;
+- identidade automática para o anfitrião;
+- sinalização WebRTC via PHP/MySQL;
+- áudio e vídeo P2P;
+- lista de participantes online;
+- heartbeat de presença;
+- estado de microfone, câmera e compartilhamento;
+- compartilhamento de tela com `getDisplayMedia()` e `replaceTrack()`;
+- remoção de participante pelo responsável;
+- tratamento de ICE recebido antes da descrição remota;
+- layout responsivo básico da videoconferência.
 
-> O ESP32 não deve transportar vídeo de conferência como um PC. Ele funciona como **terminal/controlador da sala**, integrado à mesma plataforma.
+## Fluxo
 
-## Estrutura
+1. Usuário autenticado cria uma sala.
+2. O sistema cria automaticamente a identidade aprovada do anfitrião.
+3. Os convidados recebem links individuais.
+4. O convidado solicita entrada e fica em `waiting`.
+5. O responsável autoriza ou rejeita.
+6. Com a sala aberta, participantes aprovados entram em `room.php`.
+7. Os browsers trocam `peer-ready`, `offer`, `answer`, `ice` e `leave`.
+8. ICE/STUN negocia a rota e o WebRTC estabelece mídia P2P quando possível.
 
-```text
-salareuniao/
-├── apps/
-│   ├── web/                # Cliente Web
-│   ├── desktop/            # Cliente Desktop
-│   └── esp32/              # Firmware de terminais/controladores
-├── services/
-│   ├── api/                # API principal
-│   ├── signaling/          # Sinalização WebRTC
-│   └── device-gateway/     # Gateway TCP/WebSocket/MQTT para dispositivos
-├── packages/
-│   ├── protocol/           # Contratos e mensagens compartilhadas
-│   └── common/             # Tipos/utilitários compartilhados
-├── hardware/
-│   ├── nextion/            # Projeto da interface Nextion existente
-│   └── firmware/           # Firmware original preservado durante migração
-├── stl/                    # Modelos mecânicos
-├── docs/                   # Arquitetura, protocolos e migração
-└── IMG/                    # Imagens do projeto
+## Banco
+
+Instalação nova:
+
+```bash
+mysql -u root -p < sql/schema.sql
 ```
 
-## Componentes da plataforma
+Se o banco já foi criado antes da implementação de presença:
 
-### Reunião e mídia
+```bash
+mysql -u root -p < sql/002_presence.sql
+```
 
-A videoconferência deverá usar **WebRTC** nos clientes Web/Desktop. O servidor de sinalização coordena entrada em sala, oferta/resposta SDP, candidatos ICE e estado dos participantes. Para poucas pessoas pode-se iniciar com P2P; para salas maiores a arquitetura deverá permitir adoção posterior de um SFU.
+## Configuração
 
-### Salas, usuários e agenda
+1. Copie `config.example.php` para `config.php`.
+2. Configure MySQL, `base_url`, remetente de e-mail e ICE servers.
+3. Gere uma senha com `password_hash()` e insira o primeiro administrador.
+4. Publique o site em **HTTPS**.
 
-O backend deverá centralizar usuários, autenticação, salas, reuniões, participantes, convites, agenda, permissões e presença.
+HTTPS é necessário para câmera, microfone e compartilhamento de tela fora de `localhost`.
 
-### Dispositivos ESP32
+## P2P e NAT
 
-O ESP32 representa a sala física. Ele pode exibir agenda/status, indicar reunião em andamento, receber comandos, controlar LEDs/display/relés, publicar telemetria e permitir ações como iniciar, chamar ou encerrar uma reunião no equipamento principal.
+O PHP não transmite vídeo. Ele faz autenticação, controle de sala e sinalização.
 
-### Device Gateway
+O WebRTC usa ICE para descobrir IPs/portas. STUN ajuda a descobrir o endereço público. Para redes onde a conexão direta não funciona, ainda será necessário configurar um servidor **TURN**.
 
-O antigo servidor TCP passa a ser tratado como **gateway de dispositivos**. Ele mantém compatibilidade com o protocolo atual `GET VAR:=valor`, mas a evolução prevista é um protocolo versionado e autenticado via WebSocket/MQTT/TCP.
+## Próximos itens
 
-## Migração
-
-O código original foi preservado enquanto a nova estrutura é implantada. Consulte:
-
-- `docs/ARCHITECTURE.md`
-- `docs/PROTOCOL.md`
-- `docs/MIGRATION.md`
-
-## Autor
-
-Marcelo Maurin Martins — MaurinSoft
-
-
-## Firmware ESP32 atual
-
-O firmware REST v1 está em `apps/esp32/firmware` e já implementa heartbeat, agenda/estado, telemetria, eventos, comandos remotos com ACK, LED/botão e suporte opcional ao Nextion.
+- SMTP autenticado/PHPMailer e e-mails HTML (implementado);
+- chat persistente da reunião (implementado);
+- edição de reunião, novos convidados, reenvio e cancelamento (implementado);
+- TURN/Coturn com credenciais temporárias (implementado; requer configuração do servidor);
+- limpeza automática de sinalização antiga;
+- troca do polling por WebSocket ou canal de eventos dedicado;
+- cliente Desktop;
+- integração ESP32.
 
 
-## Cliente Android
+## TURN em produção
 
-O app Android está em `apps/android`. Ele usa Kotlin, API REST v1 e uma WebView segura para executar a mesma videoconferência WebRTC do site, com câmera e microfone dentro do aplicativo.
+O cliente gera credenciais TURN temporárias no servidor PHP usando o segredo compartilhado configurado em `webrtc.turn.secret`. O mesmo segredo deve ser configurado no Coturn em `static-auth-secret`.
+
+Consulte `../../docs/PRODUCTION.md` e `../../deployment/coturn/turnserver.conf.example`.
+
+O painel `admin_system.php` verifica os pré-requisitos básicos da instalação. Dentro da reunião, o indicador ICE mostra se a conexão está usando P2P direto ou TURN relay.
+
+
+## Chat e histórico
+
+O chat é persistido em MySQL na tabela `room_messages`. O cliente carrega as últimas mensagens ao entrar e faz polling incremental enquanto a reunião está aberta.
+
+Para bancos já existentes, aplique:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/003_chat.sql
+```
+
+O anfitrião e o administrador podem consultar o histórico em `room_history.php`.
+
+
+## Gestão de reuniões
+
+O responsável pela sala, e o administrador global, podem:
+- editar nome, descrição e horários;
+- adicionar convidados depois da criação;
+- reenviar um convite existente;
+- abrir e encerrar a sala;
+- cancelar a reunião;
+- remover participantes;
+- consultar histórico de chat e participação.
+
+A tabela `room_attendance` registra cada sessão de entrada/saída. Se um navegador desaparecer sem executar a saída normal, o heartbeat fecha a sessão usando o último `last_seen_at`.
+
+Para bancos existentes:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/004_attendance.sql
+```
+
+
+## WebSocket em tempo real
+
+A sinalização WebRTC, presença e chat usam preferencialmente o serviço PHP Ratchet em `services/signaling`.
+
+Quando a conexão WebSocket está disponível, a tela mostra `Conectado em tempo real`. Em caso de falha, o cliente retorna automaticamente aos endpoints HTTP de polling, permitindo implantação gradual e maior tolerância a falhas.
+
+
+## SMTP e recuperação de senha
+
+O cliente Web usa PHPMailer via Composer para SMTP autenticado.
+
+```bash
+cd apps/web
+composer install --no-dev --optimize-autoloader
+```
+
+Configure a seção `mail` do `config.php`. O painel **Administração > Diagnóstico** verifica se o PHPMailer está instalado, se o SMTP foi configurado e permite enviar uma mensagem de teste para o administrador autenticado.
+
+Os fluxos de e-mail incluem:
+- convite inicial;
+- reenvio de convite;
+- aviso de cancelamento;
+- recuperação de senha.
+
+A recuperação usa token aleatório de 256 bits; somente o SHA-256 do token é salvo no banco. O link expira em 60 minutos e é invalidado após o uso.
+
+Para bancos existentes:
+
+```bash
+mysql -u root -p salareuniao < apps/web/sql/005_password_reset.sql
+```
