@@ -396,7 +396,7 @@ final class ControlSocket implements MessageComponentInterface
             'video_allowed' => true,
             'audio_allowed' => true,
             'screen_allowed' => false,
-            'video_granted' => false,
+            'video_granted' => true,
             'hand_raised' => false,
         ];
     }

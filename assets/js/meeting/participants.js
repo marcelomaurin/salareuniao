@@ -13,7 +13,7 @@
   let isFullModeActive = false;
   let fullTargetKey = null;
   let isScreenShareFull = false;
-  let localVideoGranted = false;
+  let localVideoGranted = true; // Video concedido por padrao
   const knownHandKeys = new Set();
 
   function playHandChime() {
@@ -109,7 +109,7 @@
     // Sincroniza estado próprio com o servidor para evitar ressurreição (Tarefa 04)
     const me = participantList.find(p => p.participant_key === cfg.selfKey);
     if (me) {
-      localVideoGranted = Boolean(Number(me.video_granted));
+      localVideoGranted = me.video_granted !== undefined ? (Number(me.video_granted) === 1) : true;
       const serverHand = Number(me.hand_raised) === 1;
       const isPresenter = window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter();
       if (!serverHand || localVideoGranted || isPresenter) {
@@ -468,7 +468,7 @@
       // Do contrário, exibe o avatar estático reduzindo o consumo de banda e CPU
       if (avatarEl && peerVideo && p.participant_key !== cfg.selfKey) {
         avatarEl.textContent = (p.display_name.trim().charAt(0) || 'U').toUpperCase();
-        const showVideo = videoGranted && camOn;
+        const showVideo = (videoGranted !== false) && camOn;
         avatarEl.style.display = showVideo ? 'none' : 'flex';
         peerVideo.style.display = showVideo ? 'block' : 'none';
       }

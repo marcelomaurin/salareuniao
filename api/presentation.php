@@ -83,7 +83,7 @@ if ($action === 'sync') {
             'video_allowed' => (bool)($myPresence['video_admin_allowed'] ?? 1),
             'audio_allowed' => (bool)($myPresence['audio_admin_allowed'] ?? 1),
             'screen_allowed' => (bool)($myPresence['screen_admin_allowed'] ?? 0),
-            'video_granted' => (bool)($myPresence['video_granted'] ?? 0),
+            'video_granted' => (bool)($myPresence['video_granted'] ?? 1),
             'hand_raised' => (bool)($myPresence['hand_raised'] ?? 0),
             'is_presenter' => ($rState['room_mode'] === 'presentation' && $rState['active_presenter_key'] === $myKey),
         ]

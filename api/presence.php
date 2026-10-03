@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $att = $pdo->prepare('INSERT INTO room_attendance(room_id, participant_key, display_name, joined_at) VALUES (?, ?, ?, NOW())');
             $att->execute([$roomId, $key, $name]);
             
-            $initVideoGranted = $isAdmin ? 1 : 0;
+            $initVideoGranted = 1; // Video concedido automaticamente a todos ao entrar
             $q = $pdo->prepare("INSERT INTO room_presence(room_id, participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, video_granted, hand_raised, hand_requested_at, video_admin_allowed, audio_admin_allowed, screen_admin_allowed, joined_at, last_seen_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 1, 1, 0, NOW(), NOW())");
             $q->execute([$roomId, $key, $name, $mic, $cam, $screen, $initVideoGranted]);
@@ -209,7 +209,7 @@ echo json_encode([
         'video_allowed' => (bool)($myPresence['video_admin_allowed'] ?? 1),
         'audio_allowed' => (bool)($myPresence['audio_admin_allowed'] ?? 1),
         'screen_allowed' => (bool)($myPresence['screen_admin_allowed'] ?? 0),
-        'video_granted' => (bool)($myPresence['video_granted'] ?? ($isAdmin ? 1 : 0)),
+        'video_granted' => (bool)($myPresence['video_granted'] ?? 1),
         'hand_raised' => (bool)($myPresence['hand_raised'] ?? 0),
         'is_presenter' => ($rState['room_mode'] === 'presentation' && $rState['active_presenter_key'] === $key),
     ]

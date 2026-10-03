@@ -83,8 +83,8 @@
     const audioTracks = localStream ? localStream.getAudioTracks() : [];
 
     const cfg = window.MEETING_CONFIG || {};
-    const canStartVideo = Boolean(cfg.CAN_ADMIT);
-    camera_user_enabled = hasVideo && (cameraTrack !== null) && canStartVideo;
+    // Ativa a câmera automaticamente ao entrar se o dispositivo estiver disponível
+    camera_user_enabled = hasVideo && (cameraTrack !== null);
     camera_admin_allowed = true;
     camera_room_allowed = true;
 
