@@ -50,6 +50,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $q->execute([$name,$description,$starts,$ends,$id]);
             audit_log('room.edit','room',$id,['name'=>$name,'starts_at'=>$starts,'ends_at'=>$ends]);
             $msg='Dados da reunião atualizados com sucesso.';
+        }elseif($action==='regenerate_join_token'){
+            $newJoinToken = bin2hex(random_bytes(32));
+            $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$newJoinToken, $id]);
+            audit_log('room.regenerate_join_token', 'room', $id, ['new_token' => substr($newJoinToken, 0, 8) . '...']);
+            $msg = 'Novo link de convite público gerado com sucesso. O link anterior foi invalidado.';
+            $room['join_token'] = $newJoinToken;
+        }elseif($action==='unban_ip'){
+            $banId = (int)($_POST['ban_id'] ?? 0);
+            if ($banId > 0) {
+                unban_ip_in_room($pdo, $id, $banId);
+                audit_log('room.unban_ip', 'room_bans', $banId, ['room_id' => $id]);
+                $msg = 'Banimento de IP removido com sucesso.';
+            }
         }elseif($action==='add_admin'){
             $targetUserId = (int)($_POST['admin_user_id'] ?? 0);
             if ($targetUserId <= 0) throw new RuntimeException('Selecione um usuário válido.');
@@ -317,7 +330,16 @@ $availableUsers = $stUsers ? $stUsers->fetchAll() : [];
 
           <?php if (!empty($hostInvite['token'])): ?>
             <?php
-              $publicJoinLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/room.php?token=' . urlencode($hostInvite['token']);
+              $rToken = !empty($room['join_token']) ? $room['join_token'] : '';
+              if ($rToken === '') {
+                  $rToken = bin2hex(random_bytes(32));
+                  $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$rToken, $room['id']]);
+                  $room['join_token'] = $rToken;
+              }
+              $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'https';
+              $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'maurinsoft.com.br';
+              $baseUrl = (string)($config['app']['base_url'] ?? '/salareuniao');
+              $publicJoinLink = $scheme . '://' . $host . '/' . ltrim($baseUrl, '/') . '/join.php?room_token=' . urlencode($rToken);
             ?>
             <button type="button" class="sr-btn sr-btn-secondary" onclick="copyLink('<?=e($publicJoinLink)?>')">
               📋 Copiar Link Público
@@ -325,11 +347,75 @@ $availableUsers = $stUsers ? $stUsers->fetchAll() : [];
             <a href="https://api.whatsapp.com/send?text=<?=urlencode('Participe da reunião (' . $room['name'] . '): ' . $publicJoinLink)?>" target="_blank" class="sr-btn sr-btn-secondary">
               💬 Enviar via WhatsApp
             </a>
+            <form method="post" style="display: inline-block; margin-left: 6px;" onsubmit="return confirm('Gerar um novo link invalidará o link público anterior.\nDeseja continuar?');">
+              <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+              <input type="hidden" name="action" value="regenerate_join_token">
+              <button type="submit" class="sr-btn sr-btn-secondary" style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.4); color: #fef08a;" title="Invalida o link público atual e gera um novo token de acesso para a sala">
+                🔄 Gerar Novo Link Público
+              </button>
+            </form>
           <?php endif; ?>
         </div>
       </div>
     </div>
 
+
+    
+    <!-- Card: IPs Banidos desta Reunião (Tarefa 13) -->
+    <?php
+      $stBans = $pdo->prepare("SELECT * FROM room_bans WHERE room_id = ? AND active = 1 ORDER BY id DESC");
+      $stBans->execute([$id]);
+      $bannedList = $stBans->fetchAll();
+    ?>
+    <div class="sr-card" style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 1.25rem; margin-bottom: 4px;">🚫 IPs Banidos desta Sala</h2>
+          <p style="color: var(--text-muted); font-size: 0.88rem;">
+            Tentativas de acesso provenientes destes endereços IP são bloqueadas antes mesmo de entrarem na sala de espera.
+          </p>
+        </div>
+        <span class="sr-badge sr-badge-danger" style="background: rgba(239,68,68,0.2); color: #fca5a5; padding: 4px 10px; border-radius: 12px; font-weight: 600;">
+          <?=count($bannedList)?> banido(s)
+        </span>
+      </div>
+
+      <?php if (empty($bannedList)): ?>
+        <p style="color: var(--text-muted); font-style: italic; font-size: 0.9rem;">Nenhum endereço IP está banido nesta reunião.</p>
+      <?php else: ?>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left; color: var(--text-muted);">
+                <th style="padding: 10px 8px;">Endereço IP</th>
+                <th style="padding: 10px 8px;">Participante</th>
+                <th style="padding: 10px 8px;">Data do Banimento</th>
+                <th style="padding: 10px 8px; text-align: right;">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($bannedList as $b): ?>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                  <td style="padding: 10px 8px; font-family: monospace; color: #38bdf8; font-weight: 600;"><?=e($b['ip_address'])?></td>
+                  <td style="padding: 10px 8px; color: #fff;"><?=e($b['display_name'] ?: 'Desconhecido')?></td>
+                  <td style="padding: 10px 8px; color: var(--text-muted); font-size: 0.82rem;"><?=e($b['created_at'])?></td>
+                  <td style="padding: 10px 8px; text-align: right;">
+                    <form method="post" style="display: inline-block;" onsubmit="return confirm('Remover o banimento do IP <?=e($b['ip_address'])?>?');">
+                      <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+                      <input type="hidden" name="action" value="unban_ip">
+                      <input type="hidden" name="ban_id" value="<?=(int)$b['id']?>">
+                      <button type="submit" class="sr-btn sr-btn-sm" style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4); color: #6ee7b7; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                        ✓ Remover Banimento
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+    </div>
 
     <!-- Card: Administradores da Sala -->
     <div class="sr-card" style="margin-bottom: 20px;">

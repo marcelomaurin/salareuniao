@@ -16,8 +16,9 @@ if (!$user) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'quick_meeting') {
     verify_csrf();
     $name = 'Reunião Instantânea - ' . date('d/m H:i');
-    $st = $pdo->prepare("INSERT INTO rooms (owner_user_id, name, description, status, starts_at) VALUES (?, ?, 'Reunião rápida criada diretamente pelo painel', 'open', NOW())");
-    $st->execute([$user['id'], $name]);
+    $joinToken = bin2hex(random_bytes(32));
+    $st = $pdo->prepare("INSERT INTO rooms (owner_user_id, name, description, status, starts_at, join_token) VALUES (?, ?, 'Reunião rápida criada diretamente pelo painel', 'open', NOW(), ?)");
+    $st->execute([$user['id'], $name, $joinToken]);
     $roomId = (int)$pdo->lastInsertId();
 
     $token = bin2hex(random_bytes(24));
@@ -505,7 +506,12 @@ try {
               $statusLabel = $isOpen ? 'Aberta Agora' : ($isScheduled ? 'Agendada' : 'Encerrada');
               $hostToken = $r['host_token'] ?? '';
               $enterUrl = $hostToken ? 'room.php?token=' . urlencode($hostToken) : 'room_manage.php?id=' . (int)$r['id'];
-              $inviteLink = $fullBaseUrl . '/join.php?room_id=' . (int)$r['id'];
+              $roomToken = !empty($r['join_token']) ? $r['join_token'] : '';
+              if ($roomToken === '') {
+                  $roomToken = bin2hex(random_bytes(32));
+                  $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$roomToken, $r['id']]);
+              }
+              $inviteLink = $fullBaseUrl . '/join.php?room_token=' . urlencode($roomToken);
             ?>
             <div class="sr-room-card">
               <div>

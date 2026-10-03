@@ -19,8 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->beginTransaction();
         try {
-            $st = $pdo->prepare('INSERT INTO rooms (owner_user_id, name, description, starts_at, status) VALUES (?, ?, ?, ?, ?)');
-            $st->execute([$user['id'], $name, $description, $starts, $status]);
+            $joinToken = bin2hex(random_bytes(32));
+            $st = $pdo->prepare('INSERT INTO rooms (owner_user_id, name, description, starts_at, status, join_token) VALUES (?, ?, ?, ?, ?, ?)');
+            $st->execute([$user['id'], $name, $description, $starts, $status, $joinToken]);
             $roomId = (int)$pdo->lastInsertId();
 
             // O criador da sala recebe automaticamente uma identidade de anfitrião (Host) aprovada

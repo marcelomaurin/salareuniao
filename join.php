@@ -5,14 +5,15 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 $token = trim((string)($_GET['token'] ?? ''));
-$roomId = (int)($_GET['room_id'] ?? ($_GET['id'] ?? 0));
+$roomToken = trim((string)($_GET['room_token'] ?? ($_POST['room_token'] ?? '')));
 
 $invite = null;
 $room = null;
+$roomId = 0;
 
 // 1. Se veio com token individual
 if ($token !== '') {
-    $st = $pdo->prepare("SELECT i.*, r.name room_name, r.status room_status, r.owner_user_id 
+    $st = $pdo->prepare("SELECT i.*, r.id as room_id, r.name room_name, r.status room_status, r.owner_user_id, r.join_token 
                          FROM room_invites i 
                          JOIN rooms r ON r.id=i.room_id 
                          WHERE i.token=? LIMIT 1");
@@ -20,22 +21,40 @@ if ($token !== '') {
     $invite = $st->fetch();
     if ($invite) {
         $roomId = (int)$invite['room_id'];
+        if (empty($roomToken)) {
+            $roomToken = (string)($invite['join_token'] ?? '');
+        }
     }
 }
 
-// 2. Se veio com room_id (link público de compartilhamento da sala)
-if ($roomId > 0) {
-    $stRoom = $pdo->prepare("SELECT id, name, status, owner_user_id FROM rooms WHERE id=? LIMIT 1");
-    $stRoom->execute([$roomId]);
+// 2. Se veio com room_token (link público da sala - Tarefa 01)
+if (!$invite && $roomToken !== '') {
+    $stRoom = $pdo->prepare("SELECT id, name, status, owner_user_id, join_token FROM rooms WHERE join_token=? LIMIT 1");
+    $stRoom->execute([$roomToken]);
     $room = $stRoom->fetch();
+    if ($room) {
+        $roomId = (int)$room['id'];
+    }
 }
 
+// 3. Não permitir acesso público apenas pelo room_id (Tarefa 02)
 if (!$invite && !$room) {
-    http_response_code(404);
+    http_response_code(403);
     die('<div style="font-family: sans-serif; padding: 40px; text-align: center; background: #0b1120; color: #f87171; min-height: 100vh;">'
-        . '<h1>Convite ou Sala não encontrada</h1>'
-        . '<p style="color: #94a3b8;">Verifique o link recebido ou solicite um novo convite ao organizador.</p>'
-        . '<a href="index.php" style="color: #60a5fa;">Ir para a página inicial</a>'
+        . '<h1>Link de convite inválido ou incompleto</h1>'
+        . '<p style="color: #94a3b8;">O acesso a esta reunião exige um link com token de acesso válido. Solicite um novo link ao organizador.</p>'
+        . '<a href="index.php" style="color: #60a5fa; text-decoration: none;">Ir para a página inicial</a>'
+        . '</div>');
+}
+
+// 4. Verificação de banimento por IP antes da sala de espera (Tarefa 10)
+$clientIp = client_ip();
+if (is_ip_banned_in_room($pdo, $roomId, $clientIp)) {
+    http_response_code(403);
+    die('<div style="font-family: sans-serif; padding: 40px; text-align: center; background: #0b1120; color: #f87171; min-height: 100vh;">'
+        . '<h1>Não foi possível acessar esta reunião</h1>'
+        . '<p style="color: #94a3b8;">Entre em contato com o organizador da reunião.</p>'
+        . '<a href="index.php" style="color: #60a5fa; text-decoration: none;">Voltar ao início</a>'
         . '</div>');
 }
 
@@ -77,9 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $guestEmail = 'guest_' . substr($guestToken, 0, 8) . '@sala.local';
 
             $ins = $pdo->prepare("INSERT INTO room_invites 
-                (room_id, email, token, status, display_name, participant_key, requested_at, approved_at) 
-                VALUES (?, ?, ?, 'waiting', ?, ?, NOW(), NULL)");
-            $ins->execute([$roomId, $guestEmail, $guestToken, $displayName, $guestKey]);
+                (room_id, email, token, status, display_name, participant_key, request_ip, request_user_agent, requested_at, approved_at) 
+                VALUES (?, ?, ?, 'waiting', ?, ?, ?, ?, NOW(), NULL)");
+            $ins->execute([$roomId, $guestEmail, $guestToken, $displayName, $guestKey, $clientIp, substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255)]);
 
             header("Location: join.php?token=" . urlencode($guestToken) . "&waiting=1");
             exit;
@@ -96,11 +115,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $up = $pdo->prepare("UPDATE room_invites SET 
                 display_name = ?,
                 participant_key = ?,
+                request_ip = ?,
+                request_user_agent = ?,
                 requested_at = NOW(),
                 status = ?,
                 approved_at = " . ($newStatus === 'approved' ? "NOW()" : "NULL") . "
                 WHERE token = ?");
-            $up->execute([$displayName, $pKey, $newStatus, $token]);
+            $up->execute([$displayName, $pKey, $clientIp, substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255), $newStatus, $token]);
 
             if ($newStatus === 'approved') {
                 header("Location: room.php?token=" . urlencode($token));
@@ -231,7 +252,7 @@ $isRejected = ($invite && $invite['status'] === 'rejected');
           Sua conexão e mídia com a sala <strong><?= e($roomName) ?></strong> foram encerradas com sucesso.
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-          <a href="join.php?room_id=<?= urlencode((string)$roomId) ?>" class="sr-btn sr-btn-primary">
+          <a href="join.php?room_token=<?= urlencode((string)$roomToken) ?>" class="sr-btn sr-btn-primary">
             🔄 Entrar Novamente
           </a>
           <a href="index.php" class="sr-btn sr-btn-outline">

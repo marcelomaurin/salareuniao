@@ -13,7 +13,7 @@ if ($token === '') {
 }
 
 // 1. Busca os dados do convite informado na URL e da sala
-$st = $pdo->prepare("SELECT i.*, r.id as room_id, r.name as room_name, r.status as room_status, r.owner_user_id 
+$st = $pdo->prepare("SELECT i.*, r.id as room_id, r.name as room_name, r.status as room_status, r.owner_user_id, r.join_token 
                      FROM room_invites i 
                      JOIN rooms r ON r.id=i.room_id 
                      WHERE i.token=? LIMIT 1");
@@ -34,7 +34,12 @@ if ($tokenInvite['status'] === 'waiting') {
     exit;
 }
 if ($tokenInvite['status'] === 'invited' || $tokenInvite['email'] === 'invite@sala.local') {
-    header('Location: join.php?room_id=' . (int)$tokenInvite['room_id']);
+    $rTok = !empty($tokenInvite['join_token']) ? $tokenInvite['join_token'] : '';
+    if ($rTok !== '') {
+        header('Location: join.php?room_token=' . urlencode($rTok));
+    } else {
+        header('Location: join.php?token=' . urlencode($token));
+    }
     exit;
 }
 if ($tokenInvite['status'] === 'rejected') {
@@ -68,7 +73,12 @@ if (str_starts_with($baseUrl, 'http://') || str_starts_with($baseUrl, 'https://'
     $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'maurinsoft.com.br';
     $inviteBase = $scheme . '://' . $host . '/' . ltrim($baseUrl, '/');
 }
-$inviteUrl = rtrim($inviteBase, '/') . '/join.php?room_id=' . (int)$me['room_id'];
+$roomJoinToken = !empty($me['join_token']) ? $me['join_token'] : '';
+if ($roomJoinToken === '') {
+    $roomJoinToken = bin2hex(random_bytes(32));
+    $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$roomJoinToken, $me['room_id']]);
+}
+$inviteUrl = rtrim($inviteBase, '/') . '/join.php?room_token=' . urlencode($roomJoinToken);
 
 $iceServers = $config['webrtc']['ice_servers'] ?? [];
 $turn = $config['webrtc']['turn'] ?? [];

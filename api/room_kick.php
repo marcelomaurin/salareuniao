@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
 $adminToken = trim((string)($input['token'] ?? ''));
 $targetKey = trim((string)($input['target_key'] ?? ''));
+$action = trim((string)($input['action'] ?? 'kick')); // 'kick' ou 'ban' (Tarefa 22)
 
 if ($adminToken === '' || $targetKey === '') {
     http_response_code(400);
@@ -110,15 +111,29 @@ try {
     error_log('signaling kick error: ' . $e->getMessage());
 }
 
-audit_log('room.kick_participant', 'room', $roomId, [
+$isBanned = false;
+$bannedIp = null;
+if ($action === 'ban') {
+    $ipToBan = trim((string)($target['request_ip'] ?? ''));
+    if ($ipToBan !== '') {
+        ban_ip_in_room($pdo, $roomId, $ipToBan, $targetName, (int)($target['id'] ?? 0), (int)($admin['owner_user_id'] ?? 0), 'Banido durante a conferência');
+        $isBanned = true;
+        $bannedIp = $ipToBan;
+    }
+}
+
+audit_log($isBanned ? 'room.ban_participant' : 'room.kick_participant', 'room', $roomId, [
     'target_key' => $targetKey,
     'target_name' => $targetName,
-    'admin_key' => $admin['participant_key']
+    'admin_key' => $admin['participant_key'],
+    'banned_ip' => $bannedIp
 ]);
 
 echo json_encode([
     'ok' => true,
     'kicked' => true,
+    'banned' => $isBanned,
     'target_key' => $targetKey,
-    'display_name' => $targetName
+    'display_name' => $targetName,
+    'ip_address' => $bannedIp
 ], JSON_UNESCAPED_UNICODE);

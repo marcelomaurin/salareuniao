@@ -283,17 +283,18 @@
 
         const div = document.createElement('div');
         div.className = 'person';
-        div.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; gap: 8px;';
         
         div.innerHTML = `
-          <div style="min-width: 0; flex: 1;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span class="dot" style="${micActive ? 'background: #10b981;' : 'background: #64748b;'}"></span>
-              <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.88rem; color: #fff;"></strong>
+          <div class="person-header">
+            <div style="min-width: 0; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="dot" style="${micActive ? 'background: #10b981;' : 'background: #64748b;'}"></span>
+                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.88rem; color: #fff;"></strong>
+              </div>
+              <div class="badges" style="font-size: 0.73rem; color: var(--text-muted, #94a3b8); margin-top: 2px;"></div>
             </div>
-            <div class="badges" style="font-size: 0.75rem; color: var(--text-muted, #94a3b8); margin-top: 2px;"></div>
           </div>
-          <div class="person-actions" style="flex-shrink: 0;"></div>
+          <div class="person-actions"></div>
         `;
 
         div.querySelector('strong').textContent = p.display_name + (isSelf ? ' (você)' : '');
@@ -314,86 +315,85 @@
         div.querySelector('.badges').textContent = badgesTxt;
 
         const actions = div.querySelector('.person-actions');
-        if (!isSelf) {
-          const muteBtn = document.createElement('button');
-          muteBtn.type = 'button';
-          muteBtn.className = 'sr-btn sr-btn-sm';
-          muteBtn.style.cssText = 'padding: 5px 10px; font-size: 0.74rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; transition: all 0.2s; ' +
-            (micActive 
-              ? 'background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; font-weight: 600;' 
-              : 'background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text-dim, #64748b); cursor: default;');
-          muteBtn.innerHTML = micActive ? '🔇 Desativar Mic' : '🔇 Mudo';
-          muteBtn.title = micActive ? `Desativar o microfone de ${p.display_name}` : 'Microfone já está desativado';
-          if (micActive) {
-            muteBtn.onclick = (e) => {
-              e.stopPropagation();
-              muteParticipant(p.participant_key, p.display_name);
-            };
-          }
-          actions.appendChild(muteBtn);
+        if (!isSelf && cfg.CAN_ADMIT) {
+          // 1. Botão Microfone: Toggle Administrativo Bidirecional (Tarefas 18 a 21)
+          const micBtn = document.createElement('button');
+          micBtn.type = 'button';
+          micBtn.className = 'participant-action-btn ' + (isAudioAllowed ? 'participant-action-warning' : 'participant-action-active');
+          micBtn.innerHTML = isAudioAllowed ? '🔇 Inibir Áudio' : '🎙 Liberar Áudio';
+          micBtn.title = isAudioAllowed ? `Bloquear microfone de ${p.display_name}` : `Liberar microfone de ${p.display_name}`;
+          micBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleAudioPermission(p.participant_key, !isAudioAllowed);
+          };
+          actions.appendChild(micBtn);
 
-          // Botão Conceder / Retirar Palavra (Vídeo)
-          if (cfg.CAN_ADMIT) {
-            const isGranted = Number(p.video_granted) === 1;
-            const wordBtn = document.createElement('button');
-            wordBtn.type = 'button';
-            wordBtn.className = 'sr-btn sr-btn-sm ' + (isGranted ? 'sr-btn-warning' : 'sr-btn-primary');
-            wordBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 4px; cursor: pointer; ' + 
-              (isGranted ? 'background: rgba(234, 179, 8, 0.2); border: 1px solid rgba(234, 179, 8, 0.5); color: #fef08a;' : 'background: rgba(0, 210, 255, 0.15); border: 1px solid rgba(0, 210, 255, 0.4); color: #00d2ff;');
-            wordBtn.innerHTML = isGranted ? '🚫 Retirar Vídeo' : (Number(p.hand_raised) === 1 ? '✋ Conceder Vídeo' : '📹 Conceder Vídeo');
-            wordBtn.title = isGranted ? `Recolher vídeo de ${p.display_name}` : `Conceder espaço de vídeo a ${p.display_name}`;
-            wordBtn.onclick = (e) => {
-              e.stopPropagation();
-              if (isGranted) {
-                revokeWord(p.participant_key, p.display_name);
-              } else if (Number(p.hand_raised) === 1) {
-                approveHandWithFullMode(p.participant_key, p.display_name);
-              } else {
-                grantWord(p.participant_key, p.display_name);
-              }
-            };
-            actions.appendChild(wordBtn);
+          // 2. Botão Conceder / Retirar Palavra (Vídeo)
+          const isGranted = Number(p.video_granted) === 1;
+          const wordBtn = document.createElement('button');
+          wordBtn.type = 'button';
+          wordBtn.className = 'participant-action-btn ' + (isGranted ? 'participant-action-warning' : 'participant-action-primary');
+          wordBtn.innerHTML = isGranted ? '🚫 Retirar Vídeo' : (Number(p.hand_raised) === 1 ? '✋ Aceitar Palavra' : '📹 Conceder Vídeo');
+          wordBtn.title = isGranted ? `Recolher vídeo de ${p.display_name}` : `Conceder espaço de vídeo a ${p.display_name}`;
+          wordBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isGranted) {
+              revokeWord(p.participant_key, p.display_name);
+            } else if (Number(p.hand_raised) === 1) {
+              approveHandWithFullMode(p.participant_key, p.display_name);
+            } else {
+              grantWord(p.participant_key, p.display_name);
+            }
+          };
+          actions.appendChild(wordBtn);
 
-            // Botão Exibição Full / Exibição Normal
-            const isTargetFull = isFullModeActive && fullTargetKey === p.participant_key;
-            const fullActionBtn = document.createElement('button');
-            fullActionBtn.type = 'button';
-            fullActionBtn.className = 'sr-btn sr-btn-sm ' + (isTargetFull ? 'sr-btn-primary' : 'sr-btn-secondary');
-            fullActionBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 4px; cursor: pointer; ' +
-              (isTargetFull ? 'background: #00d2ff; color: #050811; font-weight: 700;' : 'background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15);');
-            fullActionBtn.innerHTML = isTargetFull ? '▦ Exibição Normal' : '⛶ Exibição Full';
-            fullActionBtn.title = isTargetFull ? 'Voltar para a exibição normal' : `Aprovar exibição full para ${p.display_name}`;
-            fullActionBtn.onclick = (e) => {
-              e.stopPropagation();
-              if (isTargetFull) {
-                revokeFullMode();
-              } else {
-                approveFullMode(p.participant_key, Number(p.screen_sharing) === 1);
-              }
-            };
-            actions.appendChild(fullActionBtn);
-          }
+          // 3. Botão Exibição Full / Exibição Normal
+          const isTargetFull = isFullModeActive && fullTargetKey === p.participant_key;
+          const fullActionBtn = document.createElement('button');
+          fullActionBtn.type = 'button';
+          fullActionBtn.className = 'participant-action-btn ' + (isTargetFull ? 'participant-action-primary' : 'participant-action-secondary');
+          fullActionBtn.innerHTML = isTargetFull ? '▦ Exibição Normal' : '⛶ Exibição Full';
+          fullActionBtn.title = isTargetFull ? 'Voltar para a exibição normal' : `Aprovar exibição full para ${p.display_name}`;
+          fullActionBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isTargetFull) {
+              revokeFullMode();
+            } else {
+              approveFullMode(p.participant_key, Number(p.screen_sharing) === 1);
+            }
+          };
+          actions.appendChild(fullActionBtn);
 
-          // Botão Expulsar (disponível apenas para administradores da sala)
-          if (cfg.CAN_ADMIT) {
-            const kickBtn = document.createElement('button');
-            kickBtn.type = 'button';
-            kickBtn.className = 'sr-btn sr-btn-danger sr-btn-sm';
-            kickBtn.style.cssText = 'padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-left: 6px; cursor: pointer; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5;';
-            kickBtn.innerHTML = '🚫 Expulsar';
-            kickBtn.title = `Expulsar ${p.display_name} da reunião`;
-            kickBtn.onclick = (e) => {
-              e.stopPropagation();
-              kickParticipant(p.participant_key, p.display_name);
-            };
-            actions.appendChild(kickBtn);
-          }
+          // 4. Botão Expulsar (Tarefa 22)
+          const kickBtn = document.createElement('button');
+          kickBtn.type = 'button';
+          kickBtn.className = 'participant-action-btn participant-action-danger';
+          kickBtn.innerHTML = '🚫 Expulsar';
+          kickBtn.title = `Expulsar ${p.display_name} da reunião (poderá tentar entrar novamente)`;
+          kickBtn.onclick = (e) => {
+            e.stopPropagation();
+            kickParticipant(p.participant_key, p.display_name);
+          };
+          actions.appendChild(kickBtn);
+
+          // 5. Botão Banir IP (Tarefa 22)
+          const banBtn = document.createElement('button');
+          banBtn.type = 'button';
+          banBtn.className = 'participant-action-btn participant-action-danger';
+          banBtn.style.gridColumn = '1 / -1';
+          banBtn.innerHTML = '⛔ Banir IP';
+          banBtn.title = `Banir endereço IP de ${p.display_name} desta sala permanentemente`;
+          banBtn.onclick = (e) => {
+            e.stopPropagation();
+            banParticipant(p.participant_key, p.display_name);
+          };
+          actions.appendChild(banBtn);
         }
 
         wrap.appendChild(div);
       }
 
-            // Atualiza tile remoto (nome, avatar e estado de câmera)
+      // Atualiza tile remoto (nome, avatar e estado de câmera)
       const nameEl = document.getElementById('name-' + p.participant_key);
       if (nameEl) nameEl.textContent = p.display_name;
 
@@ -589,15 +589,20 @@
         waitList.innerHTML = '';
         currentWaiting.forEach(w => {
           const item = document.createElement('div');
-          item.style.cssText = 'background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;';
+          item.style.cssText = 'background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px;';
+          
+          let ipDisplay = w.request_ip ? `<div style="font-size: 0.72rem; color: #38bdf8; font-family: monospace;">IP: ${escapeHtml(w.request_ip)}</div>` : '';
+
           item.innerHTML = `
             <div>
-              <div style="font-size: 0.84rem; font-weight: 600; color: #fff;">${escapeHtml(w.display_name)}</div>
-              <div style="font-size: 0.72rem; color: var(--text-muted, #94a3b8);">Aguardando aprovação</div>
+              <div style="font-size: 0.86rem; font-weight: 600; color: #fff;">${escapeHtml(w.display_name)}</div>
+              ${ipDisplay}
+              <div style="font-size: 0.70rem; color: var(--text-muted, #94a3b8); margin-top: 2px;">Aguardando aprovação</div>
             </div>
-            <div style="display: flex; gap: 6px;">
-              <button type="button" class="sr-btn sr-btn-success" style="padding: 3px 8px; font-size: 0.74rem; border-radius: 4px; background: #10b981; border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.admitGuest(${w.id}, 'approve')">Permitir</button>
-              <button type="button" class="sr-btn sr-btn-danger" style="padding: 3px 8px; font-size: 0.74rem; border-radius: 4px; background: #ef4444; border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.admitGuest(${w.id}, 'reject')">Recusar</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;">
+              <button type="button" class="participant-action-btn participant-action-active" onclick="MeetingParticipants.admitGuest(${w.id}, 'approve')">✓ Permitir</button>
+              <button type="button" class="participant-action-btn participant-action-warning" onclick="MeetingParticipants.admitGuest(${w.id}, 'reject')">✕ Recusar</button>
+              <button type="button" class="participant-action-btn participant-action-danger" style="grid-column: 1 / -1;" onclick="MeetingParticipants.admitGuest(${w.id}, 'ban', '${escapeHtml(w.request_ip || '')}')">⛔ Banir IP</button>
             </div>
           `;
           waitList.appendChild(item);
@@ -617,9 +622,14 @@
         const g = currentWaiting[0];
         const extra = currentWaiting.length > 1 ? ` (+${currentWaiting.length - 1} outro${currentWaiting.length > 2 ? 's' : ''})` : '';
         toastGuest.textContent = `${g.display_name}${extra} está na sala de espera`;
+        let ipSubtitle = g.request_ip ? `<div style="font-size: 0.72rem; color: #38bdf8; font-family: monospace; margin-top: 2px;">IP: ${escapeHtml(g.request_ip)}</div>` : '';
+        toastGuest.innerHTML = `<div>${escapeHtml(g.display_name)}${extra} está na sala de espera</div>${ipSubtitle}`;
         toastBtns.innerHTML = `
-          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.admitGuest(${g.id}, 'approve')">Permitir</button>
-          <button type="button" class="sr-btn sr-btn-danger" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(239, 68, 68, 0.85); border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.admitGuest(${g.id}, 'reject')">Recusar</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;">
+            <button type="button" class="participant-action-btn participant-action-active" onclick="MeetingParticipants.admitGuest(${g.id}, 'approve')">✓ Permitir</button>
+            <button type="button" class="participant-action-btn participant-action-warning" onclick="MeetingParticipants.admitGuest(${g.id}, 'reject')">✕ Recusar</button>
+            <button type="button" class="participant-action-btn participant-action-danger" style="grid-column: 1 / -1;" onclick="MeetingParticipants.admitGuest(${g.id}, 'ban', '${escapeHtml(g.request_ip || '')}')">⛔ Banir IP</button>
+          </div>
         `;
         toast.style.display = 'flex';
       } else {
@@ -628,7 +638,13 @@
     }
   }
 
-  async function admitGuest(inviteId, action) {
+  async function admitGuest(inviteId, action, ipAddress) {
+    if (action === 'ban') {
+      const targetDesc = ipAddress ? `o IP ${ipAddress}` : 'este participante';
+      if (!confirm(`Banir ${targetDesc} desta sala?\n\nNovas tentativas provenientes deste IP serão bloqueadas permanentemente nesta reunião.`)) {
+        return;
+      }
+    }
     const cfg = window.MEETING_CONFIG;
     try {
       const res = await fetch('api/room_admit.php', {
@@ -644,25 +660,124 @@
 
       if (res.ok) {
         if (window.showToast) {
-          window.showToast(action === 'approve' ? `${res.display_name} foi admitido(a)!` : `${res.display_name} foi recusado(a).`);
+          if (action === 'approve') {
+            window.showToast(`${res.display_name} foi admitido(a)!`);
+          } else if (action === 'ban') {
+            window.showToast(`IP de ${res.display_name} foi banido desta reunião.`);
+          } else {
+            window.showToast(`${res.display_name} foi recusado(a).`);
+          }
         }
         currentWaiting = currentWaiting.filter(w => w.id !== inviteId);
         renderWaitingList(currentWaiting);
         if (window.MeetingSignaling) window.MeetingSignaling.refreshLobby();
       } else {
-        if (window.showToast) window.showToast('Não foi possível autorizar o convidado.');
+        if (window.showToast) window.showToast('Não foi possível processar a ação: ' + (res.error || ''));
       }
     } catch(e) {
       if (window.showToast) window.showToast('Erro ao processar admissão.');
     }
   }
 
+  
+  async function toggleAudioPermission(key, allow) {
+    const cmd = allow ? 'participant.audio.allow' : 'participant.audio.inhibit';
+    const name = participantNames.get(key) || 'Participante';
+    try {
+      if (window.MeetingControl && window.MeetingControl.isConnected()) {
+        try {
+          await window.MeetingControl.sendCommand(cmd, key, {});
+        } catch (wsErr) {
+          console.warn('Falha no comando WS de áudio, tentando fallback HTTP:', wsErr);
+        }
+      }
+
+      // Fallback HTTP autoritativo (Tarefa 17)
+      try {
+        await fetch('api/control.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: window.MEETING_CONFIG.TOKEN,
+            action: 'command',
+            command: cmd,
+            target_key: key,
+            payload: {}
+          })
+        });
+      } catch (httpErr) {}
+
+      // Compatibilidade legada via sinalização WebRTC se for inibição
+      if (!allow && window.MeetingSignaling) {
+        await window.MeetingSignaling.sendSignal('mute-user', { action: 'mute-user' }, key);
+      }
+
+      if (window.showToast) {
+        window.showToast(allow ? `Áudio de ${name} foi liberado.` : `Áudio de ${name} foi inibido pelo administrador.`);
+      }
+
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+    } catch (err) {
+      console.warn('Erro ao alterar permissão de áudio:', err);
+      if (window.showToast) window.showToast('Não foi possível alterar a permissão de áudio.');
+    }
+  }
+
+  async function banParticipant(targetKey, displayName) {
+    if (!confirm(`Banir "${displayName}" desta sala de reunião?\n\nO participante será desconectado imediatamente e qualquer nova tentativa do mesmo endereço IP será bloqueada.`)) {
+      return;
+    }
+    const cfg = window.MEETING_CONFIG;
+    try {
+      if (window.MeetingControl && window.MeetingControl.isConnected()) {
+        try {
+          await window.MeetingControl.sendCommand('participant.kick', targetKey, { ban: true });
+        } catch (ctrlErr) {
+          console.warn('Falha no comando WS kick, chamando API HTTP:', ctrlErr);
+        }
+      }
+
+      const resp = await fetch('api/room_kick.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          target_key: targetKey,
+          action: 'ban'
+        })
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Falha ao banir participante');
+      }
+
+      if (window.showToast) {
+        window.showToast(`🚫 ${displayName} foi expulso e seu IP foi banido da reunião.`);
+      }
+      removeTile(targetKey);
+      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+        window.MeetingApp.triggerHeartbeat();
+      }
+    } catch (err) {
+      console.error('Erro ao banir participante:', err);
+      if (window.showToast) {
+        window.showToast('Erro ao banir participante.');
+      }
+    }
+  }
+
   async function muteParticipant(key, name) {
+    return toggleAudioPermission(key, false);
+  }
+  async function _legacyMuteParticipant(key, name) {
     try {
       // 1. Envia comando pelo canal de controle administrativo (Tarefa 37)
       if (window.MeetingControl && window.MeetingControl.isConnected()) {
         try {
-          await window.MeetingControl.sendCommand('participant.audio.inhibit', { target_key: key });
+          await window.MeetingControl.sendCommand('participant.audio.inhibit', key, {});
         } catch (ctrlErr) {
           console.warn('Falha no comando WS de mute, tentando fallback:', ctrlErr);
         }
@@ -720,7 +835,7 @@ O participante será desconectado imediatamente.`)) {
       // Notifica canal de controle em tempo real (Tarefa 29)
       if (window.MeetingControl && window.MeetingControl.isConnected()) {
         try {
-          await window.MeetingControl.sendCommand('participant.kick', { target_key: targetKey });
+          await window.MeetingControl.sendCommand('participant.kick', targetKey, {});
         } catch (ctrlErr) {
           console.warn('Falha no comando WS kick, chamando API HTTP:', ctrlErr);
         }
@@ -1173,6 +1288,8 @@ O participante será desconectado imediatamente.`)) {
     isHandRaised: () => isLocalHandRaised,
     admitGuest,
     muteParticipant,
+    toggleAudioPermission,
+    banParticipant,
     removeTile,
     ensureTile,
     updateCounters,

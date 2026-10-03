@@ -77,6 +77,43 @@ if ($action === 'approve') {
     }
 
     echo json_encode(['ok' => true, 'action' => 'rejected', 'display_name' => $guest['display_name']]);
+} elseif ($action === 'ban') {
+    // 3. Ação BANIR IP (Tarefa 11)
+    $qIp = $pdo->prepare("SELECT request_ip, display_name, room_id FROM room_invites WHERE id = ?");
+    $qIp->execute([$inviteId]);
+    $invData = $qIp->fetch();
+    $bannedIp = trim((string)($invData['request_ip'] ?? ''));
+    if ($bannedIp === '') {
+        $bannedIp = client_ip();
+    }
+
+    $pdo->beginTransaction();
+    try {
+        ban_ip_in_room($pdo, $roomId, $bannedIp, $guest['display_name'], $inviteId, (int)($member['owner_user_id'] ?? 0), 'Banido da sala de espera');
+        
+        $up = $pdo->prepare("UPDATE room_invites SET status='rejected' WHERE id=? AND status='waiting'");
+        $up->execute([$inviteId]);
+
+        audit_log('room.participant.ban', 'room_invites', $inviteId, [
+            'room_id' => $roomId,
+            'ip_address' => $bannedIp,
+            'display_name' => $guest['display_name']
+        ]);
+
+        $pdo->commit();
+        echo json_encode([
+            'ok' => true,
+            'action' => 'banned',
+            'display_name' => $guest['display_name'],
+            'ip_address' => $bannedIp
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'ban_failed: ' . $e->getMessage()]);
+        exit;
+    }
 } else {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'unknown_action']);

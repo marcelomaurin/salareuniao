@@ -176,9 +176,16 @@ usort($handQueue, function($a, $b) {
 // 6. Sala de espera
 $waiting = [];
 try {
-    $wq = $pdo->prepare("SELECT id, display_name, email, requested_at FROM room_invites WHERE room_id=? AND status='waiting' ORDER BY requested_at ASC");
+    $wq = $pdo->prepare("SELECT id, display_name, email, requested_at, request_ip FROM room_invites WHERE room_id=? AND status='waiting' ORDER BY requested_at ASC");
     $wq->execute([$roomId]);
     $waiting = $wq->fetchAll();
+    // Apenas administradores podem visualizar o endereço IP na sala de espera (Tarefa 07)
+    if (!$isAdmin) {
+        foreach ($waiting as &$wItem) {
+            unset($wItem['request_ip']);
+        }
+        unset($wItem);
+    }
 } catch (Throwable $e) {}
 
 // Permissões do próprio participante chamador

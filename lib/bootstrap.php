@@ -240,7 +240,50 @@ try {
             INDEX idx_rca_room (room_id),
             INDEX idx_rca_cmd (command_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS room_bans (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            room_id BIGINT UNSIGNED NOT NULL,
+            ip_address VARCHAR(64) NOT NULL,
+            display_name VARCHAR(120) NULL,
+            original_invite_id BIGINT UNSIGNED NULL,
+            reason VARCHAR(255) NULL,
+            banned_by_user_id BIGINT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            UNIQUE KEY uq_room_ban_ip (room_id, ip_address),
+            INDEX idx_room_ban_room (room_id),
+            INDEX idx_room_ban_ip (ip_address),
+            INDEX idx_room_ban_active (room_id, active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+
+    // Migrações seguras da tabela rooms (join_token - Tarefa 01)
+    try {
+        $rCols = $pdo->query("SHOW COLUMNS FROM rooms")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('join_token', $rCols, true)) {
+            $pdo->exec("ALTER TABLE rooms ADD COLUMN join_token CHAR(64) NULL AFTER status");
+            $pdo->exec("ALTER TABLE rooms ADD UNIQUE KEY uq_rooms_join_token (join_token)");
+        }
+        $stRooms = $pdo->query("SELECT id FROM rooms WHERE join_token IS NULL OR join_token = ''");
+        while ($rRow = $stRooms->fetch(PDO::FETCH_ASSOC)) {
+            $newTok = bin2hex(random_bytes(32));
+            $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$newTok, $rRow['id']]);
+        }
+    } catch (Throwable $e) {}
+
+    // Migrações seguras da tabela room_invites (request_ip, request_user_agent - Tarefa 05)
+    try {
+        $invCols = $pdo->query("SHOW COLUMNS FROM room_invites")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('request_ip', $invCols, true)) {
+            $pdo->exec("ALTER TABLE room_invites ADD COLUMN request_ip VARCHAR(64) NULL AFTER participant_key");
+            $pdo->exec("ALTER TABLE room_invites ADD INDEX idx_room_invites_ip (room_id, request_ip)");
+        }
+        if (!in_array('request_user_agent', $invCols, true)) {
+            $pdo->exec("ALTER TABLE room_invites ADD COLUMN request_user_agent VARCHAR(255) NULL AFTER request_ip");
+        }
+    } catch (Throwable $e) {}
 
     // Migrações seguras de colunas em signaling_messages
     try {
@@ -387,6 +430,65 @@ function verify_csrf(): void {
     }
 }
 
+function client_ip(): string {
+    global $config;
+    $remoteAddr = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    $trustedProxies = $config['security']['trusted_proxies'] ?? [];
+    if (!is_array($trustedProxies)) {
+        $trustedProxies = array_filter(array_map('trim', explode(',', (string)$trustedProxies)));
+    }
+
+    if (!empty($trustedProxies) && in_array($remoteAddr, $trustedProxies, true)) {
+        $xff = (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+        if ($xff !== '') {
+            $parts = explode(',', $xff);
+            $candidate = trim(end($parts));
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return substr($candidate, 0, 64);
+            }
+        }
+    }
+
+    if (filter_var($remoteAddr, FILTER_VALIDATE_IP)) {
+        return substr($remoteAddr, 0, 64);
+    }
+    return $remoteAddr !== '' ? substr($remoteAddr, 0, 64) : '127.0.0.1';
+}
+
+function is_ip_banned_in_room(PDO $pdo, int $roomId, string $ip): bool {
+    if ($roomId <= 0 || $ip === '') return false;
+    try {
+        $st = $pdo->prepare("SELECT id FROM room_bans WHERE room_id = ? AND ip_address = ? AND active = 1 LIMIT 1");
+        $st->execute([$roomId, $ip]);
+        return (bool)$st->fetch();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function ban_ip_in_room(PDO $pdo, int $roomId, string $ip, ?string $displayName = null, ?int $inviteId = null, ?int $bannedByUserId = null, ?string $reason = null): bool {
+    if ($roomId <= 0 || $ip === '') return false;
+    try {
+        $st = $pdo->prepare("INSERT INTO room_bans (room_id, ip_address, display_name, original_invite_id, banned_by_user_id, reason, active, created_at)
+                             VALUES (?, ?, ?, ?, ?, ?, 1, NOW())
+                             ON DUPLICATE KEY UPDATE active = 1, display_name = VALUES(display_name), banned_by_user_id = VALUES(banned_by_user_id), reason = VALUES(reason), created_at = NOW()");
+        return $st->execute([$roomId, $ip, $displayName, $inviteId, $bannedByUserId, $reason]);
+    } catch (Throwable $e) {
+        error_log('ban_ip_in_room error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function unban_ip_in_room(PDO $pdo, int $roomId, int $banId): bool {
+    if ($roomId <= 0 || $banId <= 0) return false;
+    try {
+        $st = $pdo->prepare("UPDATE room_bans SET active = 0 WHERE id = ? AND room_id = ?");
+        return $st->execute([$banId, $roomId]);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 function audit_log(string $action, ?string $targetType = null, $targetId = null, array $details = []): void {
     global $pdo;
     if (!$pdo) return;
@@ -394,7 +496,7 @@ function audit_log(string $action, ?string $targetType = null, $targetId = null,
         $u = current_user();
         $userId = $u['id'] ?? null;
         $json = !empty($details) ? json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
-        $ip = substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 64);
+        $ip = client_ip();
         $ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
         $st = $pdo->prepare('INSERT INTO audit_log(user_id, action, target_type, target_id, details, ip_address, user_agent) VALUES(?,?,?,?,?,?,?)');
         $st->execute([

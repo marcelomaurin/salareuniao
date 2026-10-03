@@ -189,9 +189,20 @@ Para aplicar as migrações em instalações existentes:
 mysql -u root -p salareuniao < sql/010_system_parameters.sql
 mysql -u root -p salareuniao < sql/011_room_runtime_state.sql
 mysql -u root -p salareuniao < sql/012_room_audit.sql
+mysql -u root -p salareuniao < sql/013_room_access_and_bans.sql
 ```
 *(O sistema também realiza auto-provisionamento automático destas tabelas via `lib/bootstrap.php`).*
 
 Consulte a documentação técnica detalhada em:
 - [docs/CONTROL_PROTOCOL.md](docs/CONTROL_PROTOCOL.md)
 - [docs/PRESENTATION_MODE.md](docs/PRESENTATION_MODE.md)
+
+### 6. Acesso Seguro por `room_token` e Gestão de Banimento por IP
+- **Acesso Seguro:** O acesso público não aceita mais apenas `room_id=N`. Cada sala possui um `join_token` de 256 bits (`join.php?room_token=...`).
+- **Regeneração de Link:** O organizador pode regenerar o `join_token` a qualquer momento em `room_manage.php`, invalidando o link público anterior sem cancelar os convites individuais.
+- **Auditoria de IP:** Todo pedido na sala de espera registra `request_ip` e `request_user_agent`. O IP é visível apenas para administradores.
+- **Recusar vs. Banir IP:**
+  - **Recusar:** Remove da sala de espera, permitindo tentar novamente.
+  - **Banir IP:** Registra o IP em `room_bans`. Tentativas futuras do mesmo IP são bloqueadas antes de entrar na sala de espera.
+  - O administrador pode gerenciar e remover banimentos em `room_manage.php`.
+- **Aba Participantes com Máximo de 2 Botões por Linha:** Layout padronizado em CSS grid com botões de microfone bidirecional (`Inibir / Liberar Áudio`), concessão de vídeo, Full mode, expulsão e banimento de IP.
