@@ -40,6 +40,14 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
+    // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN audio_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN screen_admin_allowed TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
 } catch (Throwable $e) {
     http_response_code(500);
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'
@@ -49,21 +57,9 @@ try {
         . '</div>');
 }
 
-// Auto-provisioning de tabelas essenciais (executado de forma throttled para evitar locks concorrentes)
-$schemaThrottleFile = sys_get_temp_dir() . '/salareuniao_schema_v2.tmp';
-if (!is_file($schemaThrottleFile) || (time() - filemtime($schemaThrottleFile) > 600)) {
-    @touch($schemaThrottleFile);
-    try {
-        // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN audio_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
-        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN screen_admin_allowed TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
-
-        $pdo->exec("
+// Auto-provisioning de tabelas essenciais
+try {
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS users (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(120) NOT NULL,
@@ -332,7 +328,6 @@ if (!is_file($schemaThrottleFile) || (time() - filemtime($schemaThrottleFile) > 
 
 } catch (Throwable $e) {
     error_log('SalaReuniao auto-provisioning notice: ' . $e->getMessage());
-}
 }
 
     // Inicializa parâmetros essenciais do sistema
