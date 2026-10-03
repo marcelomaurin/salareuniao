@@ -188,6 +188,29 @@
     stateDiv.id = 'state-' + key;
     stateDiv.textContent = 'Conectando…';
 
+    const fullBtn = document.createElement('button');
+    fullBtn.type = 'button';
+    fullBtn.className = 'tile-full-btn';
+    fullBtn.title = 'Tela cheia (1024x768)';
+    fullBtn.innerHTML = '⛶';
+    fullBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (cfg.CAN_ADMIT) {
+        approveFullMode(key);
+      } else {
+        toggleFullMode(key);
+      }
+    };
+
+    tile.ondblclick = (e) => {
+      e.stopPropagation();
+      if (cfg.CAN_ADMIT) {
+        approveFullMode(key);
+      } else {
+        toggleFullMode(key);
+      }
+    };
+
     const muteBtn = document.createElement('button');
     muteBtn.type = 'button';
     muteBtn.className = 'tile-mute-btn';
@@ -200,7 +223,7 @@
       muteParticipant(key, participantNames.get(key) || 'Participante');
     };
 
-    tile.append(video, avatar, nameDiv, stateDiv, muteBtn);
+    tile.append(video, avatar, fullBtn, nameDiv, stateDiv, muteBtn);
     document.getElementById('videos').appendChild(tile);
     updateVideoGridCount();
     return tile;
@@ -1209,7 +1232,7 @@ O participante será desconectado imediatamente.`)) {
     return document.getElementById('tile-' + participantKey);
   }
 
-  function enterFullMode(targetKey, isScreenShare = false) {
+  async function enterFullMode(targetKey, isScreenShare = false) {
     const cfg = window.MEETING_CONFIG;
     const grid = document.getElementById('videos');
     if (!grid) return;
@@ -1225,12 +1248,12 @@ O participante será desconectado imediatamente.`)) {
     document.querySelectorAll('#videos .tile').forEach(t => t.classList.remove('full-spotlight'));
     targetTile.classList.add('full-spotlight');
 
-    // 1. Pausa as demais exibições de vídeo para economia total de banda e CPU
+    // 1. Pausa e desativa visualização dos demais participantes
     document.querySelectorAll('#videos .tile:not(.full-spotlight) video').forEach(v => {
       try { v.pause(); } catch(e) {}
     });
 
-    // Desativa tracks de vídeo dos outros participantes no WebRTC para não puxar dados desnecessários
+    // Desativa tracks de vídeo recebidos dos outros participantes no WebRTC para economia total
     if (window.MeetingWebRTC && window.MeetingWebRTC.pcs) {
       window.MeetingWebRTC.pcs.forEach((pc, pKey) => {
         pc.getReceivers().forEach(r => {
@@ -1241,7 +1264,26 @@ O participante será desconectado imediatamente.`)) {
       });
     }
 
-    // 2. Garante reprodução ativa e resolução máxima para a exibição full
+    // 2. REQUISITO: Muda a imagem de quem está em tela cheia para 1024x768 e desativa os dos outros
+    const isMe = (targetKey === 'local' || targetKey === cfg.selfKey);
+    if (isMe) {
+      // O usuário local está em destaque: ajusta para 1024x768 e garante transmissão ativa
+      if (window.MeetingMedia) {
+        if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
+          await window.MeetingMedia.resumeOutgoingVideo();
+        }
+        if (typeof window.MeetingMedia.applyFullscreenVideoProfile === 'function') {
+          await window.MeetingMedia.applyFullscreenVideoProfile();
+        }
+      }
+    } else {
+      // Outro participante está em tela cheia: desativa a transmissão local para economizar banda
+      if (window.MeetingMedia && typeof window.MeetingMedia.suspendOutgoingVideo === 'function') {
+        await window.MeetingMedia.suspendOutgoingVideo();
+      }
+    }
+
+    // 3. Garante reprodução ativa e resolução para o vídeo em tela cheia
     const spotlightVideo = targetTile.querySelector('video');
     if (spotlightVideo) {
       try {
@@ -1252,24 +1294,23 @@ O participante será desconectado imediatamente.`)) {
     const avatar = targetTile.querySelector('.peer-avatar, #localAvatar');
     if (avatar) avatar.style.display = 'none';
 
-    // Eleva bitrate para máxima qualidade se o stream for transmitido localmente (câmera ou tela)
-    if (targetKey === 'local' && window.MeetingWebRTC && window.MeetingWebRTC.setSpotlightBitrate) {
+    if (isMe && window.MeetingWebRTC && window.MeetingWebRTC.setSpotlightBitrate) {
       window.MeetingWebRTC.setSpotlightBitrate(true);
     }
 
-    // 3. Exibe o banner de controle de modo full
+    // 4. Exibe o banner de controle de modo full
     const banner = document.getElementById('fullModeBanner');
     const titleEl = document.getElementById('fullModeTitle');
-    const targetName = (targetKey === 'local') ? `Você (${cfg.displayName || ''})` : (participantNames.get(targetKey) || 'Participante');
+    const targetName = isMe ? `Você (${cfg.displayName || ''})` : (participantNames.get(targetKey) || 'Participante');
     if (banner && titleEl) {
-      titleEl.textContent = isScreenShare ? `🖥️ Compartilhamento de Tela - ${targetName}` : `⛶ Exibição Full - ${targetName}`;
+      titleEl.textContent = isScreenShare ? `🖥️ Compartilhamento de Tela - ${targetName}` : `⛶ Tela Cheia (1024x768) - ${targetName}`;
       banner.style.display = 'flex';
     }
     const dockBtn = document.getElementById('btnNormalViewDock');
     if (dockBtn) dockBtn.style.display = 'inline-flex';
   }
 
-  function exitFullMode() {
+  async function exitFullMode() {
     if (!isFullModeActive) return;
     isFullModeActive = false;
     fullTargetKey = null;
@@ -1284,16 +1325,19 @@ O participante será desconectado imediatamente.`)) {
     const dockBtn = document.getElementById('btnNormalViewDock');
     if (dockBtn) dockBtn.style.display = 'none';
 
-    // 1. Despausa os vídeos dos participantes
+    // 1. Despausa os vídeos de todos os participantes
     document.querySelectorAll('#videos .tile video').forEach(v => {
-      try { v.play().catch(() => {}); } catch(e) {}
+      try {
+        v.style.display = 'block';
+        v.play().catch(() => {});
+      } catch(e) {}
     });
 
     // 2. Restaura estado dos tracks de vídeo recebidos no WebRTC
     if (window.MeetingWebRTC && window.MeetingWebRTC.pcs) {
       window.MeetingWebRTC.pcs.forEach((pc, pKey) => {
         const pData = participantList.find(p => p.participant_key === pKey);
-        const shouldShow = pData && Number(pData.video_granted) === 1 && Number(pData.cam_enabled) === 1;
+        const shouldShow = pData ? (Number(pData.video_granted) !== 0 && Number(pData.cam_enabled) === 1) : true;
         pc.getReceivers().forEach(r => {
           if (r.track && r.track.kind === 'video') {
             r.track.enabled = Boolean(shouldShow);
@@ -1307,13 +1351,13 @@ O participante será desconectado imediatamente.`)) {
       window.MeetingWebRTC.setSpotlightBitrate(false);
     }
 
-    // Restaura perfis de mídia e saída local (Tarefas 18 e 21)
+    // 3. REQUISITO: Ao voltar ao modo normal, reativa transmissão e reajusta a resolução para 160x120
     if (window.MeetingMedia) {
       if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
-        window.MeetingMedia.resumeOutgoingVideo();
+        await window.MeetingMedia.resumeOutgoingVideo();
       }
-      if (typeof window.MeetingMedia.applyNormalVideoProfile === 'function') {
-        window.MeetingMedia.applyNormalVideoProfile();
+      if (typeof window.MeetingMedia.applyLowVideoProfile === 'function') {
+        await window.MeetingMedia.applyLowVideoProfile();
       }
     }
 

@@ -47,6 +47,13 @@
     frameRate: { ideal: 15, max: 15 }
   };
 
+  // Perfil de Tela Cheia / Destaque (1024x768 @ 30fps)
+  const MEDIA_PROFILE_FULLSCREEN = {
+    width: { ideal: 1024, max: 1024 },
+    height: { ideal: 768, max: 768 },
+    frameRate: { ideal: 30, max: 30 }
+  };
+
   function getEffectiveVideo() {
     return camera_user_enabled && camera_admin_allowed && camera_room_allowed;
   }
@@ -267,6 +274,28 @@
         window.rtcLog && window.rtcLog('LOCAL', 'profile-low-160x120-fallback');
       } catch (e2) {
         console.warn('Falha ao aplicar perfil de baixa resolução:', e2);
+      }
+    }
+  }
+
+  async function applyFullscreenVideoProfile() {
+    if (!cameraTrack || cameraTrack.readyState !== 'live') return;
+    try {
+      await cameraTrack.applyConstraints(MEDIA_PROFILE_FULLSCREEN);
+      currentProfileMode = 'fullscreen';
+      window.rtcLog && window.rtcLog('LOCAL', 'profile-fullscreen-1024x768');
+    } catch (e1) {
+      console.warn('Falha ao aplicar 1024x768 exato, tentando fallback aproximado:', e1);
+      try {
+        await cameraTrack.applyConstraints({
+          width: { ideal: 1024, max: 1280 },
+          height: { ideal: 768, max: 720 },
+          frameRate: { ideal: 30, max: 30 }
+        });
+        currentProfileMode = 'fullscreen';
+        window.rtcLog && window.rtcLog('LOCAL', 'profile-fullscreen-fallback');
+      } catch (e2) {
+        console.warn('Falha ao aplicar perfil fullscreen:', e2);
       }
     }
   }
@@ -547,6 +576,7 @@
     applyPresentationVideoProfile,
     applyNormalVideoProfile,
     applyLowVideoProfile,
+    applyFullscreenVideoProfile,
     adaptResolutionForParticipantCount,
     setVideoUserPreference,
     setVideoAdminPermission,
