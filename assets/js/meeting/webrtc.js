@@ -672,6 +672,13 @@
       const pc = pcs.get(remoteKey);
       const video = document.getElementById('peer-' + remoteKey);
 
+      // Apenas monitora e exige video se o participante remoto for o Apresentador ativo ou tiver video concedido
+      const isPresenter = (window.MeetingPresentation && window.MeetingPresentation.getActivePresenterKey() === remoteKey);
+      const isGranted = (Number(p.video_granted) === 1);
+      if (!isPresenter && !isGranted) {
+        continue;
+      }
+
       // Se o JSON de presenca indica que o usuario esta com a camera ligada
       if (camActive) {
         // Se a conexao peer nem sequer foi iniciada, cria imediatamente

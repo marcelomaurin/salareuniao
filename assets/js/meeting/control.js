@@ -12,6 +12,7 @@
   let ws = null;
   let isConnecting = false;
   let reconnectTimer = null;
+  let reconnectAttempts = 0;
   let currentStateVersion = 1;
   const processedCommandIds = new Set();
   const pendingAcks = new Map(); // command_id -> { resolve, reject, timer }
@@ -72,6 +73,7 @@
 
       ws.onopen = function() {
         isConnecting = false;
+        reconnectAttempts = 0;
         console.log('[Control] Canal WebSocket de controle conectado.');
         updateStatusUI('Controle: Conectado', true);
         // Sincronização obrigatória de estado após conectar/reconectar (Tarefa 24, 35)
@@ -90,13 +92,24 @@
       ws.onclose = function(e) {
         isConnecting = false;
         ws = null;
-        updateStatusUI('Controle: Desconectado', false);
-        console.warn('[Control] Canal de controle desconectado. Código:', e.code, 'Reconectando em breve...');
-        reconnectTimer = setTimeout(connect, cfg.WS_RECONNECT_MS || 2500);
+        reconnectAttempts++;
+        if (reconnectAttempts >= 2) {
+          updateStatusUI('Controle: HTTP Fallback', false);
+          if (reconnectAttempts === 2) {
+            console.info('[Control] Servidor WebSocket de controle indisponível neste host. Operando em modo seguro HTTP Fallback.');
+          }
+          // Reduz tentativas para intervalo espaçado (30s) sem floodar o console
+          reconnectTimer = setTimeout(connect, 30000);
+          return;
+        }
+        updateStatusUI('Controle: Reconectando...', false);
+        reconnectTimer = setTimeout(connect, 4000);
       };
 
       ws.onerror = function(err) {
-        console.warn('[Control] Erro no canal de controle WebSocket:', err);
+        if (reconnectAttempts < 2) {
+          console.warn('[Control] Erro no canal de controle WebSocket:', err);
+        }
       };
 
     } catch (e) {

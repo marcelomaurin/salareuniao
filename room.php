@@ -2514,18 +2514,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_30"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_31"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
