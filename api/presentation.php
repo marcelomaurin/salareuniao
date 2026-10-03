@@ -229,11 +229,16 @@ if ($action === 'approve') {
     try {
         $pdo->beginTransaction();
 
+        // Modelo de transmissão única: suspende vídeo dos demais participantes
+        $pdo->prepare("UPDATE room_presence SET video_granted = 0 WHERE room_id = ? AND participant_key != ?")
+            ->execute([$roomId, $targetKey]);
+
         // 1. Atualiza permissões do participante alvo
         $pdo->prepare("
             UPDATE room_presence 
             SET video_granted = 1,
                 video_admin_allowed = 1,
+                audio_admin_allowed = 1,
                 hand_raised = 0,
                 hand_requested_at = NULL,
                 granted_at = NOW()

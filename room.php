@@ -1423,6 +1423,11 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         <button type="button" id="btnNormalViewBanner" class="sr-btn sr-btn-sm sr-btn-primary" onclick="MeetingParticipants.revokeFullMode()" style="border-radius: 20px; padding: 6px 18px; font-weight: 700; cursor: pointer; background: #00d2ff; color: #050811; border: none; box-shadow: 0 0 15px rgba(0,210,255,0.4); display: inline-flex; align-items: center; gap: 6px;">
           ▦ Exibição Normal
         </button>
+        <?php if ($canAdmit): ?>
+        <button type="button" id="btnTakeBackBanner" class="sr-btn sr-btn-sm" onclick="MeetingPresentation.takeBackConduction()" style="display: none; border-radius: 20px; padding: 6px 18px; font-weight: 700; cursor: pointer; background: #ef4444; color: #fff; border: none; box-shadow: 0 0 15px rgba(239,68,68,0.4); margin-left: 8px;">
+          🎙️ Retomar Condução
+        </button>
+        <?php endif; ?>
       </div>
 
       <!-- Toast de Compartilhamento de Tela para Aprovação do Administrador -->
@@ -1455,6 +1460,11 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         <button type="button" id="btnHand" onclick="MeetingParticipants.toggleRaiseHand()" title="Pedir a Palavra (Levantar a Mão)">
           ✋ <span class="btn-label" id="handLabel">Pedir Palavra</span>
         </button>
+        <?php if ($canAdmit): ?>
+        <button type="button" id="btnTakeBackConduction" style="display: none; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; color: #fff; font-weight: 700; border-radius: 20px; padding: 6px 16px; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);" onclick="MeetingPresentation.takeBackConduction()" title="Retomar a Condução da Reunião imediatamente">
+          🎙️ <span class="btn-label">Retomar Condução</span>
+        </button>
+        <?php endif; ?>
         <button type="button" id="btnNormalViewDock" style="display: none; background: rgba(0, 210, 255, 0.2); border: 1px solid #00d2ff; color: #00d2ff; font-weight: 700;" onclick="MeetingParticipants.revokeFullMode()" title="Voltar para a Exibição Normal (Grade)">
           ▦ <span class="btn-label">Exibição Normal</span>
         </button>
@@ -1749,6 +1759,7 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       TOKEN: <?=json_encode($token)?>,
       ICE_SERVERS: <?=$ice?>,
       WS_URL: <?=json_encode($wsUrl)?>,
+      WS_CONTROL_URL: <?=json_encode(!empty($config['websocket']['control_url']) ? (string)$config['websocket']['control_url'] : ($wsEnabled ? rtrim(str_replace('/ws', '', $wsUrl), '/') . '/control' : 'wss://maurinsoft.com.br/control'))?>,
       WS_ENABLED: <?=json_encode($wsEnabled)?>,
       WS_RECONNECT_MS: <?=$wsReconnect?>,
       RELAY_MODE: <?=json_encode($relayMode)?>,
@@ -1767,18 +1778,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_17"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_17"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_18"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_18"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

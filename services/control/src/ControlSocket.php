@@ -315,7 +315,10 @@ final class ControlSocket implements MessageComponentInterface
                             updated_at = NOW()
                     ")->execute([$roomId, $targetKey, $mediaType]);
 
-                    $this->pdo->prepare("UPDATE room_presence SET video_granted = 1, video_admin_allowed = 1, hand_raised = 0, hand_requested_at = NULL WHERE room_id = ? AND participant_key = ?")
+                    // Modelo de transmissão única: apenas o apresentador ativo transmite vídeo
+                    $this->pdo->prepare("UPDATE room_presence SET video_granted = 0 WHERE room_id = ? AND participant_key != ?")
+                        ->execute([$roomId, $targetKey]);
+                    $this->pdo->prepare("UPDATE room_presence SET video_granted = 1, video_admin_allowed = 1, audio_admin_allowed = 1, hand_raised = 0, hand_requested_at = NULL WHERE room_id = ? AND participant_key = ?")
                         ->execute([$roomId, $targetKey]);
 
                     $rState = $this->getRoomState($roomId);

@@ -97,44 +97,41 @@
     const isMe = (presenterKey === cfg.selfKey);
 
     if (isMe) {
-      // Apresentador (Tarefas 15, 56, 57)
+      // ORADOR ATIVO (Único que transmite na sala):
       if (window.MeetingParticipants) {
         window.MeetingParticipants.clearLocalHand();
       }
       if (window.MeetingMedia) {
         window.MeetingMedia.setVideoRoomPermission(true);
         window.MeetingMedia.setVideoUserPreference(true);
-        await window.MeetingMedia.applyPresentationVideoProfile();
-      }
-      // Tarefas 56 e 57: Inicia publicação pelo Bridge se ativado
-      if (cfg.BRIDGE_ENABLED && window.MeetingBridge) {
-        try {
-          window.MeetingBridge.startPublishing(null, activeMediaType);
-        } catch (e) {
-          console.warn('[MeetingPresentation] Falha ao iniciar Bridge do apresentador:', e);
+        window.MeetingMedia.setAudioRoomPermission(true);
+        window.MeetingMedia.setAudioUserPreference(true);
+        if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
+          await window.MeetingMedia.resumeOutgoingVideo();
+        }
+        if (typeof window.MeetingMedia.applyFullscreenVideoProfile === 'function') {
+          await window.MeetingMedia.applyFullscreenVideoProfile(); // 1024x768 @ 30fps!
         }
       }
       if (window.showToast) {
-        window.showToast('Você está no modo de apresentação principal.');
+        window.showToast('🎙️ Você está com a palavra e transmitindo áudio e vídeo.');
       }
     } else {
-      // Demais Participantes (Tarefas 16, 56, 57)
+      // DEMAIS PARTICIPANTES (Ouvintes / Espectadores - Não transmitem):
       if (window.MeetingMedia) {
-        // Suspende envio de vídeo para economizar banda, mantendo áudio normal
-        await window.MeetingMedia.suspendOutgoingVideo();
-      }
-      // Tarefas 56 e 57: Demais participantes não publicam vídeo no Bridge e assinam o apresentador
-      if (cfg.BRIDGE_ENABLED && window.MeetingBridge) {
-        window.MeetingBridge.stopPublishing();
-        window.MeetingBridge.subscribe(presenterKey);
+        if (typeof window.MeetingMedia.suspendOutgoingVideo === 'function') {
+          await window.MeetingMedia.suspendOutgoingVideo();
+        }
+        window.MeetingMedia.setAudioRoomPermission(false);
       }
       if (window.showToast) {
-        const presenterName = (roomState && roomState.presenter_name) || 'Participante';
-        window.showToast(`Modo apresentação: ${presenterName} está com a palavra.`);
+        const pName = (roomState && roomState.presenter_name) || (window.MeetingParticipants ? window.MeetingParticipants.getParticipantName(presenterKey) : 'Participante');
+        window.showToast(`Modo transmissão única: ${pName} está com a palavra.`);
       }
     }
 
     updateStageUI();
+    updateConductionButtons();
     if (window.MeetingParticipants && window.MeetingParticipants.updateAdminControls) {
       window.MeetingParticipants.updateAdminControls();
     }
@@ -200,6 +197,59 @@
     }
   });
 
+
+  function updateConductionButtons() {
+    const cfg = getCfg();
+    const btnDock = document.getElementById('btnTakeBackConduction');
+    const btnBanner = document.getElementById('btnTakeBackBanner');
+
+    // Botão de retomar condução visível apenas para o Administrador quando outro estiver falando
+    const isOtherSpeaking = presentationActive && (activePresenterKey !== cfg.selfKey);
+    const shouldShow = Boolean(cfg.CAN_ADMIT && isOtherSpeaking);
+
+    if (btnDock) btnDock.style.display = shouldShow ? 'inline-flex' : 'none';
+    if (btnBanner) btnBanner.style.display = shouldShow ? 'inline-flex' : 'none';
+  }
+
+  async function takeBackConduction() {
+    const cfg = getCfg();
+    if (!cfg.CAN_ADMIT) return;
+
+    if (window.showToast) {
+      window.showToast('🎙️ Retomando a condução da reunião...');
+    }
+
+    try {
+      // 1. Envia comando pelo canal WebSocket de controle para toda a sala
+      if (window.MeetingControl) {
+        await window.MeetingControl.sendCommand('room.presentation.start', cfg.selfKey, {
+          presenter_key: cfg.selfKey,
+          media_type: 'camera'
+        });
+      }
+
+      // 2. Persiste autoritativamente no backend
+      const resp = await fetch('api/presentation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'approve',
+          target_key: cfg.selfKey,
+          media_type: 'camera'
+        })
+      });
+      const data = await resp.json();
+      if (data && data.ok) {
+        await start(cfg.selfKey, 'camera', data.room);
+      }
+    } catch (e) {
+      console.warn('Erro ao retomar condução:', e);
+      await start(cfg.selfKey, 'camera');
+    }
+  }
+
   window.MeetingPresentation = {
     start,
     end,
@@ -208,6 +258,8 @@
     isLocalPresenter,
     getActivePresenterKey,
     resolveParticipantTile,
-    updateStageUI
+    updateStageUI,
+    updateConductionButtons,
+    takeBackConduction
   };
 })(window);
