@@ -413,12 +413,27 @@
           };
           actions.appendChild(wordBtn);
 
-          // 3. Botão Exibição Full / Exibição Normal
+          // 3. Botão Apresentador
+          const presBtn = document.createElement('button');
+          presBtn.type = 'button';
+          presBtn.className = 'participant-action-btn ' + (isPresenter ? 'participant-action-warning' : 'participant-action-primary');
+          presBtn.innerHTML = isPresenter ? '⏹ Retirar Apres.' : '🎭 Apresentador';
+          presBtn.title = isPresenter ? `Retirar apresentação de ${p.display_name} e retomar para você` : `Definir ${p.display_name} como apresentador principal`;
+          presBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isPresenter) {
+              takeBackPresentation();
+            } else {
+              makePresenter(p.participant_key, p.display_name);
+            }
+          };
+          actions.appendChild(presBtn);
+
+          // 4. Botão Exibição Full / Exibição Normal
           const isTargetFull = isFullModeActive && fullTargetKey === p.participant_key;
           const fullActionBtn = document.createElement('button');
           fullActionBtn.type = 'button';
           fullActionBtn.className = 'participant-action-btn ' + (isTargetFull ? 'participant-action-primary' : 'participant-action-secondary');
-          fullActionBtn.style.gridColumn = '1 / -1';
           fullActionBtn.innerHTML = isTargetFull ? '▦ Exibição Normal' : '⛶ Exibição Full';
           fullActionBtn.title = isTargetFull ? 'Voltar para a exibição normal' : `Aprovar exibição full para ${p.display_name}`;
           fullActionBtn.onclick = (e) => {
@@ -430,6 +445,21 @@
             }
           };
           actions.appendChild(fullActionBtn);
+        } else if (isSelf && cfg.CAN_ADMIT) {
+          const isPresenter = (window.MeetingPresentation && window.MeetingPresentation.getActivePresenterKey() === p.participant_key);
+          if (!isPresenter) {
+            const takeBackBtn = document.createElement('button');
+            takeBackBtn.type = 'button';
+            takeBackBtn.className = 'participant-action-btn participant-action-primary';
+            takeBackBtn.style.gridColumn = '1 / -1';
+            takeBackBtn.innerHTML = '🎙️ Assumir Apresentador';
+            takeBackBtn.title = 'Retomar a apresentação principal para você (Administrador)';
+            takeBackBtn.onclick = (e) => {
+              e.stopPropagation();
+              takeBackPresentation();
+            };
+            actions.appendChild(takeBackBtn);
+          }
         }
 
         wrap.appendChild(div);
@@ -1065,6 +1095,67 @@ O participante será desconectado imediatamente.`)) {
     }
   }
 
+  async function makePresenter(targetKey, targetName) {
+    const cfg = window.MEETING_CONFIG;
+    if (!cfg.CAN_ADMIT) return;
+
+    if (window.showToast) {
+      window.showToast(`Definindo ${targetName} como apresentador...`);
+    }
+
+    try {
+      const resp = await fetch('api/presentation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'approve',
+          target_key: targetKey,
+          media_type: 'camera'
+        })
+      });
+      const data = await resp.json();
+
+      if (data && data.ok) {
+        if (window.MeetingControl && window.MeetingControl.isConnected()) {
+          window.MeetingControl.sendCommand('room.presentation.start', targetKey, {
+            presenter_key: targetKey,
+            media_type: 'camera'
+          }).catch(() => {});
+        }
+
+        if (window.MeetingPresentation) {
+          window.MeetingPresentation.start(targetKey, 'camera', data.room);
+          window.MeetingPresentation.updateStageUI();
+        }
+
+        if (window.showToast) {
+          window.showToast(`🎉 ${targetName} agora é o apresentador!`);
+        }
+
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+      } else {
+        alert('Não foi possível definir apresentador: ' + (data.error || 'Erro no servidor'));
+      }
+    } catch (e) {
+      console.error('Erro ao definir apresentador:', e);
+    }
+  }
+
+  async function takeBackPresentation() {
+    const cfg = window.MEETING_CONFIG;
+    if (!cfg.CAN_ADMIT) return;
+
+    if (window.MeetingPresentation && typeof window.MeetingPresentation.takeBackConduction === 'function') {
+      await window.MeetingPresentation.takeBackConduction();
+    } else {
+      await makePresenter(cfg.selfKey, cfg.displayName || 'Administrador');
+    }
+  }
+
   async function approveHandWithFullMode(targetKey, targetName) {
     const cfg = window.MEETING_CONFIG;
     if (!cfg.CAN_ADMIT) return;
@@ -1461,6 +1552,8 @@ O participante será desconectado imediatamente.`)) {
     renderWaitingList,
     kickParticipant,
     toggleRaiseHand,
+    makePresenter,
+    takeBackPresentation,
     approveHandWithFullMode,
     rejectHandRequest,
     clearLocalHand: () => { isLocalHandRaised = false; updateHandBtnUI(false, localVideoGranted); },
