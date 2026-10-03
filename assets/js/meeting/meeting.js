@@ -125,8 +125,8 @@
       // 1. Inicializa mídia local primeiro
       await window.MeetingMedia.initLocalMedia();
 
-      // Inicia o scanner de encaminhamento (Bridge) em modo standby para contingência
-      if (window.MeetingBridge) {
+      // Inicia o scanner de encaminhamento (Bridge) apenas se RELAY_MODE estiver ativo
+      if (window.MeetingBridge && cfg.RELAY_MODE) {
         window.MeetingBridge.startScanner();
       }
 

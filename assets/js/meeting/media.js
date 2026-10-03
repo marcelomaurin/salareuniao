@@ -27,31 +27,31 @@
   let screen_user_enabled = false;
   let screen_admin_allowed = true;
 
-  // Perfis de Resolução e FPS (Tarefas 19, 20)
+  // Perfis de Resolução e FPS Otimizados para Baixíssima Latência / Tempo Real
   const MEDIA_PROFILE_NORMAL = {
-    width: { ideal: 640, max: 854 },
-    height: { ideal: 360, max: 480 },
-    frameRate: { ideal: 24, max: 24 }
-  };
-
-  const MEDIA_PROFILE_PRESENTATION = {
-    width: { ideal: 1920, max: 1920 },
-    height: { ideal: 1080, max: 1080 },
-    frameRate: { ideal: 30, max: 30 }
-  };
-
-  // Perfil de Baixa Resolução para Múltiplos Participantes (160x120 @ 15fps)
-  const MEDIA_PROFILE_MULTI_PEERS = {
-    width: { ideal: 160, max: 160 },
-    height: { ideal: 120, max: 120 },
+    width: { ideal: 640, max: 640 },
+    height: { ideal: 360, max: 360 },
     frameRate: { ideal: 15, max: 15 }
   };
 
-  // Perfil de Tela Cheia / Destaque (1024x768 @ 30fps)
+  const MEDIA_PROFILE_PRESENTATION = {
+    width: { ideal: 1280, max: 1280 },
+    height: { ideal: 720, max: 720 },
+    frameRate: { ideal: 15, max: 15 }
+  };
+
+  // Perfil de Baixa Resolução para Múltiplos Participantes (160x120 @ 10-12fps)
+  const MEDIA_PROFILE_MULTI_PEERS = {
+    width: { ideal: 160, max: 160 },
+    height: { ideal: 120, max: 120 },
+    frameRate: { ideal: 10, max: 12 }
+  };
+
+  // Perfil de Tela Cheia / Condução (1024x768 @ 15fps)
   const MEDIA_PROFILE_FULLSCREEN = {
     width: { ideal: 1024, max: 1024 },
     height: { ideal: 768, max: 768 },
-    frameRate: { ideal: 30, max: 30 }
+    frameRate: { ideal: 15, max: 15 }
   };
 
   function getEffectiveVideo() {
@@ -72,7 +72,8 @@
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          latency: 0
         }
       });
       hasVideo = true;
@@ -234,7 +235,7 @@
         await cameraTrack.applyConstraints({
           width: { ideal: 1280, max: 1280 },
           height: { ideal: 720, max: 720 },
-          frameRate: { ideal: 30, max: 30 }
+          frameRate: { ideal: 15, max: 15 }
         });
         window.rtcLog && window.rtcLog('LOCAL', 'profile-presentation-720p');
       } catch (e2) {
@@ -290,7 +291,7 @@
         await cameraTrack.applyConstraints({
           width: { ideal: 1024, max: 1280 },
           height: { ideal: 768, max: 720 },
-          frameRate: { ideal: 30, max: 30 }
+          frameRate: { ideal: 15, max: 15 }
         });
         currentProfileMode = 'fullscreen';
         window.rtcLog && window.rtcLog('LOCAL', 'profile-fullscreen-fallback');

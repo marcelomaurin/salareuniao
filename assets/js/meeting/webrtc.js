@@ -105,6 +105,18 @@
         return; // Bridge de encaminhamento ativo; não sobrescreve o reprodutor do bridge
       }
 
+      // Otimização de tempo real: zera latência de jitter buffer no navegador
+      if (event.receiver) {
+        try {
+          if ('playoutDelayHint' in event.receiver) {
+            event.receiver.playoutDelayHint = 0;
+          }
+          if ('jitterBufferTarget' in event.receiver) {
+            event.receiver.jitterBufferTarget = 0;
+          }
+        } catch(e) {}
+      }
+
       if (!state.remoteStream.getTracks().some(t => t.id === event.track.id)) {
         state.remoteStream.addTrack(event.track);
       }
@@ -170,13 +182,13 @@
     pc.addTransceiver(audioTrack || 'audio', transceiverOptions);
     const videoTransceiver = pc.addTransceiver(videoTrack || 'video', transceiverOptions);
 
-    // Otimização de largura de banda: limita o bitrate máximo de vídeo da câmera a 400 kbps
+    // Otimização de largura de banda e tempo: limita framerate a 15fps e bitrate a 300 kbps
     if (videoTransceiver && videoTransceiver.sender && !screenTrack) {
       try {
         const pms = videoTransceiver.sender.getParameters();
         if (!pms.encodings || pms.encodings.length === 0) pms.encodings = [{}];
-        pms.encodings[0].maxBitrate = 400000; // 400 kbps
-        pms.encodings[0].maxFramerate = 24;
+        pms.encodings[0].maxBitrate = 300000; // 300 kbps
+        pms.encodings[0].maxFramerate = 15; // 15 fps para eliminar atraso
         videoTransceiver.sender.setParameters(pms);
       } catch (e) {}
     }
@@ -729,8 +741,8 @@
           try {
             const params = sender.getParameters();
             if (params.encodings && params.encodings.length > 0) {
-              params.encodings[0].maxBitrate = isHighQuality ? 2500000 : 350000;
-              params.encodings[0].maxFramerate = isHighQuality ? 30 : 24;
+              params.encodings[0].maxBitrate = isHighQuality ? 750000 : 180000;
+              params.encodings[0].maxFramerate = isHighQuality ? 15 : 12;
               await sender.setParameters(params);
             }
           } catch(e) {}

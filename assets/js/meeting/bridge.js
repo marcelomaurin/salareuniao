@@ -657,7 +657,12 @@
           for (const pub of json.publishers) {
             const pKey = pub.participant_key;
             if (pKey && pKey !== selfKey) {
-              syncParticipant(pKey);
+              const pc = window.MeetingWebRTC?.pcs?.get(pKey);
+              const isWebRtcConnected = pc && (pc.connectionState === 'connected' || pc.iceConnectionState === 'connected');
+              // Nunca sequestra uma conexão WebRTC ativa para evitar atrasos de relay
+              if (!isWebRtcConnected && window.MeetingWebRTC?.getPeerTransportMode(pKey) === 'bridge') {
+                syncParticipant(pKey);
+              }
             }
           }
         }
