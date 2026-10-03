@@ -125,6 +125,12 @@
       // 1. Inicializa mídia local primeiro
       await window.MeetingMedia.initLocalMedia();
 
+      // Inicia imediatamente a publicação e o scanner multi-participante do encaminhamento
+      if (window.MeetingBridge) {
+        window.MeetingBridge.startPublishing();
+        window.MeetingBridge.startScanner();
+      }
+
       // 2. Ativa imediatamente o canal de sinalização (WebSocket e polling de sinais)
       // para que respostas e ofertas de outros peers possam ser processadas sem atraso
       if (window.MeetingSignaling) {

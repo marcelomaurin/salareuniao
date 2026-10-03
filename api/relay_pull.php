@@ -91,23 +91,14 @@ try {
     $targetSeq = $after + 1;
     $targetFile = $pubDir . '/chunk_' . $targetSeq . '.bin';
 
-    // Long-polling curto: aguarda até 400ms verificando a cada 40ms sem prender conexões MySQL
+    // Verificação rápida de disponibilidade (não bloqueia conexões HTTP de outros participantes)
     if (!is_file($targetFile)) {
-        $startTime = microtime(true);
-        while (microtime(true) - $startTime < 0.40) {
-            usleep(40000); // 40ms
-            clearstatcache(true, $targetFile);
-            if (is_file($targetFile)) {
-                break;
-            }
-            if (is_file($metaFile)) {
-                $curMeta = json_decode((string)file_get_contents($metaFile), true);
-                $curLast = (int)($curMeta['last_seq'] ?? 0);
-                if ($curLast > $targetSeq + 4) {
-                    $targetSeq = $curLast;
-                    $targetFile = $pubDir . '/chunk_' . $targetSeq . '.bin';
-                    if (is_file($targetFile)) break;
-                }
+        if (is_file($metaFile)) {
+            $curMeta = json_decode((string)file_get_contents($metaFile), true);
+            $curLast = (int)($curMeta['last_seq'] ?? 0);
+            if ($curLast > $targetSeq + 4) {
+                $targetSeq = $curLast;
+                $targetFile = $pubDir . '/chunk_' . $targetSeq . '.bin';
             }
         }
     }

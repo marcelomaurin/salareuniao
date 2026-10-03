@@ -368,14 +368,18 @@
       tile = window.MeetingParticipants.resolveParticipantTile(publisherKey);
     }
     if (!tile) tile = document.getElementById('tile-' + publisherKey);
+    if (!tile && window.MeetingParticipants && typeof window.MeetingParticipants.ensureTile === 'function') {
+      tile = window.MeetingParticipants.ensureTile(publisherKey);
+    }
     if (!tile) return;
 
     const videoEl = tile.querySelector('video');
-    const avatarEl = tile.querySelector('.avatar');
+    const avatarEl = tile.querySelector('.peer-avatar') || tile.querySelector('.avatar');
     if (!videoEl) return;
 
     if (avatarEl) avatarEl.style.display = 'none';
     videoEl.style.display = 'block';
+    videoEl.muted = false; // Garante áudio para todos os participantes remotos
 
     const mime = mimeType || getSupportedMimeType();
     if (!window.MediaSource || !MediaSource.isTypeSupported(mime)) {
@@ -607,40 +611,72 @@
   }
 
   // =========================================================================
-  // FALLBACK E INTEGRACAO WEBRTC COM SERVICO DE ENCAMINHAMENTO
+  // ENCAMINHAMENTO MULTI-PARTICIPANTE (1 para N e N para 1 via HTTP)
   // =========================================================================
-  async function activateFallback(remoteKey) {
+  function syncParticipant(remoteKey) {
+    if (!remoteKey || remoteKey === getCfg().selfKey) return;
     activeFallbacks.add(remoteKey);
     stats.transportMode = 'bridge';
 
-    console.log(`[MeetingBridge] Ativando encaminhamento de midia para peer: ${remoteKey}`);
-    if (window.rtcLog) window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
-
-    // 1. Inicia gravacao e envio dos nossos frames para quem pedir nosso ID
     if (!isPublishing) {
       startPublishing();
     }
 
-    // 2. Inicia recepcao dos frames do peer remoto (via WebSocket e/ou HTTP Relay)
-    if (isConnected()) {
-      subscribe(remoteKey);
-    }
     startHttpPullLoop(remoteKey);
+  }
 
+  function pruneParticipants(activeKeys) {
+    for (const [key, state] of activePullLoops.entries()) {
+      if (!activeKeys.has(key)) {
+        stopHttpPullLoop(key);
+        cleanupRemotePlayer(key);
+        activeFallbacks.delete(key);
+      }
+    }
+  }
+
+  let scannerTimer = null;
+  function startScanner() {
+    if (scannerTimer) return;
+    scannerTimer = setInterval(scanActivePublishers, 3000);
+    scanActivePublishers();
+  }
+
+  async function scanActivePublishers() {
+    if (window.MeetingApp?.isLeaving()) return;
+    const cfg = getCfg();
+    const token = cfg.TOKEN;
+    if (!token) return;
+
+    try {
+      const resp = await fetch(`api/relay_pull.php?token=${encodeURIComponent(token)}&list=1`, { cache: 'no-store' });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json && json.ok && Array.isArray(json.publishers)) {
+          const selfKey = cfg.selfKey;
+          for (const pub of json.publishers) {
+            const pKey = pub.participant_key;
+            if (pKey && pKey !== selfKey) {
+              syncParticipant(pKey);
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  async function activateFallback(remoteKey) {
+    syncParticipant(remoteKey);
+    if (window.rtcLog) window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
     if (window.showToast) {
-      window.showToast('Encaminhamento de audio e video ativo.');
+      window.showToast('Encaminhamento de áudio e vídeo ativo.');
     }
   }
 
   function deactivateFallback(remoteKey) {
     activeFallbacks.delete(remoteKey);
     stopHttpPullLoop(remoteKey);
-    if (activeFallbacks.size === 0) {
-      stats.transportMode = 'webrtc';
-      stopPublishing();
-      if (window.rtcLog) window.rtcLog(remoteKey, 'WEBRTC_RESTORED');
-      console.log(`[MeetingBridge] Conexao WebRTC restaurada. Desativando fallback.`);
-    }
+    cleanupRemotePlayer(remoteKey);
   }
 
   function subscribe(publisherKey) {
@@ -667,6 +703,9 @@
     isPublishing: () => isPublishing,
     activateFallback,
     deactivateFallback,
+    syncParticipant,
+    pruneParticipants,
+    startScanner,
     getStats: () => {
       let totalQueueBytes = 0;
       remotePlayers.forEach(p => {

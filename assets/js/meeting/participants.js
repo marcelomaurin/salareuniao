@@ -149,6 +149,9 @@
     // Desativa dependência do grande toast central (Tarefa 31)
     const handToast = document.getElementById('handToast');
     if (handToast) handToast.style.display = 'none';
+    if (window.MeetingBridge && typeof window.MeetingBridge.pruneParticipants === 'function') {
+      window.MeetingBridge.pruneParticipants(activeKeys);
+    }
     updateCounters();
     updateVideoGridCount();
   }
@@ -261,10 +264,13 @@
       participantNames.set(p.participant_key, p.display_name);
       lastPresence.set(p.participant_key, Date.now());
 
-      // Descoberta automática de peer em qualquer ordem
+      // Descoberta automática de peer em qualquer ordem (WebRTC + Encaminhamento Relay)
       if (cfg.selfKey && p.participant_key !== cfg.selfKey) {
         if (window.MeetingWebRTC) {
           window.MeetingWebRTC.getOrCreatePeer(p.participant_key);
+        }
+        if (window.MeetingBridge && typeof window.MeetingBridge.syncParticipant === 'function') {
+          window.MeetingBridge.syncParticipant(p.participant_key);
         }
       }
 
