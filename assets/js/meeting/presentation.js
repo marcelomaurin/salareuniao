@@ -371,6 +371,41 @@
     menu.style.top = posY + 'px';
   }
 
+
+  let stageFitMode = 'cover';
+
+  function toggleStageFit(forcedMode) {
+    const stage = document.getElementById('stageArea');
+    if (!stage) return;
+
+    if (forcedMode) {
+      stageFitMode = forcedMode;
+    } else {
+      stageFitMode = (stageFitMode === 'cover') ? 'contain' : 'cover';
+    }
+
+    if (stageFitMode === 'contain') {
+      stage.classList.add('fit-contain');
+    } else {
+      stage.classList.remove('fit-contain');
+    }
+
+    hideContextMenu();
+
+    const fitLabel = document.getElementById('vcmFitLabel');
+    if (fitLabel) {
+      fitLabel.textContent = (stageFitMode === 'cover') 
+        ? 'Ajustar Proporção (Sem Cortes)' 
+        : 'Preencher Tela Toda (Sem Bordas)';
+    }
+
+    if (window.showToast) {
+      window.showToast(stageFitMode === 'cover' 
+        ? 'Exibição: Preenchendo a tela toda' 
+        : 'Exibição: Ajustando à proporção original');
+    }
+  }
+
   function hideContextMenu() {
     const menu = document.getElementById('videoResolutionContextMenu');
     if (menu) menu.style.display = 'none';
@@ -467,6 +502,7 @@
     takeBackConduction,
     changeDisplayResolution,
     showContextMenu,
-    hideContextMenu
+    hideContextMenu,
+    toggleStageFit
   };
 })(window);

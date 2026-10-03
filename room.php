@@ -1361,11 +1361,16 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       box-shadow: 0 8px 35px rgba(0, 0, 0, 0.7) !important;
     }
 
-    .stage-area .tile {
+    .stage-area .tile,
+    .stage-speaker {
+      flex: 1 1 100% !important;
       width: 100% !important;
       height: 100% !important;
       max-width: 100% !important;
       max-height: 100% !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      aspect-ratio: unset !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -1374,13 +1379,22 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       border-radius: 14px !important;
       border: none !important;
       box-shadow: none !important;
+      overflow: hidden !important;
     }
 
-    .stage-area .tile video {
+    .stage-area .tile video,
+    .stage-speaker video {
       width: 100% !important;
       height: 100% !important;
-      object-fit: contain !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: cover !important; /* Ocupa a tela toda como uma apresentação mesmo */
       display: block !important;
+    }
+
+    .stage-area.fit-contain .tile video,
+    .stage-area .tile.is-screen-share video {
+      object-fit: contain !important;
     }
 
     .stage-area .tile .state {
@@ -2455,18 +2469,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_27"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_28"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_28"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
@@ -2588,6 +2602,11 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
           <span class="vcm-label">⚡ Automática (Adaptativa)</span>
         </div>
       </div>
+    </div>
+    <div class="vcm-divider"></div>
+    <div class="vcm-item" id="vcmToggleFit" onclick="MeetingPresentation.toggleStageFit()">
+      <span class="vcm-icon">🖼️</span>
+      <span class="vcm-label" id="vcmFitLabel">Ajustar Proporção (Sem Cortes)</span>
     </div>
   </div>
   <?php endif; ?>
