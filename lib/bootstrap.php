@@ -276,7 +276,6 @@ if (!is_file($schemaThrottleFile) || (time() - filemtime($schemaThrottleFile) > 
             $pdo->prepare("UPDATE rooms SET join_token = ? WHERE id = ?")->execute([$newTok, $rRow['id']]);
         }
     } catch (Throwable $e) {}
-}
 
     // Migrações seguras da tabela room_invites (request_ip, request_user_agent - Tarefa 05)
     try {
@@ -333,6 +332,7 @@ if (!is_file($schemaThrottleFile) || (time() - filemtime($schemaThrottleFile) > 
 
 } catch (Throwable $e) {
     error_log('SalaReuniao auto-provisioning notice: ' . $e->getMessage());
+}
 }
 
     // Inicializa parâmetros essenciais do sistema
