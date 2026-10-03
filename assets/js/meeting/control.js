@@ -52,7 +52,7 @@
 
     const baseWsUrl = getControlWsUrl();
     if (!baseWsUrl) {
-      console.warn('Canal de controle WebSocket não configurado; operando em modo fallback.');
+      console.info('Canal de controle WebSocket não configurado; operando em modo fallback HTTP.');
       updateStatusUI('Controle: Fallback HTTP', false);
       return;
     }
