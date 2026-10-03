@@ -48,7 +48,8 @@
       iceRestartAttempts: 0,
       transportMode: 'webrtc',
       failureTimer: null,
-      restoreTimer: null
+      restoreTimer: null,
+      connectedAt: null
     };
 
     pcs.set(remoteKey, pc);
@@ -162,6 +163,7 @@
       }
 
       if (cState === 'connected') {
+        state.connectedAt = Date.now();
         if (state.reconnectTimer) {
           clearTimeout(state.reconnectTimer);
           state.reconnectTimer = null;
@@ -194,6 +196,7 @@
           window.MeetingDiagnostics.updatePeerRoute(remoteKey, pc);
         }
       } else if (cState === 'disconnected') {
+        state.connectedAt = null;
         window.rtcLog(remoteKey, 'disconnected');
         if (state.restoreTimer) {
           clearTimeout(state.restoreTimer);
@@ -533,9 +536,9 @@
 
   // Atende a solicitacao de outro peer para retransmitir/forcar envio do fluxo de video
   async function handleStreamRecoveryRequest(remoteKey) {
-    const pc = getOrCreatePeer(remoteKey);
+    const pc = pcs.get(remoteKey);
     const state = peerState.get(remoteKey);
-    if (!pc || !state) return;
+    if (!pc || !state || window.MeetingApp?.isLeaving()) return;
 
     try {
       const cameraTrack = window.MeetingMedia?.getCameraTrack();
@@ -550,30 +553,26 @@
           (t.receiver && t.receiver.track && t.receiver.track.kind === 'video')
         );
         if (vt && vt.sender) {
-          await vt.sender.replaceTrack(cameraTrack);
-          window.rtcLog(remoteKey, 'camera-track-reattached-to-transceiver');
+          if (vt.sender.track !== cameraTrack) {
+            await vt.sender.replaceTrack(cameraTrack);
+            window.rtcLog(remoteKey, 'camera-track-reattached-to-transceiver');
+          }
         } else {
           pc.addTrack(cameraTrack, localStream || new MediaStream([cameraTrack]));
         }
       }
 
-      // 2. Dispara renegociacao com reinicio de ICE para forcar o envio dos pacotes
-      if (typeof pc.restartIce === 'function') {
-        pc.restartIce();
+      // 2. Se a conexao estiver estavel e sem oferta pendente, solicita restartIce ordenado
+      // O restartIce() dispara onnegotiationneeded naturalmente pelo navegador, evitando colisoes
+      if (pc.signalingState === 'stable' && !state.makingOffer) {
+        if (typeof pc.restartIce === 'function') {
+          pc.restartIce();
+          window.rtcLog(remoteKey, 'restart-ice-invoked-awaiting-negotiation');
+        }
       }
-      state.makingOffer = true;
-      const offer = await pc.createOffer({ iceRestart: true });
-      await pc.setLocalDescription(offer);
-      await window.MeetingSignaling.sendSignal('offer', {
-        type: pc.localDescription.type,
-        sdp: pc.localDescription.sdp
-      }, remoteKey);
-      window.rtcLog(remoteKey, 'recovery-offer-sent-with-restart-ice');
     } catch (err) {
       console.warn(`Erro ao retransmitir video para ${remoteKey}:`, err);
       window.rtcLog(remoteKey, 'recovery-error', err);
-    } finally {
-      state.makingOffer = false;
     }
   }
 
@@ -604,6 +603,17 @@
           continue;
         }
 
+        // Nao dispara recuperacao se a conexao ainda estiver negociando/conectando
+        if (pc.connectionState !== 'connected') {
+          continue;
+        }
+
+        // Carencia minima de 6 segundos apos a conexao se estabelecer
+        const state = peerState.get(remoteKey);
+        if (!state || !state.connectedAt || (now - state.connectedAt < 6000)) {
+          continue;
+        }
+
         // Avalia se o video esta efetivamente recebendo e renderizando frames
         const hasFrames = video && (video.videoWidth > 0 && video.videoHeight > 0 && !video.paused);
         const hasLiveTrack = Boolean(video && video.srcObject && 
@@ -613,8 +623,8 @@
         // Se nao esta renderizando frames ou o track esta ausente/mutado
         if (!hasFrames || !hasLiveTrack) {
           const lastAttempt = lastRecoveryTime.get(remoteKey) || 0;
-          // Cooldown de 5 segundos entre tentativas por peer
-          if (now - lastAttempt > 5000) {
+          // Cooldown de 15 segundos entre tentativas por peer
+          if (now - lastAttempt > 15000) {
             lastRecoveryTime.set(remoteKey, now);
             window.rtcLog(remoteKey, 'watchdog-missing-video-detected-triggering-recovery');
 
@@ -624,13 +634,7 @@
               playRemoteVideo(video, remoteKey);
             }
 
-            // 2. Se a conexao WebRTC travou em failed ou disconnected, tenta reiniciar ICE
-            const state = peerState.get(remoteKey);
-            if (state && (pc.connectionState === 'failed' || pc.connectionState === 'disconnected')) {
-              attemptIceRestart(remoteKey, pc, state);
-            }
-
-            // 3. Solicita formalmente ao peer remoto que reenvie sua transmissao de video
+            // 2. Solicita formalmente ao peer remoto que reenvie sua transmissao de video
             window.MeetingSignaling.sendSignal('peer-ready', {
               action: 'request-video-stream',
               reason: 'missing-video-rendering'
