@@ -508,6 +508,13 @@
         player.mediaSource.endOfStream();
       }
     } catch(e) {}
+    if (player.videoEl) {
+      try {
+        player.videoEl.pause();
+        player.videoEl.removeAttribute('src');
+        player.videoEl.load();
+      } catch(e) {}
+    }
     remotePlayers.delete(publisherKey);
   }
 
@@ -655,6 +662,7 @@
   window.MeetingBridge = {
     connect,
     disconnect,
+    isFallbackActive: (key) => activeFallbacks.has(key),
     startPublishing,
     stopPublishing,
     subscribe,

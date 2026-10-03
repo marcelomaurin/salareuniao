@@ -79,6 +79,10 @@
       if (pcs.get(remoteKey) !== pc) return;
       window.rtcLog(remoteKey, `track-received-${event.track.kind}`);
 
+      if (window.MeetingBridge && typeof window.MeetingBridge.isFallbackActive === 'function' && window.MeetingBridge.isFallbackActive(remoteKey)) {
+        return; // Bridge de encaminhamento ativo; não sobrescreve o reprodutor do bridge
+      }
+
       if (!state.remoteStream.getTracks().some(t => t.id === event.track.id)) {
         state.remoteStream.addTrack(event.track);
       }
@@ -290,21 +294,24 @@
       return;
     }
 
-    // 2. Se limite excedido e Bridge habilitado, ativa fallback Bridge
-    if (cfg.BRIDGE_ENABLED && window.MeetingBridge && state && state.transportMode !== 'bridge') {
+    // 2. Se limite de tentativas foi excedido, ativa o Encaminhamento HTTP / Bridge
+    if (window.MeetingBridge && state && state.transportMode !== 'bridge') {
       state.transportMode = 'bridge';
       window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
       window.MeetingBridge.activateFallback(remoteKey);
+      return; // Permanece estável no modo Bridge sem tentar recriar WebRTC em loop infinito!
     }
 
-    // 3. Recria conexão sem destruir o tile visual do DOM
-    window.rtcLog(remoteKey, 'recreating-peer-after-failure');
-    removePeer(remoteKey, false);
-    setTimeout(() => {
-      if (!window.MeetingApp?.isLeaving()) {
-        getOrCreatePeer(remoteKey);
-      }
-    }, 2000);
+    // 3. Se bridge não estiver disponível, aí sim tenta recriar após 5 segundos
+    if (!state || state.transportMode !== 'bridge') {
+      window.rtcLog(remoteKey, 'recreating-peer-after-failure');
+      removePeer(remoteKey, false);
+      setTimeout(() => {
+        if (!window.MeetingApp?.isLeaving() && (!peerState.get(remoteKey) || peerState.get(remoteKey).transportMode !== 'bridge')) {
+          getOrCreatePeer(remoteKey);
+        }
+      }, 5000);
+    }
   }
 
   async function flushPendingIce(remoteKey) {
