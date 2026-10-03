@@ -179,6 +179,15 @@
     updateAudienceNavButtons();
   }
 
+  function setParticipantName(key, name) {
+    if (!key || !name) return;
+    participantNames.set(key, name);
+    const nEl = document.getElementById('name-' + key);
+    if (nEl) nEl.textContent = name;
+    const aEl = document.getElementById('avatar-' + key);
+    if (aEl) aEl.textContent = name.trim().charAt(0).toUpperCase();
+  }
+
   function ensureTile(key, displayName) {
     if (displayName) {
       participantNames.set(key, displayName);
@@ -1609,6 +1618,7 @@ O participante será desconectado imediatamente.`)) {
     updateAudienceNavButtons,
     updateCounters,
     updateVideoGridCount,
+    setParticipantName,
     getParticipantName: (key) => participantNames.get(key) || 'Participante',
     resolveParticipantTile,
     getParticipants: () => participantList

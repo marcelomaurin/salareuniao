@@ -52,6 +52,9 @@
 
   async function sendSignal(type, payload = {}, recipient = null) {
     const cfg = window.MEETING_CONFIG;
+    if (typeof payload === 'object' && payload !== null && !payload.display_name && cfg && cfg.displayName) {
+      payload.display_name = cfg.displayName;
+    }
     if (wsReady && ws) {
       try {
         ws.send(JSON.stringify({
