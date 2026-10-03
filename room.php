@@ -1408,10 +1408,10 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         <span id="raisedHandCount" style="font-size: 0.85rem; margin-left: 2px;"></span>
       </div>
 
-      <!-- Toast Flutuante Central Antigo desativado (Tarefa 31) -->
-      <div id="handToast" style="display: none !important;">
-        <span id="handToastText"></span>
-        <div id="handToastButtons"></div>
+      <!-- Toast Flutuante Central de Pedido de Palavra para o Administrador -->
+      <div id="handToast" style="display: none; position: absolute; top: 72px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(16px); border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 30px; padding: 8px 20px; z-index: 75; box-shadow: 0 10px 30px rgba(0,0,0,0.7); align-items: center; gap: 14px;">
+        <span id="handToastText" style="color: #fef08a; font-weight: 700; font-size: 0.92rem;"></span>
+        <div id="handToastButtons" style="display: flex; gap: 8px;"></div>
       </div>
             <!-- Banner de Controle da Exibição Full (Resolução Máxima / Compartilhamento) -->
       <div id="fullModeBanner" class="full-mode-banner">
@@ -1778,18 +1778,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_19"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_19"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_20"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

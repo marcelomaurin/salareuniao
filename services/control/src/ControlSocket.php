@@ -300,6 +300,19 @@ final class ControlSocket implements MessageComponentInterface
                         ->execute([$roomId, $targetKey]);
                     return ['ok' => true];
 
+                // Pedidos de Palavra (Levantar / Baixar a Mão)
+                case 'room.hand.raise':
+                    $pKey = $targetKey ?: ($sender['participant_key'] ?? '');
+                    $this->pdo->prepare("UPDATE room_presence SET hand_raised = 1, hand_requested_at = COALESCE(hand_requested_at, NOW()) WHERE room_id = ? AND participant_key = ?")
+                        ->execute([$roomId, $pKey]);
+                    return ['ok' => true];
+
+                case 'room.hand.cancel':
+                    $pKey = $targetKey ?: ($sender['participant_key'] ?? '');
+                    $this->pdo->prepare("UPDATE room_presence SET hand_raised = 0, hand_requested_at = NULL WHERE room_id = ? AND participant_key = ?")
+                        ->execute([$roomId, $pKey]);
+                    return ['ok' => true];
+
                 // Modo Apresentação / Full (Tarefas 07, 14, 15, 23, 25)
                 case 'room.presentation.start':
                     $mediaType = in_array(($payload['media_type'] ?? ''), ['camera', 'screen'], true) ? $payload['media_type'] : 'camera';

@@ -383,6 +383,14 @@
         }
         break;
 
+      // Pedidos de Palavra em Tempo Real
+      case 'room.hand.raise':
+      case 'room.hand.cancel':
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+        break;
+
       // Expulsão (Tarefas 29, 30)
       case 'participant.kick':
         if (isForMe) {

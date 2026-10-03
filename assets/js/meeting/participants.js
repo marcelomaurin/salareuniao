@@ -106,14 +106,17 @@
       }
     }
 
-    // Sincroniza estado próprio com o servidor para evitar ressurreição (Tarefa 04)
+    // Sincroniza estado próprio com o servidor
     const me = participantList.find(p => p.participant_key === cfg.selfKey);
     if (me) {
-      localVideoGranted = me.video_granted !== undefined ? (Number(me.video_granted) === 1) : true;
+      localVideoGranted = me.video_granted !== undefined ? (Number(me.video_granted) === 1) : Boolean(cfg.CAN_ADMIT);
       const serverHand = Number(me.hand_raised) === 1;
       const isPresenter = window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter();
-      if (!serverHand || localVideoGranted || isPresenter) {
+      if (isPresenter) {
         isLocalHandRaised = false;
+        localVideoGranted = true;
+      } else {
+        isLocalHandRaised = serverHand;
       }
       updateHandBtnUI(isLocalHandRaised, localVideoGranted);
     }
@@ -146,9 +149,25 @@
     // Tarefas 24 a 31: Atualiza Indicador Compacto no Canto Superior Esquerdo
     updateRaisedHandIndicator(handRequesters, hasNewHand);
 
-    // Desativa dependência do grande toast central (Tarefa 31)
+    // Exibe banner/toast de Pedido de Palavra para o Administrador
     const handToast = document.getElementById('handToast');
-    if (handToast) handToast.style.display = 'none';
+    const handToastText = document.getElementById('handToastText');
+    const handToastBtns = document.getElementById('handToastButtons');
+
+    if (cfg.CAN_ADMIT && handToast && handToastText && handToastBtns) {
+      if (handRequesters.length > 0) {
+        const topH = handRequesters[0];
+        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
+        handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
+        handToastBtns.innerHTML = `
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 6px 16px; font-size: 0.85rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 700; box-shadow: 0 0 10px rgba(16,185,129,0.4);" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ Passar a Palavra</button>
+          <button type="button" class="sr-btn sr-btn-secondary" style="padding: 6px 14px; font-size: 0.85rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
+        `;
+        handToast.style.display = 'flex';
+      } else {
+        handToast.style.display = 'none';
+      }
+    }
     if (window.MeetingBridge && typeof window.MeetingBridge.pruneParticipants === 'function') {
       window.MeetingBridge.pruneParticipants(activeKeys);
     }
@@ -1003,6 +1022,14 @@ O participante será desconectado imediatamente.`)) {
     }
     const newAction = isLocalHandRaised ? 'cancel' : 'request';
     try {
+      // 1. Notifica via WebSocket de Controle imediatamente para resposta instantânea
+      if (window.MeetingControl && window.MeetingControl.isConnected()) {
+        window.MeetingControl.sendCommand(newAction === 'request' ? 'room.hand.raise' : 'room.hand.cancel', cfg.selfKey, {
+          display_name: cfg.displayName || 'Participante'
+        }).catch(() => {});
+      }
+
+      // 2. Persiste autoritativamente no backend
       const resp = await fetch('api/presentation.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1013,7 +1040,7 @@ O participante será desconectado imediatamente.`)) {
         })
       });
       const data = await resp.json();
-      if (data.ok) {
+      if (data && data.ok) {
         isLocalHandRaised = Boolean(data.hand_raised);
         updateHandBtnUI(isLocalHandRaised, localVideoGranted);
         if (isLocalHandRaised) {
