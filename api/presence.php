@@ -127,9 +127,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $rState = get_room_runtime_state($roomId);
-            if ($isAdmin && empty($rState['active_presenter_key'])) {
-                $rState = set_room_presentation($roomId, $key, 'camera');
-            }
             $isActivePresenter = (!empty($rState['active_presenter_key']) && $rState['active_presenter_key'] === $key);
             $vidVal = (int)$rowExisting['video_granted'];
             if (!empty($rState['active_presenter_key']) && !$isActivePresenter) {

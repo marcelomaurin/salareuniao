@@ -41,14 +41,7 @@
     if (cfg.initialRuntimeState && cfg.initialRuntimeState.active_presenter_key) {
       return cfg.initialRuntimeState.active_presenter_key;
     }
-    if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipants === 'function') {
-      const pList = window.MeetingParticipants.getParticipants() || [];
-      const granted = pList.find(p => Number(p.video_granted) === 1);
-      if (granted) return granted.participant_key;
-      const adminPart = pList.find(p => Number(p.is_admin) === 1 || (p.display_name && p.display_name.toLowerCase().includes('administrador')));
-      if (adminPart) return adminPart.participant_key;
-    }
-    return cfg.CAN_ADMIT ? cfg.selfKey : null;
+    return null;
   }
 
   function updateStageUI() {
@@ -64,25 +57,26 @@
     // Atualiza o rótulo superior com o nome do usuário que está apresentando
     const titleEl = document.getElementById('stagePresenterName') || document.querySelector('.stage-header-title');
     if (titleEl) {
-      let presName = '';
-      if (presenterKey && presenterKey === cfg.selfKey) {
-        presName = cfg.displayName || 'Você';
-      } else if (presenterKey && window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
-        presName = window.MeetingParticipants.getParticipantName(presenterKey);
-      }
-      if (!presName || presName === 'Participante') {
-        const presTile = document.getElementById('tile-' + presenterKey);
-        if (presTile) {
-          const nameSpan = presTile.querySelector('.name');
-          if (nameSpan && nameSpan.textContent) {
-            presName = nameSpan.textContent.replace(/^Você \(|\)$/g, '').trim();
+      if (!presenterKey) {
+        titleEl.textContent = cfg.displayName || 'Sala de Reunião';
+      } else {
+        let presName = '';
+        if (presenterKey === cfg.selfKey) {
+          presName = 'Você (' + (cfg.displayName || 'Você') + ')';
+        } else if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
+          presName = window.MeetingParticipants.getParticipantName(presenterKey);
+        }
+        if (!presName || presName === 'Participante') {
+          const presTile = document.getElementById('tile-' + presenterKey);
+          if (presTile) {
+            const nameSpan = presTile.querySelector('.name');
+            if (nameSpan && nameSpan.textContent) {
+              presName = nameSpan.textContent.replace(/^Você \(|\)$/g, '').trim();
+            }
           }
         }
+        titleEl.textContent = presName || 'Apresentador';
       }
-      if (!presName) {
-        presName = cfg.CAN_ADMIT ? (cfg.displayName || 'Você') : 'Administrador';
-      }
-      titleEl.textContent = presName;
     }
 
     const allTiles = document.querySelectorAll('.tile');
@@ -91,10 +85,11 @@
       const tileId = tile.id;
       const isMe = (tileId === 'tile-local');
       const tileKey = isMe ? cfg.selfKey : tileId.replace('tile-', '');
-      const isPresenter = (tileKey === presenterKey) || (isMe && presenterKey === cfg.selfKey);
+      // Se houver apresentador definido, ele fica em cima. Se não houver, quem criou a sala ou está com a câmera fica no palco.
+      const isPresenter = presenterKey ? ((tileKey === presenterKey) || (isMe && presenterKey === cfg.selfKey)) : isMe;
 
       if (isPresenter) {
-        // O QUE ESTÁ TRANSMITINDO FICA EM CIMA (Palco Principal)
+        // QUEM ESTÁ TRANSMITINDO FICA NO TOPO (Palco Principal)
         if (tile.parentElement !== stageArea) {
           stageArea.appendChild(tile);
         }
@@ -114,9 +109,10 @@
           stateEl.textContent = 'AO VIVO';
           stateEl.style.background = '#10b981';
           stateEl.style.color = '#fff';
+          stateEl.style.display = 'inline-block';
         }
       } else {
-        // OS QUE ESTÃO PARTICIPANDO FICAM EM BAIXO (Ouvintes)
+        // DEMAIS PARTICIPANTES FICAM EM BAIXO
         if (tile.parentElement !== audienceStrip) {
           audienceStrip.appendChild(tile);
         }
@@ -132,9 +128,16 @@
         const stateEl = tile.querySelector('.state');
         if (stateEl) {
           const isHand = tile.classList.contains('hand-raised-glow');
-          stateEl.textContent = isHand ? '✋ MÃO' : 'OUVINTE';
-          stateEl.style.background = isHand ? 'rgba(234, 179, 8, 0.4)' : 'rgba(100, 116, 139, 0.3)';
-          stateEl.style.color = isHand ? '#fef08a' : '#94a3b8';
+          if (isHand) {
+            stateEl.textContent = '✋ MÃO';
+            stateEl.style.background = 'rgba(234, 179, 8, 0.4)';
+            stateEl.style.color = '#fef08a';
+            stateEl.style.display = 'inline-block';
+          } else {
+            // NUNCA rotular participante como "OUVINTE"
+            stateEl.textContent = '';
+            stateEl.style.display = 'none';
+          }
         }
       }
     });
@@ -204,7 +207,7 @@
         window.showToast('🎙️ Você está com a palavra e transmitindo áudio e vídeo.');
       }
     } else {
-      // DEMAIS PARTICIPANTES (Ouvintes / Espectadores - Não transmitem):
+      // DEMAIS PARTICIPANTES:
       if (window.MeetingMedia) {
         if (typeof window.MeetingMedia.suspendOutgoingVideo === 'function') {
           await window.MeetingMedia.suspendOutgoingVideo();

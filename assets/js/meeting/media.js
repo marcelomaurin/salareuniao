@@ -89,7 +89,7 @@
       } catch (err2) {
         console.warn('Tier 2 (Audio) falhou:', err2.name, err2.message);
         localStream = new MediaStream();
-        if (window.showToast) window.showToast('Dispositivos bloqueados. Você entrou na sala como ouvinte.');
+        if (window.showToast) window.showToast('Dispositivos de mídia não disponíveis no momento.');
         window.rtcLog && window.rtcLog('LOCAL', 'media-tier3-listener-mode');
       }
     }

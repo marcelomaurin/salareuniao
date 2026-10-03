@@ -131,18 +131,8 @@ $bridgeChunkMs = max(100, (int)($config['bridge']['chunk_ms'] ?? 250));
 $bridgeFallbackTimeoutMs = max(2000, (int)($config['bridge']['fallback_timeout_ms'] ?? 8000));
 $maxMeshParticipants = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
 $runtimeState = get_room_runtime_state((int)$me['room_id']);
-if (empty($runtimeState['active_presenter_key'])) {
-    if ($canAdmit) {
-        $runtimeState = set_room_presentation((int)$me['room_id'], $me['participant_key'], 'camera');
-    } else {
-        try {
-            $stAdm = $pdo->prepare("SELECT p.participant_key FROM room_presence p JOIN rooms r ON r.id = p.room_id LEFT JOIN room_invites i ON i.room_id = p.room_id AND i.participant_key = p.participant_key WHERE p.room_id = ? AND (i.role = 'admin' OR i.user_id = r.owner_user_id) LIMIT 1");
-            $stAdm->execute([(int)$me['room_id']]);
-            if ($admRow = $stAdm->fetch()) {
-                $runtimeState = set_room_presentation((int)$me['room_id'], $admRow['participant_key'], 'camera');
-            }
-        } catch (Throwable $e) {}
-    }
+if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
+    $runtimeState = set_room_presentation((int)$me['room_id'], $me['participant_key'], 'camera');
 }
 ?>
 <!doctype html>
@@ -2088,11 +2078,28 @@ if (empty($runtimeState['active_presenter_key'])) {
         <span id="screenShareToastText" style="color: #00d2ff; font-weight: 600; font-size: 0.88rem;">🖥️ Convidado iniciou compartilhamento</span>
         <div style="display: flex; gap: 8px;" id="screenShareToastButtons"></div>
       </div>
+<?php
+$activePresKey = $runtimeState['active_presenter_key'] ?? null;
+$isLocalPresenter = ($activePresKey && $activePresKey === $me['participant_key']) || (!$activePresKey && $canAdmit);
+$initialPresenterTitle = 'Aguardando Apresentação';
+if ($isLocalPresenter) {
+    $initialPresenterTitle = 'Você (' . ($me['display_name'] ?: 'Você') . ')';
+} elseif (!empty($activePresKey)) {
+    try {
+        $stP = $pdo->prepare("SELECT display_name FROM room_presence WHERE room_id = ? AND participant_key = ? LIMIT 1");
+        $stP->execute([(int)$me['room_id'], $activePresKey]);
+        if ($pRow = $stP->fetch()) {
+            $initialPresenterTitle = $pRow['display_name'];
+        }
+    } catch (Throwable $e) {}
+}
+?>
       <!-- Layout: quem apresenta (topo) + participantes com carrossel (baixo) -->
       <div class="stage-container" id="videos">
         <!-- Rótulo Superior: Nome do usuário que apresenta -->
-        <div class="stage-header-title" id="stagePresenterName"><?= e($me['display_name'] ?: 'Você') ?></div>
+        <div class="stage-header-title" id="stagePresenterName"><?= e($initialPresenterTitle) ?></div>
         <div id="stageArea" class="stage-area">
+          <?php if ($isLocalPresenter): ?>
           <div class="tile local stage-speaker" id="tile-local">
             <video id="local" autoplay muted playsinline webkit-playsinline></video>
             <div id="localAvatar" style="display: none; width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 2.4rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
@@ -2101,6 +2108,7 @@ if (empty($runtimeState['active_presenter_key'])) {
             <div class="name">Você (<?=e($me['display_name'])?>)</div>
             <div class="state" id="localState">AO VIVO</div>
           </div>
+          <?php endif; ?>
         </div>
 
         <!-- Carrossel de participantes na base -->
@@ -2109,7 +2117,16 @@ if (empty($runtimeState['active_presenter_key'])) {
             ◀
           </button>
           <div id="audienceStrip" class="audience-strip">
-            <!-- Participantes ouvintes são posicionados aqui -->
+            <?php if (!$isLocalPresenter): ?>
+            <div class="tile local audience-listener" id="tile-local">
+              <video id="local" autoplay muted playsinline webkit-playsinline style="display: none;"></video>
+              <div id="localAvatar" style="display: flex; width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 1.8rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
+                <?= strtoupper(substr(trim($me['display_name'] ?: 'U'), 0, 1)) ?>
+              </div>
+              <div class="name">Você (<?=e($me['display_name'])?>)</div>
+              <div class="state" id="localState" style="display: none;"></div>
+            </div>
+            <?php endif; ?>
           </div>
           <button type="button" class="audience-nav-btn audience-nav-next" onclick="MeetingParticipants.scrollAudience(1)" title="Ver mais participantes" style="display: none;">
             ▶
@@ -2524,18 +2541,18 @@ if (empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_34"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_34"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_35"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_35"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
