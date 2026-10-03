@@ -1671,10 +1671,10 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
 
     function updateSidebarActiveButtons() {
       const sb = document.getElementById('roomSidebar');
-      const isVisible = sb && !sb.classList.contains('sr-hidden');
-      const isChat = isVisible && document.getElementById('paneChat').classList.contains('active');
-      const isFiles = isVisible && document.getElementById('paneFiles').classList.contains('active');
-      const isPart = isVisible && document.getElementById('paneParticipants').classList.contains('active');
+      const isVisible = !!(sb && !sb.classList.contains('sr-hidden'));
+      const isChat = !!(isVisible && document.getElementById('paneChat')?.classList.contains('active'));
+      const isFiles = !!(isVisible && document.getElementById('paneFiles')?.classList.contains('active'));
+      const isPart = !!(isVisible && document.getElementById('paneParticipants')?.classList.contains('active'));
       
       const topChat = document.getElementById('topBtnChat');
       const topActions = document.getElementById('topBtnActions');
@@ -1688,7 +1688,6 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       if (dockActions) dockActions.classList.toggle('active', isFiles);
       if (topPart) topPart.classList.toggle('active', isPart);
       if (dockChat) dockChat.classList.toggle('active', isChat);
-      if (dockFiles) dockFiles.classList.toggle('active', isFiles);
       if (dockPart) dockPart.classList.toggle('active', isPart);
     }
 
@@ -1697,13 +1696,13 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       const isFiles = (tab === 'files');
       const isPart = (tab === 'participants');
 
-      document.getElementById('paneParticipants').classList.toggle('active', isPart);
-      document.getElementById('paneChat').classList.toggle('active', isChat);
-      document.getElementById('paneFiles').classList.toggle('active', isFiles);
+      document.getElementById('paneParticipants')?.classList.toggle('active', isPart);
+      document.getElementById('paneChat')?.classList.toggle('active', isChat);
+      document.getElementById('paneFiles')?.classList.toggle('active', isFiles);
 
-      document.getElementById('tabParticipants').classList.toggle('active', isPart);
-      document.getElementById('tabChat').classList.toggle('active', isChat);
-      document.getElementById('tabFiles').classList.toggle('active', isFiles);
+      document.getElementById('tabParticipants')?.classList.toggle('active', isPart);
+      document.getElementById('tabChat')?.classList.toggle('active', isChat);
+      document.getElementById('tabFiles')?.classList.toggle('active', isFiles);
 
       if (window.MeetingChat) {
         window.MeetingChat.setChatOpen(isChat);
