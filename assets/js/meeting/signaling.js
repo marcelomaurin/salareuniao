@@ -17,7 +17,16 @@
 
   async function jsonFetch(url, options = {}) {
     const r = await fetch(url, options);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) {
+      let detail = 'HTTP ' + r.status;
+      try {
+        const body = await r.json();
+        if (body && (body.error || body.message)) {
+          detail += ` (${body.error}${body.message ? ': ' + body.message : ''})`;
+        }
+      } catch(e) {}
+      throw new Error(detail);
+    }
     return r.json();
   }
 
