@@ -112,6 +112,16 @@
 
     const localVideo = document.getElementById('local');
     const localAvatar = document.getElementById('localAvatar');
+    if (localVideo) {
+      localVideo.classList.remove('screen-sharing');
+      localVideo.style.transform = '';
+      localVideo.style.webkitTransform = '';
+      localVideo.style.objectFit = 'cover';
+    }
+    const tileLocal = document.getElementById('tile-local');
+    if (tileLocal) {
+      tileLocal.classList.remove('is-screen-share');
+    }
     if (localVideo && localStream) {
       localVideo.srcObject = localStream;
       localVideo.style.display = getEffectiveVideo() ? 'block' : 'none';
@@ -572,6 +582,14 @@
       if (localVideo) {
         localVideo.srcObject = new MediaStream([screenTrack, ...(localStream ? localStream.getAudioTracks() : [])]);
         localVideo.style.display = 'block';
+        localVideo.style.transform = 'none';
+        localVideo.style.webkitTransform = 'none';
+        localVideo.style.objectFit = 'contain';
+        localVideo.classList.add('screen-sharing');
+      }
+      const tileLocal = document.getElementById('tile-local');
+      if (tileLocal) {
+        tileLocal.classList.add('is-screen-share');
       }
       const localAvatar = document.getElementById('localAvatar');
       if (localAvatar) localAvatar.style.display = 'none';

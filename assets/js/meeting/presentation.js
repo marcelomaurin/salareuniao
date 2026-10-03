@@ -96,9 +96,24 @@
         tile.classList.add('stage-speaker');
         tile.classList.remove('audience-listener');
         
+        const isScreen = (activeMediaType === 'screen') && isPresenter;
+        tile.classList.toggle('is-screen-share', isScreen);
+
         const v = tile.querySelector('video');
         if (v) {
           v.style.display = 'block';
+          if (isScreen) {
+            v.style.transform = 'none';
+            v.style.webkitTransform = 'none';
+            v.style.objectFit = 'contain';
+          } else if (tile.id === 'tile-local') {
+            v.style.transform = 'scaleX(-1)';
+            v.style.webkitTransform = 'scaleX(-1)';
+            v.style.objectFit = 'cover';
+          } else {
+            v.style.transform = 'none';
+            v.style.webkitTransform = 'none';
+          }
           try { v.play().catch(() => {}); } catch(e) {}
         }
         const av = tile.querySelector('.peer-avatar, #localAvatar');
