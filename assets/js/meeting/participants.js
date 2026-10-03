@@ -264,11 +264,13 @@
       participantNames.set(p.participant_key, p.display_name);
       lastPresence.set(p.participant_key, Date.now());
 
-      // Descoberta automática de peer em qualquer ordem (WebRTC + Encaminhamento Relay)
+      // Descoberta automática de peer em qualquer ordem
       if (cfg.selfKey && p.participant_key !== cfg.selfKey) {
+        // Tenta sempre conexão direta WebRTC P2P (na mesma rede conecta direto via host candidates P2P sem gastar banda de servidor)
         if (window.MeetingWebRTC) {
           window.MeetingWebRTC.getOrCreatePeer(p.participant_key);
         }
+        // Registra também no Bridge de encaminhamento como fallback automático
         if (window.MeetingBridge && typeof window.MeetingBridge.syncParticipant === 'function') {
           window.MeetingBridge.syncParticipant(p.participant_key);
         }

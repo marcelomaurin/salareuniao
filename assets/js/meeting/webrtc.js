@@ -65,12 +65,34 @@
 
     // 3. Handlers de eventos configurados antes de adicionar transceivers
 
-    // Configuração de onicecandidate
+    // Configuração de onicecandidate com batching resiliente (envia lote a cada 100ms)
+    let iceBatchTimer = null;
+    let localIceBatch = [];
+
+    const flushLocalIceBatch = () => {
+      if (iceBatchTimer) {
+        clearTimeout(iceBatchTimer);
+        iceBatchTimer = null;
+      }
+      if (localIceBatch.length > 0) {
+        const toSend = [...localIceBatch];
+        localIceBatch = [];
+        window.MeetingSignaling.sendSignal('ice', { candidates: toSend }, remoteKey)
+          .catch(err => console.warn(`Erro ao enviar lote ICE para ${remoteKey}:`, err));
+      }
+    };
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         window.rtcLog(remoteKey, 'ice-local', event.candidate);
-        window.MeetingSignaling.sendSignal('ice', event.candidate.toJSON ? event.candidate.toJSON() : event.candidate, remoteKey)
-          .catch(err => console.warn('Erro ao enviar ICE:', err));
+        const cJson = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+        localIceBatch.push(cJson);
+
+        if (!iceBatchTimer) {
+          iceBatchTimer = setTimeout(flushLocalIceBatch, 100);
+        }
+      } else {
+        flushLocalIceBatch();
       }
     };
 
@@ -437,7 +459,7 @@
       return;
     }
 
-    // Sinal de Candidato ICE com controle resiliente de fila
+    // Sinal de Candidato ICE com controle resiliente de lote e fila
     if (m.message_type === 'ice') {
       const pc = getOrCreatePeer(key);
       const state = peerState.get(key);
@@ -448,22 +470,34 @@
         return;
       }
 
-      if (pc.remoteDescription && pc.remoteDescription.type) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(p));
-          window.rtcLog(key, 'ice-remote-added');
-        } catch (err) {
-          if (!state.ignoreOffer) {
-            console.warn(`Erro ao adicionar ICE candidate de ${key}:`, err);
-          }
-        }
-      } else {
-        // Enfileira candidato que chegou antes do remoteDescription
-        const q = pendingIce.get(key) || [];
-        q.push(p);
-        pendingIce.set(key, q);
-        window.rtcLog(key, 'ice-remote-queued');
+      // Suporta tanto formato em lote ({ candidates: [...] }) quanto individual ({ candidate: '...' })
+      let candidateList = [];
+      if (Array.isArray(p.candidates)) {
+        candidateList = p.candidates;
+      } else if (p.candidate !== undefined) {
+        candidateList = [p];
       }
+
+      for (const cand of candidateList) {
+        if (!cand || (!cand.candidate && cand.candidate !== '')) continue;
+        if (pc.remoteDescription && pc.remoteDescription.type) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            window.rtcLog(key, 'ice-remote-added');
+          } catch (err) {
+            if (!state.ignoreOffer) {
+              console.warn(`Erro ao adicionar ICE candidate de ${key}:`, err);
+            }
+          }
+        } else {
+          // Enfileira candidato que chegou antes do remoteDescription
+          const q = pendingIce.get(key) || [];
+          q.push(cand);
+          pendingIce.set(key, q);
+          window.rtcLog(key, 'ice-remote-queued');
+        }
+      }
+      return;
     }
   }
 

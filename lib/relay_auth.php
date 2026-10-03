@@ -6,8 +6,8 @@ if (!defined('IS_API')) {
 }
 
 /**
- * Autentica o participante do Relay HTTP com cache em disco para evitar
- * esgotamento de conexões MySQL na Hospedagem Compartilhada (Hostinger).
+ * Autentica o participante do Relay HTTP com cache multi-nível (memória + /tmp + disco)
+ * para evitar qualquer consulta ou sobrecarga no MySQL na Hospedagem Compartilhada (Hostinger).
  */
 function get_relay_auth_info(string $token): ?array {
     $token = trim($token);
@@ -15,19 +15,27 @@ function get_relay_auth_info(string $token): ?array {
         return null;
     }
 
-    $cacheDir = __DIR__ . '/../storage/tokens';
-    if (!is_dir($cacheDir)) {
-        @mkdir($cacheDir, 0775, true);
+    static $memoryCache = [];
+    if (isset($memoryCache[$token])) {
+        return $memoryCache[$token];
     }
-    $cacheFile = $cacheDir . '/' . md5($token) . '.json';
 
-    // 1. Tenta carregar do cache em disco (TTL de 12 horas - sessão da reunião)
-    if (is_file($cacheFile)) {
-        $raw = @file_get_contents($cacheFile);
-        if ($raw) {
-            $cached = json_decode($raw, true);
-            if ($cached && isset($cached['exp']) && $cached['exp'] > time() && !empty($cached['data'])) {
-                return $cached['data'];
+    $hash = md5($token);
+    $files = [
+        sys_get_temp_dir() . '/tok_' . $hash . '.json',
+        __DIR__ . '/../storage/tokens/' . $hash . '.json'
+    ];
+
+    // 1. Tenta carregar do cache em /tmp ou em storage/tokens (12 horas)
+    foreach ($files as $f) {
+        if (is_file($f)) {
+            $raw = @file_get_contents($f);
+            if ($raw) {
+                $cached = json_decode($raw, true);
+                if ($cached && isset($cached['exp']) && $cached['exp'] > time() && !empty($cached['data'])) {
+                    $memoryCache[$token] = $cached['data'];
+                    return $cached['data'];
+                }
             }
         }
     }
@@ -53,12 +61,18 @@ function get_relay_auth_info(string $token): ?array {
             'participant_key' => preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$me['participant_key'])
         ];
 
-        // Salva no cache com TTL de 12 horas
-        @file_put_contents($cacheFile, json_encode([
+        $payload = json_encode([
             'exp' => time() + 43200,
             'data' => $data
-        ], JSON_UNESCAPED_SLASHES), LOCK_EX);
+        ], JSON_UNESCAPED_SLASHES);
 
+        foreach ($files as $f) {
+            $dir = dirname($f);
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            @file_put_contents($f, $payload, LOCK_EX);
+        }
+
+        $memoryCache[$token] = $data;
         return $data;
     } catch (Throwable $e) {
         return null;

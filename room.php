@@ -60,18 +60,21 @@ $canAdmit = $isRoomAdmin;
 // Garante subpasta storage/<room_id> dinâmica criada
 get_room_storage_dir((int)$me['room_id']);
 
-// Pré-aquece o cache de autenticação do Relay HTTP em disco (12 horas)
-$tokenCacheDir = __DIR__ . '/storage/tokens';
-if (!is_dir($tokenCacheDir)) {
-    @mkdir($tokenCacheDir, 0775, true);
-}
-@file_put_contents($tokenCacheDir . '/' . md5($token) . '.json', json_encode([
+// Pré-aquece o cache de autenticação do Relay HTTP em disco e em /tmp (12 horas)
+$tokenCacheData = json_encode([
     'exp' => time() + 43200,
     'data' => [
         'room_id' => (int)$me['room_id'],
         'participant_key' => preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$me['participant_key'])
     ]
-], JSON_UNESCAPED_SLASHES), LOCK_EX);
+], JSON_UNESCAPED_SLASHES);
+
+$tokenCacheDir = __DIR__ . '/storage/tokens';
+if (!is_dir($tokenCacheDir)) {
+    @mkdir($tokenCacheDir, 0775, true);
+}
+@file_put_contents($tokenCacheDir . '/' . md5($token) . '.json', $tokenCacheData, LOCK_EX);
+@file_put_contents(sys_get_temp_dir() . '/tok_' . md5($token) . '.json', $tokenCacheData, LOCK_EX);
 
 $cursorQuery = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM signaling_messages WHERE room_id=?');
 $cursorQuery->execute([$me['room_id']]);
@@ -118,6 +121,9 @@ $ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
 $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);
 $wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
 $wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
+$turnEnabled = !empty($turn['enabled']) && !empty($turn['urls']);
+// Se não houver WebSocket nem TURN configurados, opera no modo HTTP Relay direto (ideal para Hospedagem Compartilhada)
+$relayMode = !$wsEnabled && !$turnEnabled;
 // Na Hospedagem Compartilhada (sem daemons), o Bridge opera via Webservice HTTP Relay sem abrir WebSockets
 $bridgeEnabled = $wsEnabled && !empty($config['bridge']['enabled']) && !empty($config['bridge']['public_url']);
 $bridgeUrl = $bridgeEnabled ? (string)$config['bridge']['public_url'] : '';
@@ -1745,6 +1751,7 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       WS_URL: <?=json_encode($wsUrl)?>,
       WS_ENABLED: <?=json_encode($wsEnabled)?>,
       WS_RECONNECT_MS: <?=$wsReconnect?>,
+      RELAY_MODE: <?=json_encode($relayMode)?>,
       BRIDGE_ENABLED: <?=json_encode($bridgeEnabled)?>,
       BRIDGE_URL: <?=json_encode($bridgeUrl)?>,
       BRIDGE_CHUNK_MS: <?=$bridgeChunkMs?>,
@@ -1760,18 +1767,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_12"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_12"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_14"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_14"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

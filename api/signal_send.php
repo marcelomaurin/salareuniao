@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+define('IS_API', true);
 require __DIR__ . '/../lib/bootstrap.php';
 header('Content-Type: application/json; charset=utf-8');
 
