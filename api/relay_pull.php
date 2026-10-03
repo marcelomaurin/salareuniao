@@ -1,8 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../lib/bootstrap.php';
-
+define('IS_API', true);
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -16,24 +15,20 @@ try {
         exit;
     }
 
-    $st = $pdo->prepare("SELECT i.id, i.room_id, i.status, i.participant_key, r.status as room_status 
-                         FROM room_invites i 
-                         JOIN rooms r ON r.id = i.room_id 
-                         WHERE i.token = ? LIMIT 1");
-    $st->execute([$token]);
-    $me = $st->fetch();
+    require_once __DIR__ . '/../lib/relay_auth.php';
+    $me = get_relay_auth_info($token);
 
-    if (!$me || empty($me['participant_key']) || $me['status'] !== 'approved' || $me['room_status'] !== 'open') {
+    if (!$me) {
         http_response_code(403);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => 'forbidden_or_inactive_room']);
         exit;
     }
 
-    $roomId = (int)$me['room_id'];
-    $roomRelayDir = get_room_storage_dir($roomId) . '/relay';
+    $roomId = $me['room_id'];
+    $roomRelayDir = __DIR__ . '/../storage/' . $roomId . '/relay';
 
-    // Lista participantes com transmissao ativa no relay
+    // Lista participantes com transmissão ativa no relay
     if (!empty($_GET['list'])) {
         header('Content-Type: application/json; charset=utf-8');
         $publishers = [];
@@ -79,7 +74,7 @@ try {
     $after = (int)($_GET['after'] ?? -1);
     $needInit = !empty($_GET['init']) || ($after < 0);
 
-    // Se o cliente precisa do cabecalho de inicializacao WebM
+    // Se o cliente precisa do cabeçalho de inicialização WebM
     if ($needInit) {
         $initFile = $pubDir . '/init.bin';
         if (is_file($initFile)) {
@@ -96,16 +91,15 @@ try {
     $targetSeq = $after + 1;
     $targetFile = $pubDir . '/chunk_' . $targetSeq . '.bin';
 
-    // Long-polling: se o proximo chunk ainda nao esta em disco, aguarda ate 700ms verificando a cada 50ms
+    // Long-polling curto: aguarda até 400ms verificando a cada 40ms sem prender conexões MySQL
     if (!is_file($targetFile)) {
         $startTime = microtime(true);
-        while (microtime(true) - $startTime < 0.70) {
-            usleep(50000); // 50ms
+        while (microtime(true) - $startTime < 0.40) {
+            usleep(40000); // 40ms
             clearstatcache(true, $targetFile);
             if (is_file($targetFile)) {
                 break;
             }
-            // Se o transmissor avancou muito a frente do cliente (gap), pula para o chunk mais recente
             if (is_file($metaFile)) {
                 $curMeta = json_decode((string)file_get_contents($metaFile), true);
                 $curLast = (int)($curMeta['last_seq'] ?? 0);
@@ -128,7 +122,7 @@ try {
         exit;
     }
 
-    // Nenhum novo chunk disponivel neste ciclo
+    // Nenhum novo chunk disponível neste ciclo
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'ok' => true,

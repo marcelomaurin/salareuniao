@@ -15,6 +15,7 @@
   let ws = null;
   let isConnecting = false;
   let isPublishing = false;
+  let wsBridgeUnavailable = false;
   let recorder = null;
   let currentStreamId = null;
   let activeMediaType = 'camera';
@@ -95,6 +96,9 @@
   }
 
   function connect() {
+    if (wsBridgeUnavailable) {
+      return Promise.reject(new Error('WebSocket indisponível no servidor'));
+    }
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return Promise.resolve();
     }
@@ -122,15 +126,18 @@
         };
 
         ws.onerror = (err) => {
-          console.warn('[MeetingBridge] Erro de conexão:', err);
-          if (window.rtcLog) window.rtcLog('bridge', 'BRIDGE_FAILED');
+          console.warn('[MeetingBridge] Canal WebSocket não suportado ou offline; utilizando encaminhamento HTTP.');
+          wsBridgeUnavailable = true;
+          if (window.rtcLog) window.rtcLog('bridge', 'WS_FALLBACK_HTTP');
         };
 
         ws.onclose = () => {
           isConnecting = false;
           ws = null;
-          console.log('[MeetingBridge] Desconectado do Bridge.');
-          stopPublishing();
+          // Não derruba a publicação de vídeo/áudio se o encaminhamento HTTP estiver ativo!
+          if (activeFallbacks.size === 0 && !isPublishing) {
+            console.log('[MeetingBridge] Desconectado do Bridge.');
+          }
         };
       } catch (err) {
         isConnecting = false;
@@ -196,7 +203,7 @@
       return;
     }
 
-    if (cfg.BRIDGE_ENABLED && cfg.BRIDGE_URL) {
+    if (cfg.BRIDGE_ENABLED && cfg.BRIDGE_URL && !wsBridgeUnavailable) {
       connect().catch(() => {});
     }
 

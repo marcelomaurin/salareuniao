@@ -8,8 +8,9 @@ if (!is_file($configFile)) {
 }
 $config = require $configFile;
 
-$isApiRequest = (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '/api/'))
-    || (isset($_SERVER['SCRIPT_NAME']) && str_contains($_SERVER['SCRIPT_NAME'], '/api/'));
+$isApiRequest = defined('IS_API')
+    || (isset($_SERVER['REQUEST_URI']) && (strpos($_SERVER['REQUEST_URI'], '/api/') !== false))
+    || (isset($_SERVER['SCRIPT_NAME']) && (strpos($_SERVER['SCRIPT_NAME'], '/api/') !== false));
 
 if (!$isApiRequest && session_status() !== PHP_SESSION_ACTIVE) {
     session_name($config['app']['session_name'] ?? 'MAURINSOFTSESSID');

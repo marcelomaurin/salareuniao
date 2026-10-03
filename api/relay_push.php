@@ -1,8 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../lib/bootstrap.php';
-
+define('IS_API', true);
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -20,21 +19,17 @@ try {
         exit;
     }
 
-    $st = $pdo->prepare("SELECT i.id, i.room_id, i.status, i.participant_key, r.status as room_status 
-                         FROM room_invites i 
-                         JOIN rooms r ON r.id = i.room_id 
-                         WHERE i.token = ? LIMIT 1");
-    $st->execute([$token]);
-    $me = $st->fetch();
+    require_once __DIR__ . '/../lib/relay_auth.php';
+    $me = get_relay_auth_info($token);
 
-    if (!$me || empty($me['participant_key']) || $me['status'] !== 'approved' || $me['room_status'] !== 'open') {
+    if (!$me) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'forbidden_or_inactive_room']);
         exit;
     }
 
-    $roomId = (int)$me['room_id'];
-    $participantKey = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$me['participant_key']);
+    $roomId = $me['room_id'];
+    $participantKey = $me['participant_key'];
     $seq = (int)($_GET['seq'] ?? $_SERVER['HTTP_X_CHUNK_SEQ'] ?? 0);
     $mime = trim((string)($_GET['mime'] ?? $_SERVER['HTTP_X_MIME_TYPE'] ?? 'video/webm;codecs=vp8,opus'));
     $isInit = !empty($_GET['init']) || (!empty($_SERVER['HTTP_X_IS_INIT']) && $_SERVER['HTTP_X_IS_INIT'] === '1') || ($seq === 0);
@@ -46,12 +41,12 @@ try {
         exit;
     }
 
-    $relayDir = get_room_storage_dir($roomId) . '/relay/' . $participantKey;
+    $relayDir = __DIR__ . '/../storage/' . $roomId . '/relay/' . $participantKey;
     if (!is_dir($relayDir)) {
         @mkdir($relayDir, 0775, true);
     }
 
-    // Se for o chunk inicial com o cabecalho EBML/Track do WebM, armazena como init.bin
+    // Se for o chunk inicial com o cabeçalho EBML/Track do WebM, armazena como init.bin
     if ($isInit || !is_file($relayDir . '/init.bin') || $seq === 0) {
         file_put_contents($relayDir . '/init.bin', $raw, LOCK_EX);
     }
@@ -69,7 +64,7 @@ try {
     ];
     file_put_contents($relayDir . '/meta.json', json_encode($meta, JSON_UNESCAPED_SLASHES), LOCK_EX);
 
-    // Limpeza de buffer rotativo: mantem apenas os ultimos 8 chunks para economizar disco
+    // Limpeza de buffer rotativo: mantém apenas os últimos 8 chunks
     if ($seq > 8) {
         $cleanupBefore = $seq - 8;
         for ($i = max(0, $cleanupBefore - 4); $i <= $cleanupBefore; $i++) {
