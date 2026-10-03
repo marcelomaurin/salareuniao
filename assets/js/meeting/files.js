@@ -51,6 +51,17 @@
         topBadge.textContent = String(files.length);
       }
 
+      // Atualiza badge de arquivos no menu de Ações (Tarefa 37)
+      const menuBadge = document.getElementById('menuFilesCountBadge');
+      const actionDot = document.getElementById('actionsDotBadge');
+      const dockDot = document.getElementById('dockActionsDotBadge');
+      if (menuBadge) {
+        menuBadge.style.display = files.length > 0 ? 'inline-block' : 'none';
+        menuBadge.textContent = String(files.length);
+      }
+      if (actionDot) actionDot.style.display = files.length > 0 ? 'inline-block' : 'none';
+      if (dockDot) dockDot.style.display = files.length > 0 ? 'inline-block' : 'none';
+
       if (!listEl) return;
 
       if (files.length === 0) {

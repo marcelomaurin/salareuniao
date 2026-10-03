@@ -961,3 +961,101 @@ a:hover {
     color: var(--text-dim, #64748b) !important;
     cursor: default !important;
 }
+
+
+/* ==========================================================================
+   Indicador Compacto de Mão Levantada no Topo Esquerdo (Tarefas 24 a 31)
+   ========================================================================== */
+.raised-hand-indicator {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(234, 179, 8, 0.55);
+    color: #fef08a;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+}
+
+.raised-hand-indicator:hover {
+    transform: scale(1.05);
+    background: rgba(30, 41, 59, 0.95);
+    border-color: #fef08a;
+}
+
+.raised-hand-indicator.pulse {
+    animation: handIndicatorPulse 1.5s ease-out;
+}
+
+@keyframes handIndicatorPulse {
+    0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.85);
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 0 12px rgba(234, 179, 8, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    }
+}
+
+/* ==========================================================================
+   Menu Dropdown de Ações da Reunião (Tarefas 32 a 38)
+   ========================================================================== */
+.room-actions-menu {
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+    padding: 6px;
+    min-width: 230px;
+    max-width: 320px;
+    z-index: 10000;
+    box-sizing: border-box;
+}
+
+.actions-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    min-height: 44px; /* Touch target >= 44px para acessibilidade mobile */
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    text-align: left;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+.actions-menu-item:hover,
+.actions-menu-item:focus {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--primary, #00d2ff);
+    outline: none;
+}
+
+.actions-menu-item:active {
+    background: rgba(0, 210, 255, 0.15);
+}

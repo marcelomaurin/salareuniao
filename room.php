@@ -1328,8 +1328,8 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         💬 <span class="header-btn-text">Chat</span> <span id="chatBadgeCount" style="display:none; background: #ef4444; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
       </button>
 
-      <button type="button" class="header-btn" id="topBtnFiles" onclick="openSidebarTab('files')" title="Arquivos Compartilhados">
-        📁 <span class="header-btn-text">Arquivos</span> <span id="filesBadgeCount" style="display:none; background: var(--primary, #00d2ff); color: #0b1120; font-weight: 700; border-radius: 10px; padding: 1px 6px; font-size: 11px;">0</span>
+      <button type="button" class="header-btn" id="topBtnActions" onclick="toggleRoomActionsMenu(this)" title="Menu de Ações da Reunião">
+        ⚙️ <span class="header-btn-text">Ações</span> <span id="actionsDotBadge" style="display:none; width: 7px; height: 7px; background: var(--primary, #00d2ff); border-radius: 50%; margin-left: 4px;" title="Novos arquivos disponíveis"></span>
       </button>
 
       <button type="button" class="header-btn" id="topBtnInvite" onclick="copyInvite()" title="Copiar link de convite">
@@ -1369,9 +1369,16 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
 
       <!-- Grid de Vídeos Centralizado -->
             <!-- Notificação Flutuante de Pedido da Palavra (Teams Style Toast) -->
-      <div id="handToast" style="display: none; position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(16px); border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 30px; padding: 8px 18px; z-index: 75; box-shadow: 0 10px 30px rgba(0,0,0,0.6); align-items: center; gap: 14px;">
-        <span id="handToastText" style="color: #fef08a; font-weight: 600; font-size: 0.88rem;">✋ Convidado pediu a palavra</span>
-        <div style="display: flex; gap: 8px;" id="handToastButtons"></div>
+      <!-- Indicador Compacto de Mão Levantada no Canto Superior Esquerdo (Tarefas 24 a 31) -->
+      <div id="raisedHandIndicator" class="raised-hand-indicator" style="display: none;" onclick="MeetingParticipants.onRaisedHandIndicatorClick()" title="Pedidos de palavra">
+        <span>✋</span>
+        <span id="raisedHandCount" style="font-size: 0.85rem; margin-left: 2px;"></span>
+      </div>
+
+      <!-- Toast Flutuante Central Antigo desativado (Tarefa 31) -->
+      <div id="handToast" style="display: none !important;">
+        <span id="handToastText"></span>
+        <div id="handToastButtons"></div>
       </div>
             <!-- Banner de Controle da Exibição Full (Resolução Máxima / Compartilhamento) -->
       <div id="fullModeBanner" class="full-mode-banner">
@@ -1424,8 +1431,8 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         <button type="button" id="btnDockChat" onclick="openSidebarTab('chat')" title="Abrir Chat">
           💬 <span class="btn-label">Chat</span>
         </button>
-        <button type="button" id="btnDockFiles" onclick="openSidebarTab('files')" title="Ver Arquivos da Sala">
-          📁 <span class="btn-label">Arquivos</span>
+        <button type="button" id="btnDockActions" onclick="toggleRoomActionsMenu(this)" title="Ações da Reunião" style="position: relative;">
+          ⚙️ <span class="btn-label">Ações</span> <span id="dockActionsDotBadge" style="display:none; width: 6px; height: 6px; background: var(--primary, #00d2ff); border-radius: 50%; position: absolute; top: 6px; right: 8px;"></span>
         </button>
         <button type="button" id="btnDockParticipants" onclick="openSidebarTab('participants')" title="Ver Participantes">
           👥 <span class="btn-label">Participantes</span>
@@ -1571,6 +1578,84 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       updateSidebarActiveButtons();
     }
 
+    
+    // Controle do Menu de Ações da Reunião (Tarefas 32 a 38)
+    let activeActionsAnchor = null;
+
+    function toggleRoomActionsMenu(anchor) {
+      const menu = document.getElementById('roomActionsMenu');
+      if (!menu) return;
+      if (menu.style.display === 'block' && activeActionsAnchor === anchor) {
+        closeRoomActionsMenu();
+        return;
+      }
+      openRoomActionsMenu(anchor);
+    }
+
+    function openRoomActionsMenu(anchor) {
+      const menu = document.getElementById('roomActionsMenu');
+      if (!menu || !anchor) return;
+      activeActionsAnchor = anchor;
+
+      const rect = anchor.getBoundingClientRect();
+      menu.style.display = 'block';
+
+      const menuWidth = 230;
+      const menuHeight = menu.offsetHeight || 140;
+      const isDock = (anchor.id === 'btnDockActions');
+
+      let left = rect.left + (rect.width / 2) - (menuWidth / 2);
+      if (left < 10) left = 10;
+      if (left + menuWidth > window.innerWidth - 10) {
+        left = window.innerWidth - menuWidth - 10;
+      }
+
+      let top = 0;
+      if (isDock) {
+        top = rect.top - menuHeight - 10;
+        if (top < 10) top = rect.bottom + 10;
+      } else {
+        top = rect.bottom + 8;
+        if (top + menuHeight > window.innerHeight - 10) {
+          top = rect.top - menuHeight - 8;
+        }
+      }
+
+      menu.style.position = 'fixed';
+      menu.style.top = Math.round(top) + 'px';
+      menu.style.left = Math.round(left) + 'px';
+      menu.style.zIndex = '10000';
+    }
+
+    function closeRoomActionsMenu() {
+      const menu = document.getElementById('roomActionsMenu');
+      if (menu) menu.style.display = 'none';
+      activeActionsAnchor = null;
+    }
+
+    function onActionMenuItem(action) {
+      closeRoomActionsMenu();
+      if (action === 'files') {
+        openSidebarTab('files');
+      } else if (action === 'invite') {
+        copyInvite();
+      } else if (action === 'screen') {
+        if (window.MeetingMedia) window.MeetingMedia.toggleScreen();
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('roomActionsMenu');
+      if (!menu || menu.style.display !== 'block') return;
+      if (menu.contains(e.target)) return;
+      if (activeActionsAnchor && activeActionsAnchor.contains(e.target)) return;
+      closeRoomActionsMenu();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeRoomActionsMenu();
+    });
+
     function openSidebarTab(tab) {
       const sb = document.getElementById('roomSidebar');
       if (sb && sb.classList.contains('sr-hidden')) {
@@ -1588,14 +1673,15 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       const isPart = isVisible && document.getElementById('paneParticipants').classList.contains('active');
       
       const topChat = document.getElementById('topBtnChat');
-      const topFiles = document.getElementById('topBtnFiles');
+      const topActions = document.getElementById('topBtnActions');
       const topPart = document.getElementById('topBtnParticipants');
       const dockChat = document.getElementById('btnDockChat');
-      const dockFiles = document.getElementById('btnDockFiles');
+      const dockActions = document.getElementById('btnDockActions');
       const dockPart = document.getElementById('btnDockParticipants');
 
       if (topChat) topChat.classList.toggle('active', isChat);
-      if (topFiles) topFiles.classList.toggle('active', isFiles);
+      if (topActions) topActions.classList.toggle('active', isFiles);
+      if (dockActions) dockActions.classList.toggle('active', isFiles);
       if (topPart) topPart.classList.toggle('active', isPart);
       if (dockChat) dockChat.classList.toggle('active', isChat);
       if (dockFiles) dockFiles.classList.toggle('active', isFiles);
@@ -1690,5 +1776,20 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
     MeetingSignaling.setSignalCursor(<?=$signalCursor?>);
     MeetingApp.initMeeting();
   </script>
+
+  <!-- Menu Único de Ações da Reunião (Tarefas 32 a 38) -->
+  <div id="roomActionsMenu" class="room-actions-menu" style="display: none;" role="menu">
+    <button type="button" class="actions-menu-item" onclick="onActionMenuItem('files')">
+      <span>📁 Arquivos da Sala</span>
+      <span id="menuFilesCountBadge" class="sr-badge sr-badge-primary" style="display:none; margin-left: auto; font-size: 0.72rem; padding: 2px 7px; border-radius: 10px; background: rgba(0, 210, 255, 0.2); color: #00d2ff; font-weight: 700;">0</span>
+    </button>
+    <button type="button" class="actions-menu-item" onclick="onActionMenuItem('invite')">
+      <span>📋 Convidar / Copiar Link</span>
+    </button>
+    <button type="button" class="actions-menu-item" onclick="onActionMenuItem('screen')">
+      <span>🖥 Compartilhar Tela</span>
+    </button>
+  </div>
+
 </body>
 </html>

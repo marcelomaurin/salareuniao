@@ -127,6 +127,14 @@
         return tA - tB;
       });
 
+    // Tarefa 30: Sincroniza knownHandKeys removendo quem cancelou, saiu ou foi atendido
+    const activeHandKeys = new Set(handRequesters.map(r => r.participant_key));
+    for (const k of knownHandKeys) {
+      if (!activeHandKeys.has(k)) {
+        knownHandKeys.delete(k);
+      }
+    }
+
     let hasNewHand = false;
     handRequesters.forEach(hr => {
       if (!knownHandKeys.has(hr.participant_key)) {
@@ -134,29 +142,13 @@
         hasNewHand = true;
       }
     });
-    if (hasNewHand && handRequesters.length > 0) {
-      playHandChime();
-    }
 
-    // Toast com ACEITAR e RECUSAR para o Administrador (Tarefa 06)
+    // Tarefas 24 a 31: Atualiza Indicador Compacto no Canto Superior Esquerdo
+    updateRaisedHandIndicator(handRequesters, hasNewHand);
+
+    // Desativa dependência do grande toast central (Tarefa 31)
     const handToast = document.getElementById('handToast');
-    const handToastText = document.getElementById('handToastText');
-    const handToastBtns = document.getElementById('handToastButtons');
-
-    if (cfg.CAN_ADMIT && handToast && handToastText && handToastBtns) {
-      if (handRequesters.length > 0) {
-        const topH = handRequesters[0];
-        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} na fila)` : '';
-        handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
-        handToastBtns.innerHTML = `
-          <button type="button" class="sr-btn sr-btn-success" style="padding: 5px 14px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 700;" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ ACEITAR</button>
-          <button type="button" class="sr-btn sr-btn-danger" style="padding: 5px 14px; font-size: 0.8rem; border-radius: 20px; background: #ef4444; border: none; color: #fff; cursor: pointer; font-weight: 700;" onclick="MeetingParticipants.rejectHandRequest('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✕ RECUSAR</button>
-        `;
-        handToast.style.display = 'flex';
-      } else {
-        handToast.style.display = 'none';
-      }
-    }
+    if (handToast) handToast.style.display = 'none';
     updateCounters();
     updateVideoGridCount();
   }
@@ -558,6 +550,68 @@
     }
     updateCounters();
     updateVideoGridCount();
+  }
+
+  
+  let prevHandCount = 0;
+
+  function updateRaisedHandIndicator(handRequesters, hasNewHand) {
+    const cfg = window.MEETING_CONFIG || {};
+    const indicator = document.getElementById('raisedHandIndicator');
+    const countEl = document.getElementById('raisedHandCount');
+    if (!indicator) return;
+
+    // Tarefa 25: Exclusivo do administrador (CAN_ADMIT)
+    if (!cfg.CAN_ADMIT || !handRequesters || handRequesters.length === 0) {
+      indicator.style.display = 'none';
+      prevHandCount = 0;
+      return;
+    }
+
+    const count = handRequesters.length;
+    indicator.style.display = 'flex';
+
+    // Tarefa 24: Formato visual (1 -> ✋, >1 -> ✋ count)
+    if (countEl) {
+      countEl.textContent = count > 1 ? String(count) : '';
+    }
+
+    // Tarefa 28: Tooltip descritivo
+    const topH = handRequesters[0];
+    const topName = topH.display_name || 'Participante';
+    if (count === 1) {
+      indicator.title = `${topName} pediu a palavra (clique para ver na aba Participantes)`;
+    } else {
+      indicator.title = `${topName} e mais ${count - 1} participante(s) pediram a palavra (clique para ver)`;
+    }
+
+    // Tarefa 29: Pulsar somente quando chegar um novo pedido
+    if (hasNewHand || count > prevHandCount) {
+      indicator.classList.remove('pulse');
+      void indicator.offsetWidth; // Força reflow para reiniciar animação
+      indicator.classList.add('pulse');
+      playHandChime();
+      setTimeout(() => {
+        indicator.classList.remove('pulse');
+      }, 1500);
+    }
+
+    prevHandCount = count;
+  }
+
+  function onRaisedHandIndicatorClick() {
+    if (typeof openSidebarTab === 'function') {
+      openSidebarTab('participants');
+    }
+    const handSec = document.getElementById('sidebarHandSection');
+    if (handSec) {
+      handSec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      handSec.style.transition = 'box-shadow 0.3s ease';
+      handSec.style.boxShadow = '0 0 14px rgba(234, 179, 8, 0.6)';
+      setTimeout(() => {
+        handSec.style.boxShadow = '';
+      }, 1500);
+    }
   }
 
   function renderWaitingList(waitingList) {
@@ -976,6 +1030,7 @@ O participante será desconectado imediatamente.`)) {
         }
 
         dismissHandToast();
+        knownHandKeys.delete(targetKey);
         if (window.showToast) window.showToast(`🎉 Apresentação de ${targetName} aprovada em modo Full!`);
 
         if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
@@ -1007,6 +1062,7 @@ O participante será desconectado imediatamente.`)) {
       const data = await resp.json();
       if (data.ok) {
         dismissHandToast();
+        knownHandKeys.delete(targetKey);
         if (window.showToast) window.showToast(`Pedido de palavra de ${targetName} foi recusado.`);
         if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
           window.MeetingApp.triggerHeartbeat();
@@ -1290,6 +1346,8 @@ O participante será desconectado imediatamente.`)) {
     muteParticipant,
     toggleAudioPermission,
     banParticipant,
+    onRaisedHandIndicatorClick,
+    updateRaisedHandIndicator,
     removeTile,
     ensureTile,
     updateCounters,
