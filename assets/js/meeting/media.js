@@ -40,6 +40,13 @@
     frameRate: { ideal: 30, max: 30 }
   };
 
+  // Perfil de Baixa Resolução para Múltiplos Participantes (160x120 @ 15fps)
+  const MEDIA_PROFILE_MULTI_PEERS = {
+    width: { ideal: 160, max: 160 },
+    height: { ideal: 120, max: 120 },
+    frameRate: { ideal: 15, max: 15 }
+  };
+
   function getEffectiveVideo() {
     return camera_user_enabled && camera_admin_allowed && camera_room_allowed;
   }
@@ -229,13 +236,55 @@
     }
   }
 
+  let currentProfileMode = 'normal';
+
   async function applyNormalVideoProfile() {
     if (!cameraTrack || cameraTrack.readyState !== 'live') return;
     try {
       await cameraTrack.applyConstraints(MEDIA_PROFILE_NORMAL);
+      currentProfileMode = 'normal';
       window.rtcLog && window.rtcLog('LOCAL', 'profile-normal-360p');
     } catch (e) {
       console.warn('Falha ao restaurar perfil normal:', e);
+    }
+  }
+
+  async function applyLowVideoProfile() {
+    if (!cameraTrack || cameraTrack.readyState !== 'live') return;
+    try {
+      await cameraTrack.applyConstraints(MEDIA_PROFILE_MULTI_PEERS);
+      currentProfileMode = 'low';
+      window.rtcLog && window.rtcLog('LOCAL', 'profile-low-160x120');
+    } catch (e1) {
+      console.warn('applyConstraints para 160x120 direto falhou, tentando fallback aproximado:', e1);
+      try {
+        await cameraTrack.applyConstraints({
+          width: { ideal: 160, max: 320 },
+          height: { ideal: 120, max: 240 },
+          frameRate: { ideal: 15, max: 15 }
+        });
+        currentProfileMode = 'low';
+        window.rtcLog && window.rtcLog('LOCAL', 'profile-low-160x120-fallback');
+      } catch (e2) {
+        console.warn('Falha ao aplicar perfil de baixa resolução:', e2);
+      }
+    }
+  }
+
+  async function adaptResolutionForParticipantCount(count) {
+    // Não rebaixa a resolução se estiver em compartilhamento de tela ou modo apresentador
+    if (screen_user_enabled || (window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter())) {
+      return;
+    }
+    // Se houver mais de 2 pessoas na sala (mais de 1 peer remoto enviando/recebendo), usa 160x120
+    if (count > 2) {
+      if (currentProfileMode !== 'low') {
+        await applyLowVideoProfile();
+      }
+    } else {
+      if (currentProfileMode !== 'normal') {
+        await applyNormalVideoProfile();
+      }
     }
   }
 
@@ -497,6 +546,8 @@
     resumeOutgoingVideo,
     applyPresentationVideoProfile,
     applyNormalVideoProfile,
+    applyLowVideoProfile,
+    adaptResolutionForParticipantCount,
     setVideoUserPreference,
     setVideoAdminPermission,
     setVideoRoomPermission,

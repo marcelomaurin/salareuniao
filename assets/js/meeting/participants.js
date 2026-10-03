@@ -210,6 +210,11 @@
     const cfg = window.MEETING_CONFIG;
     const participantsCount = participantList.length;
     const expectedPeers = Math.max(0, participantsCount - 1);
+
+    // Adapta resolução dinamicamente: reduz para 160x120 quando houver múltiplos participantes
+    if (window.MeetingMedia && typeof window.MeetingMedia.adaptResolutionForParticipantCount === 'function') {
+      window.MeetingMedia.adaptResolutionForParticipantCount(participantsCount);
+    }
     const connectedPeers = window.MeetingWebRTC ? window.MeetingWebRTC.getConnectedPeerCount() : 0;
     const hasFailed = window.MeetingWebRTC ? window.MeetingWebRTC.hasFailedPeer() : false;
 
