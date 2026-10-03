@@ -1601,6 +1601,153 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       }
     }
 
+
+    /* ========================================================
+       BARRA DE NAVEGAÇÃO FIXA NO RODAPÉ DO CELULAR
+       ======================================================== */
+    .mobile-bottom-nav {
+      display: none;
+    }
+    .mobile-media-controls {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .mobile-bottom-nav {
+        display: flex !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        height: 60px !important;
+        height: max(60px, calc(52px + env(safe-area-inset-bottom, 8px))) !important;
+        background: rgba(11, 17, 32, 0.98) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+        z-index: 260 !important;
+        justify-content: space-around !important;
+        align-items: center !important;
+        padding-bottom: env(safe-area-inset-bottom, 4px) !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5) !important;
+      }
+
+      .mobile-nav-item {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: none !important;
+        border: none !important;
+        color: #94a3b8 !important;
+        padding: 4px 0 !important;
+        cursor: pointer !important;
+        font-family: inherit !important;
+        transition: color 0.15s ease !important;
+        position: relative !important;
+      }
+
+      .mobile-nav-item.active {
+        color: #00d2ff !important;
+      }
+
+      .mobile-nav-item .m-nav-icon {
+        font-size: 1.32rem !important;
+        line-height: 1.1 !important;
+      }
+
+      .mobile-nav-item .m-nav-text {
+        font-size: 0.68rem !important;
+        font-weight: 600 !important;
+        margin-top: 2px !important;
+        letter-spacing: 0.2px !important;
+      }
+
+      .mobile-nav-item.m-nav-danger {
+        color: #ef4444 !important;
+      }
+
+      /* Controles rápidos de mídia no celular flutuando acima da barra fixa */
+      .mobile-media-controls {
+        display: flex !important;
+        position: fixed !important;
+        bottom: max(68px, calc(64px + env(safe-area-inset-bottom, 8px))) !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        background: rgba(15, 23, 42, 0.94) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(0, 210, 255, 0.3) !important;
+        border-radius: 9999px !important;
+        padding: 5px 12px !important;
+        gap: 10px !important;
+        z-index: 120 !important;
+        box-shadow: 0 4px 25px rgba(0, 0, 0, 0.6) !important;
+      }
+
+      .mobile-media-btn {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.2rem !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        color: #fff !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+      }
+
+      .mobile-media-btn.active {
+        background: rgba(0, 210, 255, 0.25) !important;
+        border-color: #00d2ff !important;
+        color: #00d2ff !important;
+      }
+
+      .mobile-media-btn.hand-active {
+        background: rgba(234, 179, 8, 0.35) !important;
+        border-color: #eab308 !important;
+        color: #fef08a !important;
+      }
+
+      /* No mobile, o dock de desktop é ocultado */
+      .controls {
+        display: none !important;
+      }
+
+      /* Sidebar no mobile ocupa toda a tela acima da barra fixa */
+      .sidebar {
+        position: fixed !important;
+        top: 50px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: max(60px, calc(52px + env(safe-area-inset-bottom, 8px))) !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: auto !important;
+        z-index: 250 !important;
+        border-left: none !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      }
+
+      .sidebar.sr-hidden {
+        display: none !important;
+      }
+
+      .sidebar-close-btn {
+        display: none !important;
+      }
+
+      .room-stage {
+        padding: 6px 6px 125px 6px !important;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -1778,6 +1925,24 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
         <button type="button" id="leave" class="btn-danger" onclick="MeetingApp.leaveRoom(true)" title="Sair da Reunião">
           🔴 <span class="btn-label">Sair</span>
         </button>
+      </div>
+
+      <!-- Controles Rápidos de Mídia no Celular (Flutuando acima da barra fixa) -->
+      <div id="mobileMediaControls" class="mobile-media-controls">
+        <button type="button" id="mobileMic" class="mobile-media-btn active" onclick="MeetingMedia.toggleMicrophone()" title="Ativar/Desativar Microfone">
+          🎙️
+        </button>
+        <button type="button" id="mobileCam" class="mobile-media-btn active" onclick="MeetingMedia.toggleCamera()" title="Ligar/Desligar Câmera">
+          📹
+        </button>
+        <button type="button" id="mobileBtnHand" class="mobile-media-btn" onclick="MeetingParticipants.toggleRaiseHand()" title="Pedir a Palavra (Levantar a Mão)">
+          ✋
+        </button>
+        <?php if ($canAdmit): ?>
+        <button type="button" id="mobileBtnTakeBack" class="mobile-media-btn" style="display: none; background: #ef4444; border-color: #ef4444; color: #fff;" onclick="MeetingPresentation.takeBackConduction()" title="Retomar a Condução da Reunião">
+          🎙️
+        </button>
+        <?php endif; ?>
       </div>
     </main>
 
@@ -2022,6 +2187,66 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       if (dockPart) dockPart.classList.toggle('active', isPart);
     }
 
+    
+    function selectMobileTab(tab) {
+      const isMobile = (window.innerWidth <= 900);
+      const stageContainer = document.getElementById('videos');
+      const sidebar = document.getElementById('roomSidebar');
+      const mediaPill = document.getElementById('mobileMediaControls');
+
+      document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+
+      if (tab === 'stage' || tab === 'conference') {
+        const btn = document.getElementById('mNavStage');
+        if (btn) btn.classList.add('active');
+
+        if (isMobile) {
+          if (sidebar) sidebar.classList.add('sr-hidden');
+          if (stageContainer) stageContainer.style.display = 'flex';
+          if (mediaPill) mediaPill.style.display = 'flex';
+        }
+        if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
+          window.MeetingPresentation.updateStageUI();
+        }
+      } else {
+        const btnMap = {
+          'chat': 'mNavChat',
+          'participants': 'mNavUsers',
+          'files': 'mNavFiles'
+        };
+        const btn = document.getElementById(btnMap[tab]);
+        if (btn) btn.classList.add('active');
+
+        if (isMobile) {
+          if (stageContainer) stageContainer.style.display = 'none';
+          if (mediaPill) mediaPill.style.display = 'none';
+          if (sidebar) {
+            sidebar.classList.remove('sr-hidden');
+            sidebar.style.display = 'flex';
+          }
+        }
+        setSideTab(tab);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.innerWidth <= 900) {
+        selectMobileTab('stage');
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 900) {
+        const stageContainer = document.getElementById('videos');
+        const sidebar = document.getElementById('roomSidebar');
+        if (stageContainer) stageContainer.style.display = 'flex';
+        if (sidebar) {
+          sidebar.style.display = 'flex';
+          sidebar.classList.remove('sr-hidden');
+        }
+      }
+    });
+
     function setSideTab(tab) {
       const isChat = (tab === 'chat');
       const isFiles = (tab === 'files');
@@ -2070,18 +2295,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_22"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_23"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_23"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
@@ -2131,6 +2356,31 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       <span>🖥 Compartilhar Tela</span>
     </button>
   </div>
+
+
+  <!-- Barra de Navegação FIXA no Rodapé do Celular (Estilo Teams / Zoom / WhatsApp) -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav">
+    <button type="button" class="mobile-nav-item active" id="mNavStage" onclick="selectMobileTab('stage')">
+      <span class="m-nav-icon">📹</span>
+      <span class="m-nav-text">Conferência</span>
+    </button>
+    <button type="button" class="mobile-nav-item" id="mNavChat" onclick="selectMobileTab('chat')">
+      <span class="m-nav-icon">💬</span>
+      <span class="m-nav-text">Chat</span>
+    </button>
+    <button type="button" class="mobile-nav-item" id="mNavUsers" onclick="selectMobileTab('participants')">
+      <span class="m-nav-icon">👥</span>
+      <span class="m-nav-text">Usuários</span>
+    </button>
+    <button type="button" class="mobile-nav-item" id="mNavFiles" onclick="selectMobileTab('files')">
+      <span class="m-nav-icon">📁</span>
+      <span class="m-nav-text">Arquivos</span>
+    </button>
+    <button type="button" class="mobile-nav-item m-nav-danger" id="mNavLeave" onclick="MeetingApp.leaveRoom(true)">
+      <span class="m-nav-icon">🔴</span>
+      <span class="m-nav-text">Sair</span>
+    </button>
+  </nav>
 
 </body>
 </html>

@@ -552,6 +552,18 @@
       }
     }
 
+    // Sincroniza controles rápidos no celular
+    const mMic = document.getElementById('mobileMic');
+    const mCam = document.getElementById('mobileCam');
+    if (mMic) {
+      mMic.classList.toggle('active', effectiveAudio);
+      mMic.innerHTML = effectiveAudio ? '🎙️' : '🔇';
+    }
+    if (mCam) {
+      mCam.classList.toggle('active', effectiveVideo);
+      mCam.innerHTML = effectiveVideo ? '📹' : '🚫';
+    }
+
     if (screenEl) {
       screenEl.classList.toggle('active', screen_user_enabled);
       screenEl.innerHTML = '🖥️ <span class="btn-label">' + (screen_user_enabled ? 'Parar' : 'Compartilhar') + '</span>';

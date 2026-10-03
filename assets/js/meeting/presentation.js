@@ -249,6 +249,8 @@
 
     if (btnDock) btnDock.style.display = shouldShow ? 'inline-flex' : 'none';
     if (btnBanner) btnBanner.style.display = shouldShow ? 'inline-flex' : 'none';
+    const mTakeBack = document.getElementById('mobileBtnTakeBack');
+    if (mTakeBack) mTakeBack.style.display = shouldShow ? 'flex' : 'none';
   }
 
   async function takeBackConduction() {

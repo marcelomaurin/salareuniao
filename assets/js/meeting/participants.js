@@ -1027,6 +1027,12 @@ O participante será desconectado imediatamente.`)) {
       if (lbl) lbl.textContent = 'Pedir Palavra';
       btn.title = 'Pedir a palavra para ativar seu vídeo';
     }
+
+    const mHand = document.getElementById('mobileBtnHand');
+    if (mHand) {
+      mHand.classList.toggle('hand-active', !!(granted || raised));
+      mHand.title = granted ? 'Palavra Concedida' : (raised ? 'Mão Levantada' : 'Pedir Palavra');
+    }
   }
 
   async function toggleRaiseHand() {
