@@ -8,7 +8,10 @@ if (!is_file($configFile)) {
 }
 $config = require $configFile;
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
+$isApiRequest = (isset($_SERVER['REQUEST_URI']) && str_contains($_SERVER['REQUEST_URI'], '/api/'))
+    || (isset($_SERVER['SCRIPT_NAME']) && str_contains($_SERVER['SCRIPT_NAME'], '/api/'));
+
+if (!$isApiRequest && session_status() !== PHP_SESSION_ACTIVE) {
     session_name($config['app']['session_name'] ?? 'MAURINSOFTSESSID');
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
@@ -40,16 +43,27 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
-    // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence
-    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence (apenas fora de APIs)
+    if (!$isApiRequest) {
+        try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN audio_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
     try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN screen_admin_allowed TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    }
 } catch (Throwable $e) {
     http_response_code(500);
+    if (!empty($isApiRequest)) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok' => false,
+            'error' => 'db_connection_error',
+            'message' => $e->getMessage()
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'
         . '<h2 style="color: #ef4444;">Erro de Conexão com o Banco de Dados</h2>'
         . '<p>Não foi possível conectar ao MySQL para a Sala de Reunião: ' . htmlspecialchars($e->getMessage()) . '</p>'
@@ -57,7 +71,8 @@ try {
         . '</div>');
 }
 
-// Auto-provisioning de tabelas essenciais
+// Auto-provisioning de tabelas essenciais (executado apenas em páginas web, nunca em APIs de alta frequência)
+if (!$isApiRequest) {
 try {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS users (
@@ -337,6 +352,7 @@ try {
             ON DUPLICATE KEY UPDATE description = VALUES(description)");
         $stParam->execute();
     } catch (Throwable $e) {}
+}
 
 function current_user(): ?array {
     global $pdo;

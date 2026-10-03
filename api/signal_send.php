@@ -62,42 +62,22 @@ try {
         $payload = '{}';
     }
 
-    try {
-        $q = $pdo->prepare('INSERT INTO signaling_messages(room_id, sender_key, recipient_key, message_type, payload) VALUES (?, ?, ?, ?, ?)');
-        $q->execute([$me['room_id'], $me['participant_key'], $recipient, $dbType, $payload]);
-        echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
-        exit;
-    } catch (Throwable $dbErr) {
-        // Auto-reparo imediato da tabela de sinalização
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
         try {
-            $pdo->exec("
-                CREATE TABLE IF NOT EXISTS signaling_messages (
-                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                    room_id BIGINT UNSIGNED NOT NULL,
-                    sender_key VARCHAR(120) NOT NULL,
-                    recipient_key VARCHAR(120) NULL,
-                    message_type VARCHAR(64) NOT NULL,
-                    payload LONGTEXT NOT NULL,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_signaling_to (room_id, recipient_key, id),
-                    INDEX idx_signaling_sender (room_id, sender_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            ");
-            try { $pdo->exec("ALTER TABLE signaling_messages MODIFY COLUMN payload LONGTEXT NOT NULL"); } catch (Throwable $e2) {}
-            try { $pdo->exec("ALTER TABLE signaling_messages MODIFY COLUMN message_type VARCHAR(64) NOT NULL"); } catch (Throwable $e2) {}
-            try { $pdo->exec("ALTER TABLE signaling_messages MODIFY COLUMN sender_key VARCHAR(120) NOT NULL"); } catch (Throwable $e2) {}
-            try { $pdo->exec("ALTER TABLE signaling_messages MODIFY COLUMN recipient_key VARCHAR(120) NULL"); } catch (Throwable $e2) {}
-
             $q = $pdo->prepare('INSERT INTO signaling_messages(room_id, sender_key, recipient_key, message_type, payload) VALUES (?, ?, ?, ?, ?)');
             $q->execute([$me['room_id'], $me['participant_key'], $recipient, $dbType, $payload]);
             echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
             exit;
-        } catch (Throwable $retryErr) {
+        } catch (Throwable $dbErr) {
+            if ($attempt === 1) {
+                usleep(50000); // 50ms retry para contornar lock temporário
+                continue;
+            }
             http_response_code(500);
             echo json_encode([
                 'ok' => false,
                 'error' => 'db_error',
-                'message' => $retryErr->getMessage()
+                'message' => $dbErr->getMessage()
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

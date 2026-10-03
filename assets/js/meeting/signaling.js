@@ -24,7 +24,15 @@
         if (body && (body.error || body.message)) {
           detail += ` (${body.error}${body.message ? ': ' + body.message : ''})`;
         }
-      } catch(e) {}
+      } catch(e) {
+        try {
+          const raw = await r.text();
+          if (raw) {
+            const clean = raw.replace(/<[^>]*>?/gm, '').trim().substring(0, 120);
+            if (clean) detail += ` (${clean})`;
+          }
+        } catch(e2) {}
+      }
       throw new Error(detail);
     }
     return r.json();
@@ -58,17 +66,28 @@
       }
     }
 
-    // Fallback HTTP
-    return jsonFetch('api/signal_send.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: cfg.TOKEN,
-        type: type,
-        payload: payload,
-        recipient: recipient
-      })
-    });
+    // Fallback HTTP com retry automático
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        return await jsonFetch('api/signal_send.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: cfg.TOKEN,
+            type: type,
+            payload: payload,
+            recipient: recipient
+          })
+        });
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 1) {
+          await new Promise(r => setTimeout(r, 120));
+        }
+      }
+    }
+    throw lastErr;
   }
 
   function queuePeerSignal(key, task) {
