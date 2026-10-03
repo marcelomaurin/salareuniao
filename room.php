@@ -1522,8 +1522,20 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
     }
 
 
-    /* Rótulos 'quem apresenta' e 'participantes' */
-    .stage-header-title,
+    /* Rótulos: Nome de quem apresenta (topo) e participantes (baixo) */
+    .stage-header-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: 0.3px;
+      margin-bottom: 4px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+
     .audience-header-title {
       font-size: 0.85rem;
       font-weight: 700;
@@ -1998,8 +2010,8 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       </div>
       <!-- Layout: quem apresenta (topo) + participantes com carrossel (baixo) -->
       <div class="stage-container" id="videos">
-        <!-- Rótulo Superior: quem apresenta -->
-        <div class="stage-header-title">quem apresenta</div>
+        <!-- Rótulo Superior: Nome do usuário que apresenta -->
+        <div class="stage-header-title" id="stagePresenterName"><?= e($me['display_name'] ?: 'Você') ?></div>
         <div id="stageArea" class="stage-area">
           <div class="tile local stage-speaker" id="tile-local">
             <video id="local" autoplay muted playsinline webkit-playsinline></video>
@@ -2433,18 +2445,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_25"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_26"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

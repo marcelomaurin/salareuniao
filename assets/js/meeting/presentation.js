@@ -52,6 +52,28 @@
       presenterKey = (cfg.initialRuntimeState && cfg.initialRuntimeState.active_presenter_key) || (cfg.CAN_ADMIT ? cfg.selfKey : null);
     }
 
+    // Atualiza o rótulo superior com o nome do usuário que está apresentando
+    const titleEl = document.getElementById('stagePresenterName') || document.querySelector('.stage-header-title');
+    if (titleEl) {
+      let presName = '';
+      if (!presenterKey || presenterKey === cfg.selfKey) {
+        presName = cfg.displayName || 'Você';
+      } else if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
+        presName = window.MeetingParticipants.getParticipantName(presenterKey);
+      }
+      if (!presName || presName === 'Participante') {
+        const presTile = document.getElementById('tile-' + presenterKey);
+        if (presTile) {
+          const nameSpan = presTile.querySelector('.name');
+          if (nameSpan && nameSpan.textContent) {
+            presName = nameSpan.textContent.replace(/^Você \(|\)$/g, '').trim();
+          }
+        }
+      }
+      if (!presName) presName = cfg.displayName || 'Participante';
+      titleEl.textContent = presName;
+    }
+
     const allTiles = document.querySelectorAll('.tile');
 
     allTiles.forEach(tile => {
@@ -235,6 +257,7 @@
     if (cfg.initialRuntimeState) {
       sync(cfg.initialRuntimeState);
     }
+    updateStageUI();
   });
 
 
