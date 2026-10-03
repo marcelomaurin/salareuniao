@@ -40,45 +40,85 @@
   }
 
   function updateStageUI() {
-    const stageContainer = document.getElementById('videos') || document.getElementById('videoGrid');
-    const allTiles = document.querySelectorAll('.tile');
+    const stageArea = document.getElementById('stageArea');
+    const audienceStrip = document.getElementById('audienceStrip');
+    const cfg = getCfg();
 
-    if (!stageContainer) return;
+    if (!stageArea || !audienceStrip) return;
 
-    if (presentationActive && activePresenterKey) {
-      stageContainer.classList.add('presentation-mode');
-      const presenterTile = resolveParticipantTile(activePresenterKey);
-
-      allTiles.forEach(tile => {
-        if (tile === presenterTile) {
-          tile.classList.add('tile-presentation-full');
-          tile.classList.remove('tile-presentation-mini');
-          tile.style.display = 'flex';
-        } else {
-          tile.classList.remove('tile-presentation-full');
-          tile.classList.add('tile-presentation-mini');
-        }
-      });
-    } else {
-      stageContainer.classList.remove('presentation-mode');
-      allTiles.forEach(tile => {
-        tile.classList.remove('tile-presentation-full', 'tile-presentation-mini');
-      });
+    // Determina quem é o apresentador que fica EM CIMA
+    let presenterKey = activePresenterKey;
+    if (!presenterKey) {
+      presenterKey = (cfg.initialRuntimeState && cfg.initialRuntimeState.active_presenter_key) || (cfg.CAN_ADMIT ? cfg.selfKey : null);
     }
 
-    // Atualiza botão de Pedir Palavra para o apresentador (Tarefa 40)
+    const allTiles = document.querySelectorAll('.tile');
+
+    allTiles.forEach(tile => {
+      const tileId = tile.id;
+      const isMe = (tileId === 'tile-local');
+      const tileKey = isMe ? cfg.selfKey : tileId.replace('tile-', '');
+      const isPresenter = (tileKey === presenterKey) || (isMe && presenterKey === cfg.selfKey);
+
+      if (isPresenter) {
+        // O QUE ESTÁ TRANSMITINDO FICA EM CIMA (Palco Principal)
+        if (tile.parentElement !== stageArea) {
+          stageArea.appendChild(tile);
+        }
+        tile.classList.add('stage-speaker');
+        tile.classList.remove('audience-listener');
+        
+        const v = tile.querySelector('video');
+        if (v) {
+          v.style.display = 'block';
+          try { v.play().catch(() => {}); } catch(e) {}
+        }
+        const av = tile.querySelector('.peer-avatar, #localAvatar');
+        if (av) av.style.display = 'none';
+
+        const stateEl = tile.querySelector('.state');
+        if (stateEl) {
+          stateEl.textContent = 'AO VIVO';
+          stateEl.style.background = '#10b981';
+          stateEl.style.color = '#fff';
+        }
+      } else {
+        // OS QUE ESTÃO PARTICIPANDO FICAM EM BAIXO (Ouvintes)
+        if (tile.parentElement !== audienceStrip) {
+          audienceStrip.appendChild(tile);
+        }
+        tile.classList.add('audience-listener');
+        tile.classList.remove('stage-speaker');
+
+        const v = tile.querySelector('video');
+        if (v) v.style.display = 'none';
+        
+        const av = tile.querySelector('.peer-avatar, #localAvatar');
+        if (av) av.style.display = 'flex';
+
+        const stateEl = tile.querySelector('.state');
+        if (stateEl) {
+          const isHand = tile.classList.contains('hand-raised-glow');
+          stateEl.textContent = isHand ? '✋ MÃO' : 'OUVINTE';
+          stateEl.style.background = isHand ? 'rgba(234, 179, 8, 0.4)' : 'rgba(100, 116, 139, 0.3)';
+          stateEl.style.color = isHand ? '#fef08a' : '#94a3b8';
+        }
+      }
+    });
+
+    // Atualiza botão de Pedir Palavra para o orador
     const btnHand = document.getElementById('btnHand');
     const handLabel = document.getElementById('handLabel');
     if (btnHand && handLabel) {
       if (isLocalPresenter()) {
         btnHand.classList.add('presenting-active');
         btnHand.disabled = true;
-        handLabel.textContent = 'Apresentando';
+        handLabel.textContent = 'Transmitindo';
       } else {
         btnHand.classList.remove('presenting-active');
         btnHand.disabled = false;
         if (window.MeetingParticipants && window.MeetingParticipants.isHandRaised()) {
-          handLabel.textContent = 'Aguardando Aprovação';
+          handLabel.textContent = 'Mão Levantada';
         } else {
           handLabel.textContent = 'Pedir Palavra';
         }

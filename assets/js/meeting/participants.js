@@ -173,6 +173,9 @@
     }
     updateCounters();
     updateVideoGridCount();
+    if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
+      window.MeetingPresentation.updateStageUI();
+    }
   }
 
   function ensureTile(key) {
@@ -243,7 +246,16 @@
     };
 
     tile.append(video, avatar, fullBtn, nameDiv, stateDiv, muteBtn);
-    document.getElementById('videos').appendChild(tile);
+
+    // Conceito: quem transmite fica em cima, quem participa fica em baixo
+    const effectivePresenterKey = window.MeetingPresentation ? window.MeetingPresentation.getActivePresenterKey() : null;
+    const isPresenter = (key === effectivePresenterKey);
+    const targetContainer = isPresenter ? document.getElementById('stageArea') : document.getElementById('audienceStrip');
+    (targetContainer || document.getElementById('videos')).appendChild(tile);
+
+    if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
+      window.MeetingPresentation.updateStageUI();
+    }
     updateVideoGridCount();
     return tile;
   }

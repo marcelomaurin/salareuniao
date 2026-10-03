@@ -131,6 +131,9 @@ $bridgeChunkMs = max(100, (int)($config['bridge']['chunk_ms'] ?? 250));
 $bridgeFallbackTimeoutMs = max(2000, (int)($config['bridge']['fallback_timeout_ms'] ?? 8000));
 $maxMeshParticipants = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
 $runtimeState = get_room_runtime_state((int)$me['room_id']);
+if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
+    $runtimeState = set_room_presentation((int)$me['room_id'], $me['participant_key'], 'camera');
+}
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -1325,7 +1328,200 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         font-size: 1.05rem;
       }
     }
-  </style>
+  
+    /* ========================================================
+       CONCEITO 1 TRANSMITE (EM CIMA), VÁRIOS OUVEM (EM BAIXO)
+       ======================================================== */
+    .stage-container {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: calc(100vh - 72px) !important;
+      padding: 10px 14px 84px 14px !important;
+      gap: 12px !important;
+      box-sizing: border-box !important;
+      position: relative !important;
+      overflow: hidden !important;
+    }
+
+    /* ÁREA SUPERIOR (TRANSMISSOR / PALCO PRINCIPAL) */
+    .stage-area {
+      flex: 1 1 0 !important;
+      width: 100% !important;
+      min-height: 220px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      overflow: hidden !important;
+      border-radius: 16px !important;
+      background: radial-gradient(circle at center, #0f172a 0%, #020617 100%) !important;
+      border: 2px solid rgba(0, 210, 255, 0.4) !important;
+      box-shadow: 0 8px 35px rgba(0, 0, 0, 0.7) !important;
+    }
+
+    .stage-area .tile {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      background: #000 !important;
+      border-radius: 14px !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    .stage-area .tile video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain !important;
+      display: block !important;
+    }
+
+    .stage-area .tile .state {
+      position: absolute !important;
+      top: 14px !important;
+      right: 16px !important;
+      background: rgba(16, 185, 129, 0.95) !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      padding: 5px 14px !important;
+      border-radius: 20px !important;
+      font-size: 0.8rem !important;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.5) !important;
+      letter-spacing: 0.5px !important;
+      z-index: 5 !important;
+    }
+
+    .stage-area .tile .name {
+      position: absolute !important;
+      bottom: 14px !important;
+      left: 16px !important;
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: blur(8px) !important;
+      padding: 6px 16px !important;
+      border-radius: 8px !important;
+      font-size: 0.92rem !important;
+      font-weight: 600 !important;
+      color: #fff !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      z-index: 5 !important;
+    }
+
+    /* ÁREA INFERIOR (OUVINTES / PARTICIPANTES EM BAIXO) */
+    .audience-strip {
+      flex: 0 0 120px !important;
+      height: 120px !important;
+      max-height: 120px !important;
+      min-height: 120px !important;
+      width: 100% !important;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 12px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      padding: 4px 6px !important;
+      box-sizing: border-box !important;
+      scrollbar-width: thin !important;
+      scrollbar-color: rgba(0, 210, 255, 0.4) transparent !important;
+    }
+
+    .audience-strip::-webkit-scrollbar {
+      height: 6px;
+    }
+    .audience-strip::-webkit-scrollbar-thumb {
+      background: rgba(0, 210, 255, 0.4);
+      border-radius: 3px;
+    }
+
+    /* Cards de participantes ouvintes em baixo */
+    .audience-strip .tile {
+      flex: 0 0 136px !important;
+      width: 136px !important;
+      height: 106px !important;
+      min-width: 136px !important;
+      max-width: 136px !important;
+      border-radius: 12px !important;
+      background: rgba(15, 23, 42, 0.9) !important;
+      backdrop-filter: blur(10px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      overflow: hidden !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+      transition: all 0.2s ease !important;
+      cursor: pointer !important;
+    }
+
+    .audience-strip .tile:hover {
+      border-color: rgba(0, 210, 255, 0.6) !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(0, 210, 255, 0.25) !important;
+    }
+
+    .audience-strip .tile.hand-raised-glow {
+      border: 2px solid #eab308 !important;
+      box-shadow: 0 0 20px rgba(234, 179, 8, 0.7) !important;
+      animation: pulse-glow-border 1.5s infinite alternate !important;
+    }
+
+    .audience-strip .tile video {
+      display: none !important;
+    }
+
+    .audience-strip .tile .peer-avatar,
+    .audience-strip .tile #localAvatar {
+      display: flex !important;
+      width: 48px !important;
+      height: 48px !important;
+      font-size: 1.35rem !important;
+      position: static !important;
+      margin-bottom: 6px !important;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .audience-strip .tile .name {
+      position: static !important;
+      font-size: 0.76rem !important;
+      font-weight: 600 !important;
+      color: #e2e8f0 !important;
+      max-width: 90% !important;
+      text-align: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      background: none !important;
+      border: none !important;
+      padding: 0 !important;
+    }
+
+    .audience-strip .tile .state {
+      position: absolute !important;
+      top: 6px !important;
+      right: 6px !important;
+      font-size: 0.62rem !important;
+      padding: 2px 6px !important;
+      border-radius: 6px !important;
+      background: rgba(100, 116, 139, 0.3) !important;
+      color: #94a3b8 !important;
+    }
+
+    .audience-strip .tile-mute-btn,
+    .audience-strip .tile-full-btn {
+      display: none !important;
+    }
+
+</style>
 </head>
 <body>
 
@@ -1435,17 +1631,23 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
         <span id="screenShareToastText" style="color: #00d2ff; font-weight: 600; font-size: 0.88rem;">🖥️ Convidado iniciou compartilhamento</span>
         <div style="display: flex; gap: 8px;" id="screenShareToastButtons"></div>
       </div>
-      <div class="grid" id="videos">
-        <div class="tile" id="tile-local" <?php if ($canAdmit): ?>ondblclick="MeetingParticipants.approveFullMode('local')"<?php endif; ?>>
-          <?php if ($canAdmit): ?>
-            <button type="button" class="tile-full-btn" onclick="event.stopPropagation(); MeetingParticipants.approveFullMode('local');" title="Aprovar Exibição Full (Destaque em Resolução Máxima)">⛶</button>
-          <?php endif; ?>
-          <video id="local" autoplay muted playsinline webkit-playsinline></video>
-          <div id="localAvatar" style="display: none; width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 2.2rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
-            <?= strtoupper(substr(trim($me['display_name'] ?: 'U'), 0, 1)) ?>
+      <!-- Palco de Transmissão: 1 Transmite (em cima), Vários Ouvem (em baixo) -->
+      <div class="stage-container" id="videos">
+        <!-- ÁREA SUPERIOR: O QUE ESTÁ TRANSMITINDO FICA EM CIMA -->
+        <div id="stageArea" class="stage-area">
+          <div class="tile local stage-speaker" id="tile-local">
+            <video id="local" autoplay muted playsinline webkit-playsinline></video>
+            <div id="localAvatar" style="display: none; width: 96px; height: 96px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-primary, #00d2ff), #3b82f6); color: #fff; font-size: 2.4rem; font-weight: 700; align-items: center; justify-content: center; position: absolute; z-index: 2; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
+              <?= strtoupper(substr(trim($me['display_name'] ?: 'U'), 0, 1)) ?>
+            </div>
+            <div class="name">Você (<?=e($me['display_name'])?>)</div>
+            <div class="state" id="localState">AO VIVO</div>
           </div>
-          <div class="name">Você (<?=e($me['display_name'])?>)</div>
-          <div class="state" id="localState">AO VIVO</div>
+        </div>
+
+        <!-- ÁREA INFERIOR: OS QUE ESTÃO PARTICIPANDO/OUVINDO FICAM EM BAIXO -->
+        <div id="audienceStrip" class="audience-strip">
+          <!-- Participantes ouvintes são posicionados aqui -->
         </div>
       </div>
 
@@ -1778,18 +1980,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_20"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_20"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_21"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
