@@ -86,7 +86,8 @@ $ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
 $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);
 $wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
 $wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
-$maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
+$maxMeshParticipants = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
+$runtimeState = get_room_runtime_state((int)$me['room_id']);
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -1292,6 +1293,7 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       <div>
         <div class="room-title"><?=e($me['room_name'])?></div>
         <small id="status" style="color: var(--text-muted, #94a3b8); font-size: 0.76rem;">Conectado</small>
+        <span id="controlStatusIndicator" style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; display: none; margin-left: 6px;" title="Canal de Controle Administrativo">Controle: conectando...</span>
       </div>
     </div>
 
@@ -1626,7 +1628,8 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
       roomId: <?=(int)$me['room_id']?>,
       roomName: <?=json_encode($me['room_name'])?>,
       displayName: <?=json_encode($me['display_name'])?>,
-      inviteUrl: <?=json_encode($inviteUrl)?>
+      inviteUrl: <?=json_encode($inviteUrl)?>,
+      initialRuntimeState: <?=json_encode($runtimeState, JSON_UNESCAPED_UNICODE)?>
     };
   </script>
 
@@ -1635,7 +1638,9 @@ $maxMeshParticipants = (int)($config['webrtc']['max_mesh_participants'] ?? 4);
   <script src="assets/js/meeting/media.js?v=20260920_1"></script>
   <script src="assets/js/meeting/signaling.js?v=20260920_1"></script>
   <script src="assets/js/meeting/webrtc.js?v=20260920_1"></script>
-  <script src="assets/js/meeting/participants.js?v=20260920_1"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_1"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_1"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_1"></script>
   <script src="assets/js/meeting/files.js?v=20261002_1"></script>
   <script src="assets/js/meeting/chat.js?v=20261002_1"></script>
   <script src="assets/js/meeting/diagnostics.js?v=20260920_1"></script>

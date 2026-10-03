@@ -99,6 +99,10 @@
     } catch (e) {}
 
     // 3. Notifica via WebSocket e fecha socket
+    if (window.MeetingControl) {
+      window.MeetingControl.disconnect();
+    }
+
     if (window.MeetingSignaling) {
       window.MeetingSignaling.closeSocket();
     }
@@ -141,6 +145,11 @@
       });
 
       if (first.self) cfg.selfKey = first.self;
+
+      // Sincroniza estado inicial de apresentação (Tarefas 23 e 24)
+      if (cfg.initialRuntimeState && window.MeetingPresentation) {
+        window.MeetingPresentation.sync(cfg.initialRuntimeState);
+      }
 
       // 4. Descobre e inicia conexão com os participantes já presentes na sala
       if (window.MeetingParticipants) {

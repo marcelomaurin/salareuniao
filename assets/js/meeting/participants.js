@@ -106,8 +106,27 @@
       }
     }
 
-    // Renderiza Fila de Pedidos de Palavra (Mão Levantada)
-    const handRequesters = participantList.filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey);
+    // Sincroniza estado próprio com o servidor para evitar ressurreição (Tarefa 04)
+    const me = participantList.find(p => p.participant_key === cfg.selfKey);
+    if (me) {
+      localVideoGranted = Boolean(Number(me.video_granted));
+      const serverHand = Number(me.hand_raised) === 1;
+      const isPresenter = window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter();
+      if (!serverHand || localVideoGranted || isPresenter) {
+        isLocalHandRaised = false;
+      }
+      updateHandBtnUI(isLocalHandRaised, localVideoGranted);
+    }
+
+    // Fila real de Pedidos de Palavra ordenada por hand_requested_at ASC (Tarefas 05, 06)
+    const handRequesters = participantList
+      .filter(p => Number(p.hand_raised) === 1 && p.participant_key !== cfg.selfKey)
+      .sort((a, b) => {
+        const tA = new Date(a.hand_requested_at || '2099-01-01').getTime();
+        const tB = new Date(b.hand_requested_at || '2099-01-01').getTime();
+        return tA - tB;
+      });
+
     let hasNewHand = false;
     handRequesters.forEach(hr => {
       if (!knownHandKeys.has(hr.participant_key)) {
@@ -119,7 +138,7 @@
       playHandChime();
     }
 
-    // Toast de Mão Levantada no Palco para Administrador
+    // Toast com ACEITAR e RECUSAR para o Administrador (Tarefa 06)
     const handToast = document.getElementById('handToast');
     const handToastText = document.getElementById('handToastText');
     const handToastBtns = document.getElementById('handToastButtons');
@@ -127,11 +146,11 @@
     if (cfg.CAN_ADMIT && handToast && handToastText && handToastBtns) {
       if (handRequesters.length > 0) {
         const topH = handRequesters[0];
-        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} outro${handRequesters.length > 2 ? 's' : ''})` : '';
+        const extraH = handRequesters.length > 1 ? ` (+${handRequesters.length - 1} na fila)` : '';
         handToastText.textContent = `✋ ${topH.display_name}${extraH} pediu a palavra`;
         handToastBtns.innerHTML = `
-          <button type="button" class="sr-btn sr-btn-success" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 600;" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ Aprovar e Exibir Full</button>
-          <button type="button" class="sr-btn sr-btn-secondary" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(255,255,255,0.12); border: none; color: #fff; cursor: pointer;" onclick="MeetingParticipants.dismissHandToast()">Dispensar</button>
+          <button type="button" class="sr-btn sr-btn-success" style="padding: 5px 14px; font-size: 0.8rem; border-radius: 20px; background: #10b981; border: none; color: #fff; cursor: pointer; font-weight: 700;" onclick="MeetingParticipants.approveHandWithFullMode('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✋ ACEITAR</button>
+          <button type="button" class="sr-btn sr-btn-danger" style="padding: 5px 14px; font-size: 0.8rem; border-radius: 20px; background: #ef4444; border: none; color: #fff; cursor: pointer; font-weight: 700;" onclick="MeetingParticipants.rejectHandRequest('${topH.participant_key}', '${escapeHtml(topH.display_name)}')">✕ RECUSAR</button>
         `;
         handToast.style.display = 'flex';
       } else {
@@ -278,10 +297,21 @@
         `;
 
         div.querySelector('strong').textContent = p.display_name + (isSelf ? ' (você)' : '');
-        div.querySelector('.badges').textContent = 
-          (micActive ? '🎙 mic' : '🔇 sem mic') + ' · ' +
-          (Number(p.cam_enabled) ? '📹 câmera' : '🚫 sem câmera') +
-          (Number(p.screen_sharing) ? ' · 🖥 tela' : '');
+        const camActive = Number(p.cam_enabled) === 1;
+        const screenActive = Number(p.screen_sharing) === 1;
+        const handRaised = Number(p.hand_raised) === 1;
+        const isPresenter = (window.MeetingPresentation && window.MeetingPresentation.getActivePresenterKey() === p.participant_key);
+        const isVideoAllowed = (p.video_admin_allowed === undefined || Number(p.video_admin_allowed) === 1);
+        const isAudioAllowed = (p.audio_admin_allowed === undefined || Number(p.audio_admin_allowed) === 1);
+
+        let micDesc = isAudioAllowed ? (micActive ? '🎙 Ativo' : '🔇 Desligado') : '🚫 Áudio bloqueado';
+        let camDesc = isVideoAllowed ? (camActive ? '📹 Ativa' : '📷 Desligada') : '🚫 Vídeo bloqueado';
+        let badgesTxt = micDesc + ' · ' + camDesc;
+        if (screenActive) badgesTxt += ' · 🖥 Compartilhando';
+        if (handRaised) badgesTxt += ' · ✋ Aguardando palavra';
+        if (isPresenter) badgesTxt += ' · ⛶ Apresentando';
+
+        div.querySelector('.badges').textContent = badgesTxt;
 
         const actions = div.querySelector('.person-actions');
         if (!isSelf) {
@@ -629,8 +659,32 @@
 
   async function muteParticipant(key, name) {
     try {
-      // 1. Envia sinal de mute para o participante remoto
-      await window.MeetingSignaling.sendSignal('mute-user', { action: 'mute-user' }, key);
+      // 1. Envia comando pelo canal de controle administrativo (Tarefa 37)
+      if (window.MeetingControl && window.MeetingControl.isConnected()) {
+        try {
+          await window.MeetingControl.sendCommand('participant.audio.inhibit', { target_key: key });
+        } catch (ctrlErr) {
+          console.warn('Falha no comando WS de mute, tentando fallback:', ctrlErr);
+        }
+      }
+
+      // Fallback via API HTTP autoritativa
+      try {
+        await fetch('api/control.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: window.MEETING_CONFIG.TOKEN,
+            command: 'participant.audio.inhibit',
+            target_key: key
+          })
+        });
+      } catch (httpErr) {}
+
+      // 2. Envia sinal de compatibilidade legado via WebRTC
+      if (window.MeetingSignaling) {
+        await window.MeetingSignaling.sendSignal('mute-user', { action: 'mute-user' }, key);
+      }
 
       // 2. Muta imediatamente o track de áudio recebido deste peer para silêncio instantâneo
       if (window.MeetingWebRTC && window.MeetingWebRTC.pcs) {
@@ -663,6 +717,15 @@ O participante será desconectado imediatamente.`)) {
     }
     const cfg = window.MEETING_CONFIG;
     try {
+      // Notifica canal de controle em tempo real (Tarefa 29)
+      if (window.MeetingControl && window.MeetingControl.isConnected()) {
+        try {
+          await window.MeetingControl.sendCommand('participant.kick', { target_key: targetKey });
+        } catch (ctrlErr) {
+          console.warn('Falha no comando WS kick, chamando API HTTP:', ctrlErr);
+        }
+      }
+
       const resp = await fetch('api/room_kick.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -730,9 +793,12 @@ O participante será desconectado imediatamente.`)) {
 
   async function toggleRaiseHand() {
     const cfg = window.MEETING_CONFIG;
-    const newAction = isLocalHandRaised ? 'lower' : 'raise';
+    if (window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter()) {
+      return;
+    }
+    const newAction = isLocalHandRaised ? 'cancel' : 'request';
     try {
-      const resp = await fetch('api/room_hand.php', {
+      const resp = await fetch('api/presentation.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -746,9 +812,9 @@ O participante será desconectado imediatamente.`)) {
         isLocalHandRaised = Boolean(data.hand_raised);
         updateHandBtnUI(isLocalHandRaised, localVideoGranted);
         if (isLocalHandRaised) {
-          if (window.showToast) window.showToast('✋ Você pediu a palavra. Aguarde o anfitrião conceder o vídeo.');
+          if (window.showToast) window.showToast('✋ Mão levantada. Aguardando aprovação do administrador.');
         } else {
-          if (window.showToast) window.showToast('Você baixou a mão.');
+          if (window.showToast) window.showToast('Você cancelou o pedido de palavra.');
         }
         if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
           window.MeetingApp.triggerHeartbeat();
@@ -759,44 +825,80 @@ O participante será desconectado imediatamente.`)) {
     }
   }
 
-    async function approveHandWithFullMode(targetKey, targetName) {
+  async function approveHandWithFullMode(targetKey, targetName) {
     const cfg = window.MEETING_CONFIG;
     if (!cfg.CAN_ADMIT) return;
 
     if (window.showToast) {
-      window.showToast(`Aprovando palavra e exibição full para ${targetName}...`);
+      window.showToast(`Aprovando apresentação para ${targetName}...`);
     }
 
     try {
-      // 1. Concede a palavra/vídeo ao participante (mantendo o teto de 5 vídeos e liberando a câmera dele)
-      const respWord = await fetch('api/room_hand.php', {
+      // Transação atômica única no servidor (Tarefas 06, 07)
+      const resp = await fetch('api/presentation.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
           token: cfg.TOKEN,
-          action: 'grant',
+          action: 'approve',
+          target_key: targetKey,
+          media_type: 'camera'
+        })
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        if (window.MeetingControl && window.MeetingControl.isConnected()) {
+          window.MeetingControl.sendCommand('room.presentation.start', targetKey, {
+            presenter_key: targetKey,
+            media_type: 'camera'
+          }).catch(() => {});
+        }
+
+        if (window.MeetingPresentation) {
+          window.MeetingPresentation.start(targetKey, 'camera', data.room);
+        }
+
+        dismissHandToast();
+        if (window.showToast) window.showToast(`🎉 Apresentação de ${targetName} aprovada em modo Full!`);
+
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
+      } else {
+        alert('Não foi possível aprovar apresentação: ' + (data.error || 'Erro no servidor'));
+      }
+    } catch (e) {
+      console.error('Erro ao aprovar apresentação:', e);
+    }
+  }
+
+  async function rejectHandRequest(targetKey, targetName) {
+    const cfg = window.MEETING_CONFIG;
+    if (!cfg.CAN_ADMIT) return;
+
+    try {
+      const resp = await fetch('api/presentation.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          token: cfg.TOKEN,
+          action: 'reject',
           target_key: targetKey
         })
       });
-      const dataWord = await respWord.json();
-
-      // 2. Coloca imediatamente a pessoa em Exibição Full (Resolução Máxima) para toda a sala
-      await approveFullMode(targetKey, false);
-
-      dismissHandToast();
-      let msg = `🎉 Palavra aprovada para ${targetName} em Exibição Full (Resolução Máxima)!`;
-      if (dataWord && dataWord.revoked_name) {
-        msg += ` (${dataWord.revoked_name} foi recolhido para manter o limite de 5 vídeos).`;
-      }
-      if (window.showToast) window.showToast(msg);
-
-      if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
-        window.MeetingApp.triggerHeartbeat();
+      const data = await resp.json();
+      if (data.ok) {
+        dismissHandToast();
+        if (window.showToast) window.showToast(`Pedido de palavra de ${targetName} foi recusado.`);
+        if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
+          window.MeetingApp.triggerHeartbeat();
+        }
       }
     } catch (e) {
-      console.error('Erro ao aprovar palavra com exibição full:', e);
-      enterFullMode(targetKey, false);
+      console.warn('Erro ao recusar pedido de palavra:', e);
     }
   }
 
@@ -912,12 +1014,23 @@ O participante será desconectado imediatamente.`)) {
     if (scrToast) scrToast.style.display = 'none';
   }
 
+    function resolveParticipantTile(participantKey) {
+    if (window.MeetingPresentation && typeof window.MeetingPresentation.resolveParticipantTile === 'function') {
+      return window.MeetingPresentation.resolveParticipantTile(participantKey);
+    }
+    const cfg = window.MEETING_CONFIG || {};
+    if (!participantKey || participantKey === 'local' || participantKey === cfg.selfKey) {
+      return document.getElementById('tile-local');
+    }
+    return document.getElementById('tile-' + participantKey);
+  }
+
   function enterFullMode(targetKey, isScreenShare = false) {
     const cfg = window.MEETING_CONFIG;
     const grid = document.getElementById('videos');
     if (!grid) return;
 
-    const targetTile = (targetKey === 'local') ? document.getElementById('tile-local') : document.getElementById('tile-' + targetKey);
+    const targetTile = resolveParticipantTile(targetKey);
     if (!targetTile) return;
 
     isFullModeActive = true;
@@ -1010,6 +1123,16 @@ O participante será desconectado imediatamente.`)) {
       window.MeetingWebRTC.setSpotlightBitrate(false);
     }
 
+    // Restaura perfis de mídia e saída local (Tarefas 18 e 21)
+    if (window.MeetingMedia) {
+      if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
+        window.MeetingMedia.resumeOutgoingVideo();
+      }
+      if (typeof window.MeetingMedia.applyNormalVideoProfile === 'function') {
+        window.MeetingMedia.applyNormalVideoProfile();
+      }
+    }
+
     // Re-renderiza o estado da grade normal
     renderParticipants(participantList);
   }
@@ -1032,7 +1155,9 @@ O participante será desconectado imediatamente.`)) {
     renderWaitingList,
     kickParticipant,
     toggleRaiseHand,
-        approveHandWithFullMode,
+    approveHandWithFullMode,
+    rejectHandRequest,
+    clearLocalHand: () => { isLocalHandRaised = false; updateHandBtnUI(false, localVideoGranted); },
     approveFullMode,
     revokeFullMode,
     dismissScreenToast,
@@ -1053,6 +1178,7 @@ O participante será desconectado imediatamente.`)) {
     updateCounters,
     updateVideoGridCount,
     getParticipantName: (key) => participantNames.get(key) || 'Participante',
+    resolveParticipantTile,
     getParticipants: () => participantList
   };
 })(window);

@@ -108,6 +108,8 @@ if ($action === 'set_full') {
     if ($pName) $targetName = $pName;
 
     $isScreen = !empty($input['is_screen']) ? 1 : 0;
+    $mediaType = $isScreen ? 'screen' : 'camera';
+    set_room_presentation($roomId, $targetKey, $mediaType);
 
     try {
         $sig = $pdo->prepare("INSERT INTO signaling_messages (room_id, sender_key, recipient_key, message_type, payload, created_at) 
@@ -134,6 +136,7 @@ if ($action === 'set_full') {
 }
 
 if ($action === 'exit_full') {
+    end_room_presentation($roomId);
     if (!$isAdmin) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'only_administrators_can_revoke_full_mode']);

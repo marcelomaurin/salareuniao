@@ -34,40 +34,20 @@ $dsn = sprintf(
 );
 
 try {
-    // Garante colunas de Pedir a Palavra e Limite de Vídeo na tabela room_presence
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL");
-} catch (Throwable $e) {}
-
-$pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
+    $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
-// Garante colunas de Pedir a Palavra e Limite de Vídeo na tabela room_presence
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0");
-} catch (Throwable $e) {}
-try {
-    $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL");
-} catch (Throwable $e) {}
-
+    // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_raised TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN hand_requested_at DATETIME NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_granted TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN granted_at DATETIME NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN video_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN audio_admin_allowed TINYINT(1) NOT NULL DEFAULT 1"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE room_presence ADD COLUMN screen_admin_allowed TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $e) {}
 } catch (Throwable $e) {
     http_response_code(500);
     die('<div style="font-family: sans-serif; padding: 30px; background: #0b1120; color: #f1f5f9; min-height: 100vh;">'
@@ -224,6 +204,42 @@ try {
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_reset_token (token)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS system_parameters (
+            parameter_key VARCHAR(100) PRIMARY KEY,
+            parameter_value TEXT NULL,
+            parameter_type VARCHAR(30) NOT NULL DEFAULT 'string',
+            description VARCHAR(255) NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by BIGINT UNSIGNED NULL,
+            INDEX idx_sysparam_key (parameter_key)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS room_runtime_state (
+            room_id BIGINT UNSIGNED PRIMARY KEY,
+            room_mode ENUM('normal','presentation') NOT NULL DEFAULT 'normal',
+            active_presenter_key CHAR(64) NULL,
+            presentation_media_type ENUM('camera','screen') NULL,
+            presentation_started_at DATETIME NULL,
+            state_version INT UNSIGNED NOT NULL DEFAULT 1,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_rstate_mode (room_mode)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS room_control_audit (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            room_id BIGINT UNSIGNED NOT NULL,
+            admin_user_id BIGINT UNSIGNED NULL,
+            participant_key CHAR(64) NULL,
+            command_id VARCHAR(64) NULL,
+            command VARCHAR(80) NOT NULL,
+            payload JSON NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'applied',
+            result_ack JSON NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_rca_room (room_id),
+            INDEX idx_rca_cmd (command_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
     // Migrações seguras de colunas em signaling_messages
@@ -270,6 +286,14 @@ try {
 } catch (Throwable $e) {
     error_log('SalaReuniao auto-provisioning notice: ' . $e->getMessage());
 }
+
+    // Inicializa parâmetros essenciais do sistema
+    try {
+        $stParam = $pdo->prepare("INSERT INTO system_parameters (parameter_key, parameter_value, parameter_type, description, updated_at)
+            VALUES ('webrtc.max_mesh_participants', '4', 'integer', 'Quantidade máxima recomendada de participantes para operação WebRTC Mesh.', NOW())
+            ON DUPLICATE KEY UPDATE description = VALUES(description)");
+        $stParam->execute();
+    } catch (Throwable $e) {}
 
 function current_user(): ?array {
     global $pdo;
@@ -491,6 +515,163 @@ function is_token_room_admin(PDO $pdo, string $token): bool {
         return false;
     } catch (Throwable $e) {
         return false;
+    }
+}
+
+function get_system_parameter(string $key, mixed $default = null): mixed {
+    global $pdo, $config;
+    if ($pdo) {
+        try {
+            $st = $pdo->prepare('SELECT parameter_value, parameter_type FROM system_parameters WHERE parameter_key = ? LIMIT 1');
+            $st->execute([$key]);
+            $row = $st->fetch();
+            if ($row && $row['parameter_value'] !== null) {
+                $val = $row['parameter_value'];
+                return match (strtolower((string)$row['parameter_type'])) {
+                    'int', 'integer' => (int)$val,
+                    'bool', 'boolean' => filter_var($val, FILTER_VALIDATE_BOOLEAN),
+                    'float', 'double' => (float)$val,
+                    'json' => json_decode($val, true),
+                    default => (string)$val,
+                };
+            }
+        } catch (Throwable $e) {}
+    }
+
+    if ($key === 'webrtc.max_mesh_participants') {
+        if (isset($config['webrtc']['max_mesh_participants'])) {
+            return (int)$config['webrtc']['max_mesh_participants'];
+        }
+        return 4;
+    }
+
+    return $default;
+}
+
+function set_system_parameter(string $key, mixed $value, ?string $type = null, ?string $description = null, ?int $userId = null): bool {
+    global $pdo;
+    if (!$pdo) return false;
+    try {
+        if ($type === null) {
+            $type = is_int($value) ? 'integer' : (is_bool($value) ? 'boolean' : (is_array($value) ? 'json' : 'string'));
+        }
+        $strValue = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : (string)$value;
+        $st = $pdo->prepare("
+            INSERT INTO system_parameters (parameter_key, parameter_value, parameter_type, description, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, NOW(), ?)
+            ON DUPLICATE KEY UPDATE 
+                parameter_value = VALUES(parameter_value),
+                parameter_type = VALUES(parameter_type),
+                description = COALESCE(VALUES(description), description),
+                updated_at = NOW(),
+                updated_by = VALUES(updated_by)
+        ");
+        return $st->execute([$key, $strValue, $type, $description, $userId]);
+    } catch (Throwable $e) {
+        error_log('set_system_parameter error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+function get_room_runtime_state(int $roomId): array {
+    global $pdo;
+    $default = [
+        'room_id' => $roomId,
+        'room_mode' => 'normal',
+        'active_presenter_key' => null,
+        'presentation_media_type' => null,
+        'presentation_started_at' => null,
+        'state_version' => 1,
+    ];
+    if (!$pdo) return $default;
+    try {
+        $st = $pdo->prepare("SELECT room_id, room_mode, active_presenter_key, presentation_media_type, presentation_started_at, state_version FROM room_runtime_state WHERE room_id = ? LIMIT 1");
+        $st->execute([$roomId]);
+        $row = $st->fetch();
+        if ($row) {
+            return [
+                'room_id' => (int)$row['room_id'],
+                'room_mode' => (string)($row['room_mode'] ?: 'normal'),
+                'active_presenter_key' => $row['active_presenter_key'] ?: null,
+                'presentation_media_type' => $row['presentation_media_type'] ?: null,
+                'presentation_started_at' => $row['presentation_started_at'] ?: null,
+                'state_version' => (int)($row['state_version'] ?? 1),
+            ];
+        }
+        $ins = $pdo->prepare("INSERT INTO room_runtime_state (room_id, room_mode, state_version, updated_at) VALUES (?, 'normal', 1, NOW()) ON DUPLICATE KEY UPDATE updated_at = NOW()");
+        $ins->execute([$roomId]);
+        return $default;
+    } catch (Throwable $e) {
+        return $default;
+    }
+}
+
+function set_room_presentation(int $roomId, string $presenterKey, string $mediaType = 'camera'): array {
+    global $pdo;
+    if (!$pdo) return get_room_runtime_state($roomId);
+    $mediaType = in_array($mediaType, ['camera', 'screen'], true) ? $mediaType : 'camera';
+    try {
+        $st = $pdo->prepare("
+            INSERT INTO room_runtime_state (room_id, room_mode, active_presenter_key, presentation_media_type, presentation_started_at, state_version, updated_at)
+            VALUES (?, 'presentation', ?, ?, NOW(), 1, NOW())
+            ON DUPLICATE KEY UPDATE 
+                room_mode = 'presentation',
+                active_presenter_key = VALUES(active_presenter_key),
+                presentation_media_type = VALUES(presentation_media_type),
+                presentation_started_at = NOW(),
+                state_version = state_version + 1,
+                updated_at = NOW()
+        ");
+        $st->execute([$roomId, $presenterKey, $mediaType]);
+        return get_room_runtime_state($roomId);
+    } catch (Throwable $e) {
+        error_log('set_room_presentation error: ' . $e->getMessage());
+        return get_room_runtime_state($roomId);
+    }
+}
+
+function end_room_presentation(int $roomId): array {
+    global $pdo;
+    if (!$pdo) return get_room_runtime_state($roomId);
+    try {
+        $st = $pdo->prepare("
+            UPDATE room_runtime_state 
+            SET room_mode = 'normal',
+                active_presenter_key = NULL,
+                presentation_media_type = NULL,
+                presentation_started_at = NULL,
+                state_version = state_version + 1,
+                updated_at = NOW()
+            WHERE room_id = ?
+        ");
+        $st->execute([$roomId]);
+        return get_room_runtime_state($roomId);
+    } catch (Throwable $e) {
+        error_log('end_room_presentation error: ' . $e->getMessage());
+        return get_room_runtime_state($roomId);
+    }
+}
+
+function log_control_command(int $roomId, ?int $adminUserId, ?string $participantKey, string $command, ?string $commandId = null, array $payload = [], string $status = 'applied', ?array $resultAck = null): void {
+    global $pdo;
+    if (!$pdo) return;
+    try {
+        $st = $pdo->prepare("
+            INSERT INTO room_control_audit (room_id, admin_user_id, participant_key, command_id, command, payload, status, result_ack, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        $st->execute([
+            $roomId,
+            $adminUserId,
+            $participantKey,
+            $commandId,
+            substr($command, 0, 80),
+            !empty($payload) ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+            substr($status, 0, 30),
+            !empty($resultAck) ? json_encode($resultAck, JSON_UNESCAPED_UNICODE) : null
+        ]);
+    } catch (Throwable $e) {
+        error_log('log_control_command error: ' . $e->getMessage());
     }
 }
 

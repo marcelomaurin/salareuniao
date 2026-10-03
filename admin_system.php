@@ -33,6 +33,25 @@ $smtpOk=($mailCfg['driver']??'smtp')==='smtp'
     && (($mailCfg['auth']??false)===false || (!empty($mailCfg['username'])&&!empty($mailCfg['password'])&&$mailCfg['password']!=='ALTERE_AQUI'));
 $checks[]=['SMTP configurado',$smtpOk,$smtpOk?(string)$mailCfg['host']:'pendente'];
 
+$webrtcMsg = '';
+$webrtcOk = true;
+
+if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['action']??'')==='save_webrtc_params'){
+    verify_csrf();
+    $maxMesh = (int)($_POST['max_mesh_participants'] ?? 4);
+    if ($maxMesh < 2 || $maxMesh > 100) {
+        $webrtcMsg = 'O limite de participantes em Mesh deve ser entre 2 e 100.';
+        $webrtcOk = false;
+    } else {
+        set_system_parameter('webrtc.max_mesh_participants', $maxMesh, 'integer', 'Quantidade máxima recomendada de participantes para operação WebRTC Mesh.', (int)$admin['id']);
+        audit_log('update_system_parameter', 'system_parameters', 'webrtc.max_mesh_participants', ['value' => $maxMesh]);
+        $webrtcMsg = 'Parâmetros WebRTC atualizados com sucesso.';
+        $webrtcOk = true;
+    }
+}
+
+$currentMaxMesh = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
+
 if($_SERVER['REQUEST_METHOD']==='POST'&&($_POST['action']??'')==='test_mail'){
     verify_csrf();
     $subject='Teste de e-mail - '.($config['app']['name']??'Sala Reunião');
@@ -52,6 +71,21 @@ $allOk=true;foreach($checks as $c)$allOk=$allOk&&$c[1];
 <?php if($mailTest):?><p class="summary"><?=e($mailTest)?></p><?php endif;?>
 <form method="post"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="test_mail">
 <button type="submit">Enviar e-mail de teste para <?=e($admin['email'])?></button></form>
+
+<h2>WebRTC / Mídia</h2>
+<?php if($webrtcMsg):?><p class="summary <?=$webrtcOk?'ok':'bad'?>"><?=e($webrtcMsg)?></p><?php endif;?>
+<form method="post" style="margin-bottom: 25px;">
+<input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
+<input type="hidden" name="action" value="save_webrtc_params">
+<div style="margin-bottom: 10px;">
+<label for="max_mesh_participants" style="display:block; font-weight:bold; margin-bottom: 6px;">Máximo de participantes em Mesh:</label>
+<input type="number" id="max_mesh_participants" name="max_mesh_participants" min="2" max="100" value="<?=e((string)$currentMaxMesh)?>" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; width: 100px; font-size: 1rem;">
+<p style="color: #64748b; font-size: 0.88rem; margin-top: 6px; margin-bottom: 0;">
+Acima deste valor a interface deverá alertar que a sala ultrapassou o limite recomendado da arquitetura WebRTC Mesh.
+</p>
+</div>
+<button type="submit" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Salvar Parâmetros WebRTC</button>
+</form>
 
 <h2>Teste WebRTC</h2>
 <p>Depois que todos os itens acima estiverem OK, abra uma sala em dois computadores conectados a redes diferentes. Na tela da reunião aparecerá:</p>

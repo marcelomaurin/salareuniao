@@ -147,3 +147,51 @@ Para bancos existentes:
 ```bash
 mysql -u root -p salareuniao < apps/web/sql/005_password_reset.sql
 ```
+
+
+---
+
+## Arquitetura de Controle e Modo Apresentação
+
+### 1. Parâmetro Persistente `max_mesh_participants`
+- Gerenciável através do painel administrativo em **Sistema > WebRTC / Mídia**.
+- Define o limite recomendado de participantes simultâneos em topologia WebRTC Mesh pura (padrão: `4`, configurável entre 2 e 100).
+- Quando a sala ultrapassa este valor, o sistema alerta sobre a sobrecarga de upload dos clientes e orienta a utilização do **Modo Apresentação**.
+
+### 2. Modo Normal vs. Modo Apresentação / Full
+- **Modo Normal (Grade Colaborativa):** Todos os participantes com câmera ligada transmitem vídeo na resolução padrão (`640x360 @ 24fps`, ~350 kbps), adequado para reuniões em grupo reduzido.
+- **Modo Apresentação (Otimização Extrema de Mídia):**
+  - **Não é apenas uma alteração visual de layout.** É um modo de conservação de rede e elevação de qualidade.
+  - O apresentador aprovado assume o palco principal com qualidade máxima (`1920x1080 @ 30fps` ou `1280x720 @ 30fps`, 1.2–2 Mbps).
+  - Os demais participantes **suspendem o envio de vídeo** via `RTCRtpSender.replaceTrack(null)`, reduzindo drasticamente o consumo de banda de upload para zero bytes de vídeo, mantendo o hardware da câmera pronto para restauração imediata.
+  - O áudio de todos permanece ativo para perguntas e comentários.
+  - Ao término da apresentação, os vídeos anteriormente ativos são restaurados automaticamente, respeitando as preferências de quem já estava com a câmera desligada.
+
+### 3. Pedir Palavra e Fila FIFO
+- O participante clica em **✋ Pedir Palavra**, registrando `hand_requested_at` no servidor.
+- O administrador visualiza uma fila estritamente ordenada por ordem de chegada (**FIFO**).
+- O administrador pode **ACEITAR** (promovendo atomicamente o participante a apresentador e iniciando o Modo Apresentação) ou **RECUSAR** (notificando o solicitante e liberando a fila).
+- Correção do bug de ressurreição: o heartbeat do cliente nunca sobrepõe uma recusa ou aprovação do servidor.
+
+### 4. Canal WebSocket de Controle Administrativo (`/control`)
+- Canal independente da sinalização WebRTC Mesh (`ControlSocket` em PHP Ratchet).
+- Permite que o anfitrião mantenha autoridade total mesmo se as conexões de mídia P2P sofrerem degradação:
+  - `participant.video.allow` / `participant.video.inhibit`
+  - `participant.audio.allow` / `participant.audio.inhibit`
+  - `participant.screen.allow` / `participant.screen.inhibit`
+  - `participant.kick` (expulsão autoritativa com invalidação imediata no servidor)
+  - `room.presentation.start` / `room.presentation.end`
+- Cada comando possui `command_id` único para idempotência, versionamento monotônico de estado (`state_version`), confirmação formal por **ACK** e sincronização de estado (`state.sync`) após reconexão.
+
+### 5. Scripts SQL desta Atualização
+Para aplicar as migrações em instalações existentes:
+```bash
+mysql -u root -p salareuniao < sql/010_system_parameters.sql
+mysql -u root -p salareuniao < sql/011_room_runtime_state.sql
+mysql -u root -p salareuniao < sql/012_room_audit.sql
+```
+*(O sistema também realiza auto-provisionamento automático destas tabelas via `lib/bootstrap.php`).*
+
+Consulte a documentação técnica detalhada em:
+- [docs/CONTROL_PROTOCOL.md](docs/CONTROL_PROTOCOL.md)
+- [docs/PRESENTATION_MODE.md](docs/PRESENTATION_MODE.md)
