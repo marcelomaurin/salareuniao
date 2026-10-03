@@ -413,6 +413,7 @@
           const fullActionBtn = document.createElement('button');
           fullActionBtn.type = 'button';
           fullActionBtn.className = 'participant-action-btn ' + (isTargetFull ? 'participant-action-primary' : 'participant-action-secondary');
+          fullActionBtn.style.gridColumn = '1 / -1';
           fullActionBtn.innerHTML = isTargetFull ? '▦ Exibição Normal' : '⛶ Exibição Full';
           fullActionBtn.title = isTargetFull ? 'Voltar para a exibição normal' : `Aprovar exibição full para ${p.display_name}`;
           fullActionBtn.onclick = (e) => {
@@ -424,31 +425,6 @@
             }
           };
           actions.appendChild(fullActionBtn);
-
-          // 4. Botão Expulsar (Tarefa 22)
-          const kickBtn = document.createElement('button');
-          kickBtn.type = 'button';
-          kickBtn.className = 'participant-action-btn participant-action-danger';
-          kickBtn.innerHTML = '🚫 Expulsar';
-          kickBtn.title = `Expulsar ${p.display_name} da reunião (poderá tentar entrar novamente)`;
-          kickBtn.onclick = (e) => {
-            e.stopPropagation();
-            kickParticipant(p.participant_key, p.display_name);
-          };
-          actions.appendChild(kickBtn);
-
-          // 5. Botão Banir IP (Tarefa 22)
-          const banBtn = document.createElement('button');
-          banBtn.type = 'button';
-          banBtn.className = 'participant-action-btn participant-action-danger';
-          banBtn.style.gridColumn = '1 / -1';
-          banBtn.innerHTML = '⛔ Banir IP';
-          banBtn.title = `Banir endereço IP de ${p.display_name} desta sala permanentemente`;
-          banBtn.onclick = (e) => {
-            e.stopPropagation();
-            banParticipant(p.participant_key, p.display_name);
-          };
-          actions.appendChild(banBtn);
         }
 
         wrap.appendChild(div);
@@ -725,7 +701,6 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;">
               <button type="button" class="participant-action-btn participant-action-active" onclick="MeetingParticipants.admitGuest(${w.id}, 'approve')">✓ Permitir</button>
               <button type="button" class="participant-action-btn participant-action-warning" onclick="MeetingParticipants.admitGuest(${w.id}, 'reject')">✕ Recusar</button>
-              <button type="button" class="participant-action-btn participant-action-danger" style="grid-column: 1 / -1;" onclick="MeetingParticipants.admitGuest(${w.id}, 'ban', '${escapeHtml(w.request_ip || '')}')">⛔ Banir IP</button>
             </div>
           `;
           waitList.appendChild(item);
@@ -751,7 +726,6 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;">
             <button type="button" class="participant-action-btn participant-action-active" onclick="MeetingParticipants.admitGuest(${g.id}, 'approve')">✓ Permitir</button>
             <button type="button" class="participant-action-btn participant-action-warning" onclick="MeetingParticipants.admitGuest(${g.id}, 'reject')">✕ Recusar</button>
-            <button type="button" class="participant-action-btn participant-action-danger" style="grid-column: 1 / -1;" onclick="MeetingParticipants.admitGuest(${g.id}, 'ban', '${escapeHtml(g.request_ip || '')}')">⛔ Banir IP</button>
           </div>
         `;
         toast.style.display = 'flex';
