@@ -82,15 +82,24 @@ $inviteUrl = rtrim($inviteBase, '/') . '/join.php?room_token=' . urlencode($room
 
 $iceServers = $config['webrtc']['ice_servers'] ?? [];
 $turn = $config['webrtc']['turn'] ?? [];
-if (!empty($turn['enabled']) && !empty($turn['secret']) && !empty($turn['urls'])) {
-    $ttl = max(300, (int)($turn['ttl'] ?? 3600));
-    $turnUsername = (string)(time() + $ttl) . ':' . $me['participant_key'];
-    $turnCredential = base64_encode(hash_hmac('sha1', $turnUsername, (string)$turn['secret'], true));
-    $iceServers[] = [
-        'urls' => $turn['urls'],
-        'username' => $turnUsername,
-        'credential' => $turnCredential,
-    ];
+if (!empty($turn['enabled']) && !empty($turn['urls'])) {
+    if (!empty($turn['secret']) && empty($turn['username'])) {
+        // Coturn ephemeral HMAC token
+        $ttl = max(300, (int)($turn['ttl'] ?? 3600));
+        $turnUsername = (string)(time() + $ttl) . ':' . $me['participant_key'];
+        $turnCredential = base64_encode(hash_hmac('sha1', $turnUsername, (string)$turn['secret'], true));
+    } else {
+        // Credenciais estáticas de provedor TURN gerenciado (Metered, Xirsys, OpenRelay, etc.)
+        $turnUsername = (string)($turn['username'] ?? '');
+        $turnCredential = (string)($turn['credential'] ?? $turn['password'] ?? $turn['secret'] ?? '');
+    }
+    if ($turnUsername !== '' && $turnCredential !== '') {
+        $iceServers[] = [
+            'urls' => $turn['urls'],
+            'username' => $turnUsername,
+            'credential' => $turnCredential,
+        ];
+    }
 }
 $ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
 $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);

@@ -64,24 +64,42 @@ return [
     ],
     'webrtc' => [
         'max_mesh_participants' => 4,
+        // Servidores STUN públicos (Google e STUN padrão)
         'ice_servers' => [
-            ['urls' => ['stun:turn.seu-dominio.example:3478']],
+            ['urls' => [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+            ]],
         ],
+        // Servidor TURN (Essencial para Hospedagem Compartilhada como Hostinger, cPanel, hPanel)
+        // Para hospedar sem VPS, use um provedor TURN gratuito (ex: Metered.ca com 50GB/mês grátis)
+        // ou um servidor Coturn próprio com static-auth-secret.
         'turn' => [
-            'enabled' => true,
-            'urls' => [
-                'turn:turn.seu-dominio.example:3478?transport=udp',
-                'turn:turn.seu-dominio.example:3478?transport=tcp',
-                'turns:turn.seu-dominio.example:5349?transport=tcp',
-            ],
-            // Deve ser o MESMO valor de static-auth-secret do Coturn.
-            // Nunca publique este segredo no Git.
-            'secret' => 'TROQUE_POR_UM_SEGREDO_FORTE',
-            'ttl' => 3600,
+            'enabled' => false,
+            // Exemplo com Metered.ca (Hospedagem Compartilhada Hostinger):
+            // 'urls' => [
+            //     'turn:standard.relay.metered.ca:80',
+            //     'turn:standard.relay.metered.ca:443',
+            //     'turn:standard.relay.metered.ca:443?transport=tcp'
+            // ],
+            // 'username' => 'SEU_USERNAME_METERED',
+            // 'credential' => 'SEU_PASSWORD_METERED',
+
+            // Exemplo com Coturn próprio (VPS):
+            // 'urls' => [
+            //     'turn:turn.seu-dominio.example:3478?transport=udp',
+            //     'turn:turn.seu-dominio.example:3478?transport=tcp',
+            //     'turns:turn.seu-dominio.example:5349?transport=tcp',
+            // ],
+            // 'secret' => 'TROQUE_POR_UM_SEGREDO_FORTE',
+            // 'ttl' => 3600,
         ],
     ],
+    // PHP Media Bridge: Desative em hospedagem compartilhada (Hostinger hPanel).
+    // Requer VPS com serviço daemon Ratchet rodando em segundo plano.
     'bridge' => [
-        'enabled' => true,
+        'enabled' => false,
         'public_url' => 'wss://maurinsoft.com.br/salareuniao/bridge',
         'path' => '/bridge',
         'max_clients_per_room' => 20,
