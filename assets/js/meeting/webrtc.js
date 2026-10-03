@@ -41,6 +41,7 @@
     const state = {
       makingOffer: false,
       ignoreOffer: false,
+      suppressNegotiation: false,
       polite: isPolite,
       isSettingRemoteAnswerPending: false,
       remoteStream: new MediaStream(),
@@ -105,6 +106,9 @@
 
     // Perfect Negotiation: onnegotiationneeded
     pc.onnegotiationneeded = async () => {
+      if (state.suppressNegotiation || state.makingOffer || pc.signalingState !== 'stable') {
+        return;
+      }
       try {
         state.makingOffer = true;
         window.rtcLog(remoteKey, 'negotiation-needed-offer-start');
@@ -236,15 +240,19 @@
 
   async function attemptIceRestart(remoteKey, pc, state) {
     const cfg = window.MEETING_CONFIG || {};
-    if (state.iceRestartAttempts >= 3) {
-      window.rtcLog(remoteKey, 'ice-restart-limit-reached-recreating-peer');
+    if (!state) state = peerState.get(remoteKey);
+    if (!pc) pc = pcs.get(remoteKey);
+    if (!pc || !state) return;
+
+    if (state.iceRestartAttempts >= 2) {
+      window.rtcLog(remoteKey, 'ice-restart-limit-reached');
       if (cfg.BRIDGE_ENABLED && state.transportMode !== 'bridge') {
         state.transportMode = 'bridge';
+        window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
         if (window.MeetingBridge) {
           window.MeetingBridge.activateFallback(remoteKey);
         }
       }
-      handlePeerFailure(remoteKey, pc, state);
       return;
     }
     state.iceRestartAttempts++;
@@ -264,7 +272,7 @@
       window.rtcLog(remoteKey, 'restart-ice-offer-sent');
     } catch (e) {
       console.warn(`Falha no restartIce para ${remoteKey}:`, e);
-      handlePeerFailure(remoteKey);
+      handlePeerFailure(remoteKey, pc, state);
     } finally {
       state.makingOffer = false;
     }
@@ -272,33 +280,31 @@
 
   function handlePeerFailure(remoteKey, pc, state) {
     if (!state) state = peerState.get(remoteKey);
+    if (!pc) pc = pcs.get(remoteKey);
     const cfg = window.MEETING_CONFIG || {};
-    const fallbackTimeout = cfg.BRIDGE_FALLBACK_TIMEOUT_MS || 8000;
 
-    // Tarefas 62 a 64: Ativação de fallback Bridge se persistir em falha
-    if (state && cfg.BRIDGE_ENABLED && state.transportMode !== 'bridge') {
-      if (!state.failureTimer) {
-        state.failureTimer = setTimeout(() => {
-          state.failureTimer = null;
-          const curPc = pcs.get(remoteKey);
-          if (curPc && (curPc.connectionState === 'failed' || curPc.iceConnectionState === 'failed')) {
-            state.transportMode = 'bridge';
-            window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
-            if (window.MeetingBridge) {
-              window.MeetingBridge.activateFallback(remoteKey);
-            }
-          }
-        }, fallbackTimeout);
-      }
+    // 1. Tenta ICE restart primeiro antes de recriar do zero
+    if (state && pc && state.iceRestartAttempts < 2) {
+      window.rtcLog(remoteKey, 'attempting-ice-restart-on-failure');
+      attemptIceRestart(remoteKey, pc, state);
+      return;
     }
 
+    // 2. Se limite excedido e Bridge habilitado, ativa fallback Bridge
+    if (cfg.BRIDGE_ENABLED && window.MeetingBridge && state && state.transportMode !== 'bridge') {
+      state.transportMode = 'bridge';
+      window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
+      window.MeetingBridge.activateFallback(remoteKey);
+    }
+
+    // 3. Recria conexão sem destruir o tile visual do DOM
     window.rtcLog(remoteKey, 'recreating-peer-after-failure');
-    removePeer(remoteKey);
+    removePeer(remoteKey, false);
     setTimeout(() => {
       if (!window.MeetingApp?.isLeaving()) {
         getOrCreatePeer(remoteKey);
       }
-    }, 1500);
+    }, 2000);
   }
 
   async function flushPendingIce(remoteKey) {
@@ -370,7 +376,8 @@
       if (!pc || !state) return;
 
       const isOffer = (m.message_type === 'offer');
-      const offerCollision = isOffer && (state.makingOffer || pc.signalingState !== 'stable');
+      const readyForOffer = !state.makingOffer && (pc.signalingState === 'stable' || state.isSettingRemoteAnswerPending);
+      const offerCollision = isOffer && !readyForOffer;
 
       // Se houver colisão de oferta e este nó NÃO for o educado (polite), ignora a oferta recebida
       state.ignoreOffer = !state.polite && offerCollision;
@@ -379,11 +386,14 @@
         return;
       }
 
+      state.suppressNegotiation = true;
       try {
         // Se for o nó educado e houver colisão de oferta, executa ROLLBACK para voltar a 'stable'
         if (offerCollision && state.polite) {
           window.rtcLog(key, 'offer-collision-polite-rollback-start');
-          await pc.setLocalDescription({ type: 'rollback' });
+          if (pc.signalingState !== 'stable') {
+            await pc.setLocalDescription({ type: 'rollback' });
+          }
           window.rtcLog(key, 'offer-collision-polite-rollback-success');
         }
 
@@ -414,6 +424,8 @@
       } catch (err) {
         console.warn(`Erro no setRemoteDescription com ${key}:`, err);
         window.rtcLog(key, 'setRemoteDescription-error', err);
+      } finally {
+        state.suppressNegotiation = false;
       }
       return;
     }
@@ -448,7 +460,7 @@
     }
   }
 
-  function removePeer(key) {
+  function removePeer(key, removeDomTile = true) {
     window.rtcLog(key, 'peer-removed');
     const pc = pcs.get(key);
     const state = peerState.get(key);
@@ -456,6 +468,14 @@
     if (state && state.reconnectTimer) {
       clearTimeout(state.reconnectTimer);
       state.reconnectTimer = null;
+    }
+    if (state && state.failureTimer) {
+      clearTimeout(state.failureTimer);
+      state.failureTimer = null;
+    }
+    if (state && state.restoreTimer) {
+      clearTimeout(state.restoreTimer);
+      state.restoreTimer = null;
     }
 
     pcs.delete(key);
@@ -473,17 +493,19 @@
       } catch(e) {}
     }
 
-    // Remove tile visual e limpa stream
-    const tile = document.getElementById('tile-' + key);
-    if (tile) {
-      const video = tile.querySelector('video');
-      if (video) video.srcObject = null;
-      tile.remove();
-    }
+    // Remove tile visual e limpa stream apenas se for saída definitiva
+    if (removeDomTile) {
+      const tile = document.getElementById('tile-' + key);
+      if (tile) {
+        const video = tile.querySelector('video');
+        if (video) video.srcObject = null;
+        tile.remove();
+      }
 
-    if (window.MeetingParticipants) {
-      window.MeetingParticipants.updateCounters();
-      window.MeetingParticipants.updateVideoGridCount();
+      if (window.MeetingParticipants) {
+        window.MeetingParticipants.updateCounters();
+        window.MeetingParticipants.updateVideoGridCount();
+      }
     }
   }
 
@@ -509,10 +531,12 @@
     try {
       await video.play();
     } catch (e) {
+      if (e.name === 'AbortError') return;
       video.muted = true;
       try {
         await video.play();
       } catch (err) {
+        if (err.name === 'AbortError') return;
         console.warn('Vídeo remoto bloqueado:', err);
       }
       const tile = video.parentElement;
