@@ -174,20 +174,30 @@
     const isMe = (presenterKey === cfg.selfKey);
 
     if (isMe) {
-      // ORADOR ATIVO (Único que transmite na sala):
+      // ORADOR ATIVO (Único que transmite na sala e fica no topo):
       if (window.MeetingParticipants) {
         window.MeetingParticipants.clearLocalHand();
       }
       if (window.MeetingMedia) {
+        window.MeetingMedia.setVideoAdminPermission(true);
         window.MeetingMedia.setVideoRoomPermission(true);
         window.MeetingMedia.setVideoUserPreference(true);
+        window.MeetingMedia.setAudioAdminPermission(true);
         window.MeetingMedia.setAudioRoomPermission(true);
         window.MeetingMedia.setAudioUserPreference(true);
-        if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
+
+        if (typeof window.MeetingMedia.ensureCameraActive === 'function') {
+          await window.MeetingMedia.ensureCameraActive();
+        } else if (typeof window.MeetingMedia.resumeOutgoingVideo === 'function') {
           await window.MeetingMedia.resumeOutgoingVideo();
         }
+
+        if (typeof window.MeetingMedia.ensureAudioActive === 'function') {
+          await window.MeetingMedia.ensureAudioActive();
+        }
+
         if (typeof window.MeetingMedia.applyFullscreenVideoProfile === 'function') {
-          await window.MeetingMedia.applyFullscreenVideoProfile(); // 1024x768 @ 30fps!
+          await window.MeetingMedia.applyFullscreenVideoProfile();
         }
       }
       if (window.showToast) {

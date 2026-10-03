@@ -217,6 +217,78 @@
     window.rtcLog && window.rtcLog('LOCAL', 'video-suspended');
   }
 
+  // Garante câmera ativa e transmitindo (usado ao virar apresentador)
+  async function ensureCameraActive() {
+    camera_admin_allowed = true;
+    camera_room_allowed = true;
+    camera_user_enabled = true;
+
+    if (!cameraTrack || cameraTrack.readyState !== 'live') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: MEDIA_PROFILE_NORMAL
+        });
+        const newTrack = stream.getVideoTracks()[0];
+        if (newTrack) {
+          cameraTrack = newTrack;
+          if (!localStream) localStream = new MediaStream();
+          localStream.getVideoTracks().forEach(t => { 
+            try { t.stop(); localStream.removeTrack(t); } catch(e){} 
+          });
+          localStream.addTrack(cameraTrack);
+          window.rtcLog && window.rtcLog('LOCAL', 'camera-acquired-for-presenter');
+        }
+      } catch (err) {
+        console.warn('Falha ao ativar câmera:', err);
+      }
+    }
+
+    await applyEffectiveVideo();
+    if (cameraTrack && cameraTrack.readyState === 'live') {
+      await replaceOutgoingTrack('video', cameraTrack);
+    }
+  }
+
+  // Garante microfone ativo e transmitindo (usado ao virar apresentador)
+  async function ensureAudioActive() {
+    microphone_admin_allowed = true;
+    microphone_room_allowed = true;
+    microphone_user_enabled = true;
+
+    const audioTracks = localStream ? localStream.getAudioTracks() : [];
+    let audioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
+
+    if (!audioTrack || audioTrack.readyState !== 'live') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            latency: 0
+          }
+        });
+        const newTrack = stream.getAudioTracks()[0];
+        if (newTrack) {
+          if (!localStream) localStream = new MediaStream();
+          localStream.getAudioTracks().forEach(t => { 
+            try { t.stop(); localStream.removeTrack(t); } catch(e){} 
+          });
+          localStream.addTrack(newTrack);
+          window.rtcLog && window.rtcLog('LOCAL', 'audio-acquired-for-presenter');
+        }
+      } catch (err) {
+        console.warn('Falha ao ativar microfone:', err);
+      }
+    }
+
+    await applyEffectiveAudio();
+    const curAudio = localStream ? localStream.getAudioTracks()[0] : null;
+    if (curAudio && curAudio.readyState === 'live') {
+      await replaceOutgoingTrack('audio', curAudio);
+    }
+  }
+
   async function resumeOutgoingVideo() {
     camera_room_allowed = true;
     await applyEffectiveVideo();
@@ -638,6 +710,8 @@
     stopAllMedia,
     suspendOutgoingVideo,
     resumeOutgoingVideo,
+    ensureCameraActive,
+    ensureAudioActive,
     applyPresentationVideoProfile,
     applyNormalVideoProfile,
     applyLowVideoProfile,

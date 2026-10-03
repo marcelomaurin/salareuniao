@@ -130,6 +130,22 @@
       return;
     }
 
+    if (payload.action === 'presentation_start' || payload.type === 'room.presentation.start') {
+      const pKey = payload.presenter_key;
+      const mType = payload.media_type || 'camera';
+      if (window.MeetingPresentation) {
+        window.MeetingPresentation.start(pKey, mType, payload);
+      }
+      return;
+    }
+
+    if (payload.action === 'presentation_end' || payload.type === 'room.presentation.end') {
+      if (window.MeetingPresentation) {
+        window.MeetingPresentation.end(payload);
+      }
+      return;
+    }
+
     if (payload.action === 'speaker_granted' || payload.action === 'speaker_revoked') {
       if (window.MeetingApp && window.MeetingApp.triggerHeartbeat) {
         window.MeetingApp.triggerHeartbeat();
