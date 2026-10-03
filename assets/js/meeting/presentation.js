@@ -54,29 +54,11 @@
     // Determina quem é o apresentador que fica EM CIMA
     const presenterKey = getActivePresenterKey();
 
-    // Atualiza o rótulo superior com o nome do usuário que está apresentando
+    // Rótulo superior removido (o card de vídeo já possui a identificação do participante)
     const titleEl = document.getElementById('stagePresenterName') || document.querySelector('.stage-header-title');
     if (titleEl) {
-      if (!presenterKey) {
-        titleEl.textContent = cfg.displayName || 'Sala de Reunião';
-      } else {
-        let presName = '';
-        if (presenterKey === cfg.selfKey) {
-          presName = 'Você (' + (cfg.displayName || 'Você') + ')';
-        } else if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
-          presName = window.MeetingParticipants.getParticipantName(presenterKey);
-        }
-        if (!presName || presName === 'Participante') {
-          const presTile = document.getElementById('tile-' + presenterKey);
-          if (presTile) {
-            const nameSpan = presTile.querySelector('.name');
-            if (nameSpan && nameSpan.textContent) {
-              presName = nameSpan.textContent.replace(/^Você \(|\)$/g, '').trim();
-            }
-          }
-        }
-        titleEl.textContent = presName || 'Apresentador';
-      }
+      titleEl.style.display = 'none';
+      titleEl.textContent = '';
     }
 
     const allTiles = document.querySelectorAll('.tile');
