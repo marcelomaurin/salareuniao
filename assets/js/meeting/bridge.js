@@ -292,7 +292,7 @@
   // =========================================================================
   // RECEPÇÃO E REPRODUÇÃO VIA MSE (Tarefas 58, 59, 60, 61)
   // =========================================================================
-  function handleIncomingData(data) {
+  function handleIncomingData(data, publisherKey = null, seq = null) {
     // 1. Mensagens de Controle JSON
     if (typeof data === 'string') {
       try {
@@ -305,11 +305,12 @@
     // 2. Chunks Binários de Mídia (ArrayBuffer) com cabeçalho de 8 bytes de timestamp
     if (data instanceof ArrayBuffer) {
       let mediaPayload = data;
+      let captureTime = 0;
 
-      // Tarefa 61: Mede latência calculando receiving_time - capturing_time
+      // Mede latência calculando receiving_time - capturing_time
       if (data.byteLength >= 8) {
         const dv = new DataView(data);
-        const captureTime = dv.getFloat64(0, false);
+        captureTime = dv.getFloat64(0, false);
         const now = Date.now();
         if (captureTime > 0 && captureTime <= now) {
           stats.latencyMs = Math.max(0, Math.round(now - captureTime));
@@ -320,10 +321,10 @@
       stats.bytesReceived += mediaPayload.byteLength;
       stats.chunksReceived++;
 
-      // Encaminha chunk puro de mídia para o reprodutor ativo
-      const pubKey = stats.activePublisherKey;
+      // Encaminha chunk puro de mídia para o reprodutor ativo com deduplicação
+      const pubKey = publisherKey || stats.activePublisherKey;
       if (pubKey && remotePlayers.has(pubKey)) {
-        appendMediaChunk(pubKey, mediaPayload);
+        appendMediaChunk(pubKey, mediaPayload, seq, captureTime);
       }
     }
   }
@@ -386,7 +387,11 @@
       queue: [],
       videoEl,
       mime,
-      isReady: false
+      isReady: false,
+      lastCaptureTime: 0,
+      lastSeq: -1,
+      seenSeqs: new Set(),
+      lastSignature: null
     };
 
     remotePlayers.set(publisherKey, playerObj);
@@ -416,11 +421,49 @@
     videoEl.play().catch(() => {});
   }
 
-  function appendMediaChunk(publisherKey, arrayBuffer) {
+  function appendMediaChunk(publisherKey, arrayBuffer, seq = null, captureTime = 0) {
     const player = remotePlayers.get(publisherKey);
     if (!player) return;
 
-    // Tarefa 60: Política de descarte de chunks para baixa latência
+    // 1. Controle para não tocar duas vezes o mesmo pacote (deduplicação por seq)
+    if (seq !== null && seq !== undefined && seq >= 0) {
+      if (player.seenSeqs.has(seq) || (player.lastSeq >= 0 && seq <= player.lastSeq && seq !== 0)) {
+        console.warn(`[MeetingBridge] Descartando pacote duplicado (seq ${seq}, último: ${player.lastSeq}) de ${publisherKey}`);
+        return;
+      }
+      player.seenSeqs.add(seq);
+      if (seq > player.lastSeq) {
+        player.lastSeq = seq;
+      }
+      if (player.seenSeqs.size > 120) {
+        const minKeep = player.lastSeq - 60;
+        for (const s of player.seenSeqs) {
+          if (s < minKeep) player.seenSeqs.delete(s);
+        }
+      }
+    }
+
+    // 2. Controle de repetição por timestamp de captura do pacote
+    if (captureTime > 0) {
+      if (captureTime === player.lastCaptureTime) {
+        console.warn(`[MeetingBridge] Descartando pacote com mesmo timestamp (${captureTime}) de ${publisherKey}`);
+        return;
+      }
+      player.lastCaptureTime = captureTime;
+    }
+
+    // 3. Controle por assinatura binária dos dados
+    if (arrayBuffer.byteLength >= 16) {
+      const dv = new DataView(arrayBuffer);
+      const sig = `${arrayBuffer.byteLength}_${dv.getUint32(0, false)}_${dv.getUint32(Math.min(8, arrayBuffer.byteLength - 4), false)}`;
+      if (sig === player.lastSignature) {
+        console.warn(`[MeetingBridge] Descartando pacote com assinatura binária repetida de ${publisherKey}`);
+        return;
+      }
+      player.lastSignature = sig;
+    }
+
+    // Política de descarte de chunks para baixa latência
     // Se a fila passar de 8 chunks (~2 segundos de atraso), descarta os mais antigos
     if (player.queue.length > 8) {
       stats.droppedChunks += (player.queue.length - 4);
@@ -464,7 +507,13 @@
   // Loop de Recepcao via HTTP Long-Polling (Hostinger Relay)
   async function startHttpPullLoop(remoteKey) {
     if (activePullLoops.has(remoteKey)) return;
-    const state = { running: true, lastSeq: -1 };
+    const state = { 
+      running: true, 
+      lastSeq: -1, 
+      lastProcessedSeq: -1, 
+      seenSeqs: new Set(),
+      initProcessed: false 
+    };
     activePullLoops.set(remoteKey, state);
 
     const cfg = getCfg();
@@ -476,7 +525,7 @@
     let errCount = 0;
     while (state.running && !window.MeetingApp?.isLeaving()) {
       try {
-        const url = `api/relay_pull.php?token=${encodeURIComponent(token)}&publisher_key=${encodeURIComponent(remoteKey)}&after=${state.lastSeq}`;
+        const url = `api/relay_pull.php?token=${encodeURIComponent(token)}&publisher_key=${encodeURIComponent(remoteKey)}&after=${state.lastSeq}&_t=${Date.now()}`;
         const resp = await fetch(url, { cache: 'no-store' });
 
         if (!resp.ok) {
@@ -493,6 +542,20 @@
           const seq = parseInt(resp.headers.get('X-Relay-Seq') || '0', 10);
           const mime = resp.headers.get('X-Relay-Mime') || 'video/webm;codecs=vp8,opus';
 
+          // Controle de duplicação: ignora pacotes que já foram tocados ou cabeçalho init repetido
+          if (isInit) {
+            if (state.initProcessed) {
+              continue;
+            }
+            state.initProcessed = true;
+          } else {
+            if (state.seenSeqs.has(seq) || (state.lastProcessedSeq >= 0 && seq <= state.lastProcessedSeq)) {
+              console.warn(`[MeetingBridge] Pacote HTTP repetido detectado (seq ${seq}, último: ${state.lastProcessedSeq}). Descartado.`);
+              if (seq > state.lastSeq) state.lastSeq = seq;
+              continue;
+            }
+          }
+
           if (!remotePlayers.has(remoteKey)) {
             stats.activePublisherKey = remoteKey;
             setupRemotePlayer(remoteKey, mime);
@@ -500,15 +563,24 @@
 
           const buffer = await resp.arrayBuffer();
           if (buffer.byteLength > 0) {
-            handleIncomingData(buffer);
-            state.lastSeq = seq;
+            handleIncomingData(buffer, remoteKey, seq);
+            state.seenSeqs.add(seq);
+            state.lastProcessedSeq = seq;
+            state.lastSeq = Math.max(state.lastSeq, seq);
+
+            if (state.seenSeqs.size > 100) {
+              const cutoff = state.lastSeq - 50;
+              for (const s of state.seenSeqs) {
+                if (s < cutoff) state.seenSeqs.delete(s);
+              }
+            }
           }
         } else {
           const json = await resp.json().catch(() => ({}));
-          if (json && json.last_seq !== undefined && json.last_seq > state.lastSeq) {
+          if (json && json.last_seq !== undefined && json.last_seq > state.lastSeq + 4) {
             state.lastSeq = json.last_seq - 1;
           }
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
         }
       } catch (err) {
         errCount++;
