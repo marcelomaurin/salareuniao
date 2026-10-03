@@ -96,6 +96,10 @@ $ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
 $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);
 $wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
 $wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
+$bridgeEnabled = !empty($config['bridge']['enabled']) && !empty($config['bridge']['public_url']);
+$bridgeUrl = $bridgeEnabled ? (string)$config['bridge']['public_url'] : '';
+$bridgeChunkMs = max(100, (int)($config['bridge']['chunk_ms'] ?? 250));
+$bridgeFallbackTimeoutMs = max(2000, (int)($config['bridge']['fallback_timeout_ms'] ?? 8000));
 $maxMeshParticipants = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
 $runtimeState = get_room_runtime_state((int)$me['room_id']);
 ?>
@@ -1719,6 +1723,10 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
       WS_URL: <?=json_encode($wsUrl)?>,
       WS_ENABLED: <?=json_encode($wsEnabled)?>,
       WS_RECONNECT_MS: <?=$wsReconnect?>,
+      BRIDGE_ENABLED: <?=json_encode($bridgeEnabled)?>,
+      BRIDGE_URL: <?=json_encode($bridgeUrl)?>,
+      BRIDGE_CHUNK_MS: <?=$bridgeChunkMs?>,
+      BRIDGE_FALLBACK_TIMEOUT_MS: <?=$bridgeFallbackTimeoutMs?>,
       MAX_MESH_PARTICIPANTS: <?=$maxMeshParticipants?>,
       selfKey: <?=json_encode($me['participant_key'])?>,
       roomId: <?=(int)$me['room_id']?>,
@@ -1732,6 +1740,7 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
   <script src="assets/js/meeting/logger.js?v=20260920_1"></script>
   <script src="assets/js/meeting/media.js?v=20260920_1"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_1"></script>
   <script src="assets/js/meeting/signaling.js?v=20260920_1"></script>
   <script src="assets/js/meeting/webrtc.js?v=20260920_1"></script>
   <script src="assets/js/meeting/participants.js?v=20261003_1"></script>

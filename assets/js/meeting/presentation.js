@@ -97,7 +97,7 @@
     const isMe = (presenterKey === cfg.selfKey);
 
     if (isMe) {
-      // Apresentador (Tarefa 15)
+      // Apresentador (Tarefas 15, 56, 57)
       if (window.MeetingParticipants) {
         window.MeetingParticipants.clearLocalHand();
       }
@@ -106,14 +106,27 @@
         window.MeetingMedia.setVideoUserPreference(true);
         await window.MeetingMedia.applyPresentationVideoProfile();
       }
+      // Tarefas 56 e 57: Inicia publicação pelo Bridge se ativado
+      if (cfg.BRIDGE_ENABLED && window.MeetingBridge) {
+        try {
+          window.MeetingBridge.startPublishing(null, activeMediaType);
+        } catch (e) {
+          console.warn('[MeetingPresentation] Falha ao iniciar Bridge do apresentador:', e);
+        }
+      }
       if (window.showToast) {
         window.showToast('Você está no modo de apresentação principal.');
       }
     } else {
-      // Demais Participantes (Tarefa 16)
+      // Demais Participantes (Tarefas 16, 56, 57)
       if (window.MeetingMedia) {
         // Suspende envio de vídeo para economizar banda, mantendo áudio normal
         await window.MeetingMedia.suspendOutgoingVideo();
+      }
+      // Tarefas 56 e 57: Demais participantes não publicam vídeo no Bridge e assinam o apresentador
+      if (cfg.BRIDGE_ENABLED && window.MeetingBridge) {
+        window.MeetingBridge.stopPublishing();
+        window.MeetingBridge.subscribe(presenterKey);
       }
       if (window.showToast) {
         const presenterName = (roomState && roomState.presenter_name) || 'Participante';
@@ -127,9 +140,10 @@
     }
   }
 
-  // Término de Apresentação (Tarefas 18, 21, 25)
+  // Término de Apresentação (Tarefas 18, 21, 25, 56, 57)
   async function end(roomState) {
     const wasMe = isLocalPresenter();
+    const oldPresenterKey = activePresenterKey;
     presentationActive = false;
     activePresenterKey = null;
     activeMediaType = 'camera';
@@ -140,10 +154,16 @@
       if (window.MeetingMedia) {
         await window.MeetingMedia.applyNormalVideoProfile();
       }
+      if (window.MeetingBridge) {
+        window.MeetingBridge.stopPublishing();
+      }
     } else {
       // Demais participantes recalculam vídeo efetivo e restauram (Tarefa 18)
       if (window.MeetingMedia) {
         await window.MeetingMedia.resumeOutgoingVideo();
+      }
+      if (window.MeetingBridge && oldPresenterKey) {
+        window.MeetingBridge.unsubscribe(oldPresenterKey);
       }
     }
 

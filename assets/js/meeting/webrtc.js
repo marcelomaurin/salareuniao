@@ -45,7 +45,10 @@
       isSettingRemoteAnswerPending: false,
       remoteStream: new MediaStream(),
       reconnectTimer: null,
-      iceRestartAttempts: 0
+      iceRestartAttempts: 0,
+      transportMode: 'webrtc',
+      failureTimer: null,
+      restoreTimer: null
     };
 
     pcs.set(remoteKey, pc);
@@ -163,13 +166,39 @@
           clearTimeout(state.reconnectTimer);
           state.reconnectTimer = null;
         }
+        if (state.failureTimer) {
+          clearTimeout(state.failureTimer);
+          state.failureTimer = null;
+        }
         state.iceRestartAttempts = 0;
-        window.rtcLog(remoteKey, 'connected');
+        window.rtcLog(remoteKey, 'WEBRTC_CONNECTED');
+
+        // Tarefa 65: Se estava em fallback Bridge, aguarda estabilidade de 3 segundos
+        if (state.transportMode === 'bridge') {
+          if (state.restoreTimer) clearTimeout(state.restoreTimer);
+          state.restoreTimer = setTimeout(() => {
+            state.restoreTimer = null;
+            if (pcs.get(remoteKey) === pc && pc.connectionState === 'connected') {
+              state.transportMode = 'webrtc';
+              window.rtcLog(remoteKey, 'WEBRTC_RESTORED');
+              if (window.MeetingBridge) {
+                window.MeetingBridge.deactivateFallback(remoteKey);
+              }
+            }
+          }, 3000);
+        } else {
+          state.transportMode = 'webrtc';
+        }
+
         if (window.MeetingDiagnostics) {
           window.MeetingDiagnostics.updatePeerRoute(remoteKey, pc);
         }
       } else if (cState === 'disconnected') {
         window.rtcLog(remoteKey, 'disconnected');
+        if (state.restoreTimer) {
+          clearTimeout(state.restoreTimer);
+          state.restoreTimer = null;
+        }
         // Carência de 4 segundos antes de reiniciar o ICE
         if (!state.reconnectTimer) {
           state.reconnectTimer = setTimeout(async () => {
@@ -180,8 +209,8 @@
           }, 4000);
         }
       } else if (cState === 'failed') {
-        window.rtcLog(remoteKey, 'failed');
-        handlePeerFailure(remoteKey);
+        window.rtcLog(remoteKey, 'WEBRTC_FAILED');
+        handlePeerFailure(remoteKey, pc, state);
       } else if (cState === 'closed') {
         window.rtcLog(remoteKey, 'closed');
       }
@@ -194,7 +223,8 @@
       window.rtcLog(remoteKey, `ice-connection-state: ${iceState}`);
 
       if (iceState === 'failed') {
-        handlePeerFailure(remoteKey);
+        window.rtcLog(remoteKey, 'WEBRTC_FAILED');
+        handlePeerFailure(remoteKey, pc, state);
       }
     };
 
@@ -202,9 +232,16 @@
   }
 
   async function attemptIceRestart(remoteKey, pc, state) {
+    const cfg = window.MEETING_CONFIG || {};
     if (state.iceRestartAttempts >= 3) {
       window.rtcLog(remoteKey, 'ice-restart-limit-reached-recreating-peer');
-      handlePeerFailure(remoteKey);
+      if (cfg.BRIDGE_ENABLED && state.transportMode !== 'bridge') {
+        state.transportMode = 'bridge';
+        if (window.MeetingBridge) {
+          window.MeetingBridge.activateFallback(remoteKey);
+        }
+      }
+      handlePeerFailure(remoteKey, pc, state);
       return;
     }
     state.iceRestartAttempts++;
@@ -230,7 +267,28 @@
     }
   }
 
-  function handlePeerFailure(remoteKey) {
+  function handlePeerFailure(remoteKey, pc, state) {
+    if (!state) state = peerState.get(remoteKey);
+    const cfg = window.MEETING_CONFIG || {};
+    const fallbackTimeout = cfg.BRIDGE_FALLBACK_TIMEOUT_MS || 8000;
+
+    // Tarefas 62 a 64: Ativação de fallback Bridge se persistir em falha
+    if (state && cfg.BRIDGE_ENABLED && state.transportMode !== 'bridge') {
+      if (!state.failureTimer) {
+        state.failureTimer = setTimeout(() => {
+          state.failureTimer = null;
+          const curPc = pcs.get(remoteKey);
+          if (curPc && (curPc.connectionState === 'failed' || curPc.iceConnectionState === 'failed')) {
+            state.transportMode = 'bridge';
+            window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
+            if (window.MeetingBridge) {
+              window.MeetingBridge.activateFallback(remoteKey);
+            }
+          }
+        }, fallbackTimeout);
+      }
+    }
+
     window.rtcLog(remoteKey, 'recreating-peer-after-failure');
     removePeer(remoteKey);
     setTimeout(() => {
@@ -622,6 +680,10 @@
     processSignal,
     flushPendingIce,
     closeAllPeers,
+    getPeerTransportMode: (remoteKey) => {
+      const s = peerState.get(remoteKey);
+      return s ? s.transportMode : 'webrtc';
+    },
     getPeerCount: () => pcs.size,
     getConnectedPeerCount: () => {
       let count = 0;

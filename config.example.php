@@ -80,4 +80,16 @@ return [
             'ttl' => 3600,
         ],
     ],
+    'bridge' => [
+        'enabled' => true,
+        'public_url' => 'wss://maurinsoft.com.br/salareuniao/bridge',
+        'path' => '/bridge',
+        'max_clients_per_room' => 20,
+        'max_message_bytes' => 524288,
+        'max_buffer_bytes' => 4194304,
+        'video_bitrate' => 350000,
+        'audio_bitrate' => 48000,
+        'chunk_ms' => 250,
+        'fallback_timeout_ms' => 8000,
+    ],
 ];

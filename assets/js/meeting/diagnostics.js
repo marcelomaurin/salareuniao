@@ -185,12 +185,45 @@
     const content = document.getElementById('diagnosticsContent');
     if (!content) return;
 
+    const bridgeStats = window.MeetingBridge ? window.MeetingBridge.getStats() : null;
+    const isBridgeActive = bridgeStats && (bridgeStats.transportMode === 'bridge' || bridgeStats.chunksSent > 0 || bridgeStats.chunksReceived > 0);
+    const transportBadge = isBridgeActive
+      ? '<span style="background:rgba(234,179,8,0.2);color:#eab308;border:1px solid rgba(234,179,8,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● Bridge HTTPS (Ratchet Relay)</span>'
+      : '<span style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid rgba(16,185,129,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● WebRTC (Mesh P2P)</span>';
+
+    let bridgeInfo = '';
+    if (bridgeStats && (isBridgeActive || bridgeStats.bytesSent > 0 || bridgeStats.bytesReceived > 0)) {
+      bridgeInfo = `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:0.8rem;">
+          <div><span style="color:var(--text-muted);">Bridge Latência:</span> <strong style="color:#38bdf8;">${bridgeStats.latencyMs} ms</strong></div>
+          <div><span style="color:var(--text-muted);">Fila Buffer:</span> <strong style="color:#fff;">${bridgeStats.queueKb} KB</strong></div>
+          <div><span style="color:var(--text-muted);">Bitrate:</span> <strong style="color:#fff;">${bridgeStats.bitrateKbps || 0} kbps</strong></div>
+          <div><span style="color:var(--text-muted);">Chunks Descartados:</span> <strong style="color:${bridgeStats.droppedChunks > 0 ? '#ef4444' : '#fff'};">${bridgeStats.droppedChunks}</strong></div>
+          <div><span style="color:var(--text-muted);">Enviados:</span> <strong style="color:#fff;">${formatBytes(bridgeStats.bytesSent)}</strong></div>
+          <div><span style="color:var(--text-muted);">Recebidos:</span> <strong style="color:#fff;">${formatBytes(bridgeStats.bytesReceived)}</strong></div>
+        </div>
+      `;
+    }
+
+    let topHtml = `
+      <div style="background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <strong style="color:#fff;font-size:0.95rem;">Transporte de Mídia</strong>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Modo de transmissão audiovisual ativo na reunião</div>
+          </div>
+          ${transportBadge}
+        </div>
+        ${bridgeInfo}
+      </div>
+    `;
+
     if (peerStatsCache.size === 0) {
-      content.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:30px;">Nenhum peer conectado no momento.</div>';
+      content.innerHTML = topHtml + '<div style="color:var(--text-muted);text-align:center;padding:20px;">Aguardando outros participantes na malha WebRTC.</div>';
       return;
     }
 
-    let html = '';
+    let html = topHtml;
     peerStatsCache.forEach((d, key) => {
       const isRelay = (d.route === 'TURN relay');
       html += `
