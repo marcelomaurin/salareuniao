@@ -176,6 +176,7 @@
     if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
       window.MeetingPresentation.updateStageUI();
     }
+    updateAudienceNavButtons();
   }
 
   function ensureTile(key) {
@@ -256,6 +257,7 @@
     if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
       window.MeetingPresentation.updateStageUI();
     }
+    updateAudienceNavButtons();
     updateVideoGridCount();
     return tile;
   }
@@ -1417,6 +1419,36 @@ O participante será desconectado imediatamente.`)) {
     if (handToast) handToast.style.display = 'none';
   }
 
+  function scrollAudience(dir) {
+    const strip = document.getElementById('audienceStrip');
+    if (!strip) return;
+    const amount = (dir || 1) * 260;
+    strip.scrollBy({ left: amount, behavior: 'smooth' });
+    setTimeout(updateAudienceNavButtons, 320);
+  }
+
+  function updateAudienceNavButtons() {
+    const strip = document.getElementById('audienceStrip');
+    const prev = document.querySelector('.audience-nav-prev');
+    const next = document.querySelector('.audience-nav-next');
+    if (!strip) return;
+    if (prev) {
+      prev.style.display = strip.scrollLeft > 15 ? 'flex' : 'none';
+    }
+    if (next) {
+      const maxScroll = strip.scrollWidth - strip.clientWidth;
+      next.style.display = (maxScroll > 10 && strip.scrollLeft < maxScroll - 15) ? 'flex' : (strip.scrollWidth > strip.clientWidth ? 'flex' : 'none');
+    }
+  }
+
+  // Inicializa listener de rolagem na fita de participantes
+  window.addEventListener('DOMContentLoaded', () => {
+    const strip = document.getElementById('audienceStrip');
+    if (strip) {
+      strip.addEventListener('scroll', updateAudienceNavButtons);
+    }
+  });
+
   window.MeetingParticipants = {
     renderParticipants,
     renderWaitingList,
@@ -1446,6 +1478,8 @@ O participante será desconectado imediatamente.`)) {
     updateRaisedHandIndicator,
     removeTile,
     ensureTile,
+    scrollAudience,
+    updateAudienceNavButtons,
     updateCounters,
     updateVideoGridCount,
     getParticipantName: (key) => participantNames.get(key) || 'Participante',

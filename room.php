@@ -1521,6 +1521,86 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       display: none !important;
     }
 
+
+    /* Rótulos 'quem apresenta' e 'participantes' */
+    .stage-header-title,
+    .audience-header-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: lowercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .audience-carousel-wrap {
+      display: flex;
+      align-items: center;
+      position: relative;
+      width: 100%;
+      height: 124px;
+      gap: 8px;
+    }
+
+    .audience-nav-btn {
+      width: 32px;
+      height: 98px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      color: #00d2ff;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .audience-nav-btn:hover {
+      background: rgba(0, 210, 255, 0.25);
+      border-color: #00d2ff;
+      transform: scale(1.06);
+      box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+    }
+
+    /* Responsividade do Sidebar */
+    @media (min-width: 901px) {
+      .sidebar {
+        display: flex !important;
+        position: relative !important;
+        width: 360px !important;
+        min-width: 320px !important;
+        max-width: 380px !important;
+        height: 100% !important;
+      }
+      .sidebar.sr-hidden {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        z-index: 250 !important;
+      }
+      .sidebar.sr-hidden {
+        display: none !important;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -1631,9 +1711,10 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
         <span id="screenShareToastText" style="color: #00d2ff; font-weight: 600; font-size: 0.88rem;">🖥️ Convidado iniciou compartilhamento</span>
         <div style="display: flex; gap: 8px;" id="screenShareToastButtons"></div>
       </div>
-      <!-- Palco de Transmissão: 1 Transmite (em cima), Vários Ouvem (em baixo) -->
+      <!-- Layout: quem apresenta (topo) + participantes com carrossel (baixo) -->
       <div class="stage-container" id="videos">
-        <!-- ÁREA SUPERIOR: O QUE ESTÁ TRANSMITINDO FICA EM CIMA -->
+        <!-- Rótulo Superior: quem apresenta -->
+        <div class="stage-header-title">quem apresenta</div>
         <div id="stageArea" class="stage-area">
           <div class="tile local stage-speaker" id="tile-local">
             <video id="local" autoplay muted playsinline webkit-playsinline></video>
@@ -1645,9 +1726,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
           </div>
         </div>
 
-        <!-- ÁREA INFERIOR: OS QUE ESTÃO PARTICIPANDO/OUVINDO FICAM EM BAIXO -->
-        <div id="audienceStrip" class="audience-strip">
-          <!-- Participantes ouvintes são posicionados aqui -->
+        <!-- Rótulo Inferior: participantes + Carrossel com seta -->
+        <div class="audience-header-title">participantes</div>
+        <div class="audience-carousel-wrap">
+          <button type="button" class="audience-nav-btn audience-nav-prev" onclick="MeetingParticipants.scrollAudience(-1)" title="Ver participantes anteriores" style="display: none;">
+            ◀
+          </button>
+          <div id="audienceStrip" class="audience-strip">
+            <!-- Participantes ouvintes são posicionados aqui -->
+          </div>
+          <button type="button" class="audience-nav-btn audience-nav-next" onclick="MeetingParticipants.scrollAudience(1)" title="Ver mais participantes">
+            ▶
+          </button>
         </div>
       </div>
 
@@ -1691,18 +1781,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       </div>
     </main>
 
-    <!-- Microsoft Teams Style Right-Side Docked Sidebar -->
-    <aside class="sidebar sr-hidden" id="roomSidebar">
+    <!-- Barra Lateral Fixa com Abas: Chat, Usuários, Arquivos -->
+    <aside class="sidebar" id="roomSidebar">
       <div class="sidebar-header">
         <div class="sidebar-tabs">
           <button type="button" id="tabChat" class="sidebar-tab-btn active" onclick="setSideTab('chat')">
-            💬 Chat <span id="chatUnread" class="sr-badge sr-badge-scheduled" style="display:none; padding: 1px 6px; font-size: 10px;">0</span>
-          </button>
-          <button type="button" id="tabFiles" class="sidebar-tab-btn" onclick="setSideTab('files')">
-            📁 Arquivos (<span id="sidebarFilesCount">0</span>)
+            💬 chat <span id="chatUnread" class="sr-badge sr-badge-scheduled" style="display:none; padding: 1px 6px; font-size: 10px;">0</span>
           </button>
           <button type="button" id="tabParticipants" class="sidebar-tab-btn" onclick="setSideTab('participants')">
-            👥 Participantes (<span id="sidebarParticipantCount">1</span>)
+            👥 usuarios (<span id="sidebarParticipantCount">1</span>)
+          </button>
+          <button type="button" id="tabFiles" class="sidebar-tab-btn" onclick="setSideTab('files')">
+            📁 arquivos (<span id="sidebarFilesCount">0</span>)
           </button>
         </div>
         <button type="button" class="sidebar-close-btn" onclick="toggleSidebar(false)" title="Fechar Painel">✕ <span class="header-btn-text" style="font-size:0.82rem;font-weight:600;">Fechar</span></button>
@@ -1980,18 +2070,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_21"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_21"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_22"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_22"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
