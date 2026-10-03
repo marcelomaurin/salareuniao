@@ -169,9 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear
             $pdo->prepare("DELETE FROM room_files WHERE room_id = ?")->execute([$targetRoomId]);
         } catch (Throwable $e) {}
 
-        // 3. Remove mensagens de arquivo do chat desta sala
+        // 3. Remove TODAS as conversas e mensagens do chat desta sala
         try {
-            $pdo->prepare("DELETE FROM room_messages WHERE room_id = ? AND message LIKE '[FILE:%'")->execute([$targetRoomId]);
+            $pdo->prepare("DELETE FROM room_messages WHERE room_id = ?")->execute([$targetRoomId]);
         } catch (Throwable $e) {}
 
         audit_log('room.clear_files', 'room', $targetRoomId, [
@@ -424,7 +424,7 @@ try {
 
     <?php if (($_GET['msg'] ?? '') === 'cleared'): ?>
       <div style="margin-bottom: 20px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; padding: 12px 18px; border-radius: 10px; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
-        <span>🧹</span> Todos os arquivos da sala de reunião foram removidos com sucesso do storage.
+        <span>🧹</span> A sala foi limpa com sucesso: todos os arquivos e conversas do chat foram excluídos.
       </div>
     <?php endif; ?>
 
@@ -579,7 +579,7 @@ try {
                   </button>
                 </form>
 
-                <form method="post" style="display: inline-flex; margin: 0;" onsubmit="return confirm('Tem certeza que deseja limpar todos os arquivos desta sala de reunião? Todos os arquivos transferidos no storage e no chat serão excluídos.');">
+                <form method="post" style="display: inline-flex; margin: 0;" onsubmit="return confirm('Tem certeza que deseja limpar esta sala de reunião? Todos os arquivos e todas as conversas do chat serão excluídos permanentemente.');">
                   <input type="hidden" name="csrf" value="<?=e(csrf_token())?>">
                   <input type="hidden" name="action" value="clear_room_files">
                   <input type="hidden" name="room_id" value="<?=(int)$r['id']?>">
