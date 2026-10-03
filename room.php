@@ -1413,13 +1413,14 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       z-index: 5 !important;
     }
 
-    /* ÁREA INFERIOR (OUVINTES / PARTICIPANTES EM BAIXO) */
+    /* ÁREA INFERIOR (OUVINTES / PARTICIPANTES EM BAIXO - TODA A LINHA) */
     .audience-strip {
-      flex: 0 0 120px !important;
+      flex: 1 1 100% !important;
+      width: 100% !important;
+      min-width: 0 !important;
       height: 120px !important;
       max-height: 120px !important;
       min-height: 120px !important;
-      width: 100% !important;
       display: flex !important;
       flex-direction: row !important;
       align-items: center !important;
@@ -1427,18 +1428,15 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       gap: 12px !important;
       overflow-x: auto !important;
       overflow-y: hidden !important;
-      padding: 4px 6px !important;
+      padding: 4px 8px !important;
       box-sizing: border-box !important;
-      scrollbar-width: thin !important;
-      scrollbar-color: rgba(0, 210, 255, 0.4) transparent !important;
+      scroll-behavior: smooth !important;
+      -webkit-overflow-scrolling: touch !important;
+      scrollbar-width: none !important; /* Sem barra feia quebra-layout */
     }
 
     .audience-strip::-webkit-scrollbar {
-      height: 6px;
-    }
-    .audience-strip::-webkit-scrollbar-thumb {
-      background: rgba(0, 210, 255, 0.4);
-      border-radius: 3px;
+      display: none !important;
     }
 
     /* Cards de participantes ouvintes em baixo */
@@ -1556,33 +1554,45 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       position: relative;
       width: 100%;
       height: 124px;
-      gap: 8px;
+      margin-top: 2px;
+      overflow: hidden;
     }
 
     .audience-nav-btn {
-      width: 32px;
-      height: 98px;
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(0, 210, 255, 0.35);
-      color: #00d2ff;
-      font-size: 1.1rem;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 10;
-      transition: all 0.2s ease;
-      flex-shrink: 0;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+      position: absolute !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      width: 34px !important;
+      height: 72px !important;
+      background: rgba(15, 23, 42, 0.95) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      border: 1px solid rgba(0, 210, 255, 0.45) !important;
+      color: #00d2ff !important;
+      font-size: 1.15rem !important;
+      border-radius: 10px !important;
+      display: none;
+      align-items: center !important;
+      justify-content: center !important;
+      cursor: pointer !important;
+      z-index: 30 !important;
+      transition: all 0.2s ease !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 210, 255, 0.25) !important;
+    }
+
+    .audience-nav-prev {
+      left: 2px !important;
+    }
+
+    .audience-nav-next {
+      right: 2px !important;
     }
 
     .audience-nav-btn:hover {
-      background: rgba(0, 210, 255, 0.25);
-      border-color: #00d2ff;
-      transform: scale(1.06);
-      box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+      background: rgba(0, 210, 255, 0.28) !important;
+      border-color: #00d2ff !important;
+      transform: translateY(-50%) scale(1.08) !important;
+      box-shadow: 0 0 20px rgba(0, 210, 255, 0.6) !important;
     }
 
     /* Responsividade do Sidebar */
@@ -2032,7 +2042,7 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
           <div id="audienceStrip" class="audience-strip">
             <!-- Participantes ouvintes são posicionados aqui -->
           </div>
-          <button type="button" class="audience-nav-btn audience-nav-next" onclick="MeetingParticipants.scrollAudience(1)" title="Ver mais participantes">
+          <button type="button" class="audience-nav-btn audience-nav-next" onclick="MeetingParticipants.scrollAudience(1)" title="Ver mais participantes" style="display: none;">
             ▶
           </button>
         </div>
@@ -2445,18 +2455,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_26"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_26"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_27"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_27"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

@@ -1402,9 +1402,11 @@ O participante será desconectado imediatamente.`)) {
   function scrollAudience(dir) {
     const strip = document.getElementById('audienceStrip');
     if (!strip) return;
-    const amount = (dir || 1) * 260;
+    const scrollAmount = Math.max(200, Math.floor(strip.clientWidth * 0.65));
+    const amount = (dir || 1) * scrollAmount;
     strip.scrollBy({ left: amount, behavior: 'smooth' });
-    setTimeout(updateAudienceNavButtons, 320);
+    setTimeout(updateAudienceNavButtons, 200);
+    setTimeout(updateAudienceNavButtons, 450);
   }
 
   function updateAudienceNavButtons() {
@@ -1412,21 +1414,32 @@ O participante será desconectado imediatamente.`)) {
     const prev = document.querySelector('.audience-nav-prev');
     const next = document.querySelector('.audience-nav-next');
     if (!strip) return;
+
+    const scrollLeft = Math.ceil(strip.scrollLeft);
+    const scrollWidth = strip.scrollWidth;
+    const clientWidth = strip.clientWidth;
+    const maxScroll = scrollWidth - clientWidth;
+
+    // Apenas ativa rolagem se o número de participantes ultrapassar a largura da caixa
+    const isOverflowing = maxScroll > 8;
+
     if (prev) {
-      prev.style.display = strip.scrollLeft > 15 ? 'flex' : 'none';
+      prev.style.display = (isOverflowing && scrollLeft > 10) ? 'flex' : 'none';
     }
     if (next) {
-      const maxScroll = strip.scrollWidth - strip.clientWidth;
-      next.style.display = (maxScroll > 10 && strip.scrollLeft < maxScroll - 15) ? 'flex' : (strip.scrollWidth > strip.clientWidth ? 'flex' : 'none');
+      next.style.display = (isOverflowing && scrollLeft < maxScroll - 10) ? 'flex' : 'none';
     }
   }
 
-  // Inicializa listener de rolagem na fita de participantes
+  // Inicializa listener de rolagem e redimensionamento na fita de participantes
   window.addEventListener('DOMContentLoaded', () => {
     const strip = document.getElementById('audienceStrip');
     if (strip) {
       strip.addEventListener('scroll', updateAudienceNavButtons);
     }
+    window.addEventListener('resize', updateAudienceNavButtons);
+    setTimeout(updateAudienceNavButtons, 300);
+    setTimeout(updateAudienceNavButtons, 1000);
   });
 
   window.MeetingParticipants = {

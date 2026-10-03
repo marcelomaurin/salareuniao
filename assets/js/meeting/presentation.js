@@ -128,6 +128,10 @@
       }
     });
 
+    if (window.MeetingParticipants && typeof window.MeetingParticipants.updateAudienceNavButtons === 'function') {
+      window.MeetingParticipants.updateAudienceNavButtons();
+    }
+
     // Atualiza botão de Pedir Palavra para o orador
     const btnHand = document.getElementById('btnHand');
     const handLabel = document.getElementById('handLabel');
