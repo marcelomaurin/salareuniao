@@ -157,6 +157,11 @@ if ($action === 'command') {
                 $applied = true;
                 break;
 
+            case 'participant.resolution.change':
+            case 'room.resolution.change':
+                $applied = true;
+                break;
+
             case 'room.close':
                 $pdo->prepare("UPDATE rooms SET status = 'closed', updated_at = NOW() WHERE id = ?")->execute([$roomId]);
                 $applied = true;

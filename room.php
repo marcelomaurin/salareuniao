@@ -1748,6 +1748,144 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       }
     }
 
+
+    /* ========================================================
+       MENU DE CONTEXTO DE RESOLUÇÃO (BOTÃO DIREITO NO VÍDEO)
+       ======================================================== */
+    .video-context-menu {
+      position: fixed;
+      z-index: 99999;
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      border-radius: 10px;
+      padding: 6px;
+      min-width: 230px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), 0 0 15px rgba(0, 210, 255, 0.15);
+      font-family: inherit;
+      color: #f1f5f9;
+      user-select: none;
+      animation: vcmFadeIn 0.15s ease-out;
+    }
+
+    @keyframes vcmFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .vcm-header {
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .vcm-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #00d2ff;
+      letter-spacing: 0.3px;
+    }
+
+    .vcm-subtitle {
+      font-size: 0.68rem;
+      color: #94a3b8;
+    }
+
+    .vcm-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.12);
+      margin: 4px 0;
+    }
+
+    .vcm-item {
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      position: relative;
+    }
+
+    .vcm-item:hover {
+      background: rgba(0, 210, 255, 0.2);
+      color: #fff;
+    }
+
+    .vcm-item .vcm-icon {
+      font-size: 0.95rem;
+    }
+
+    .vcm-item .vcm-label {
+      flex: 1;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .vcm-item .vcm-arrow {
+      font-size: 0.65rem;
+      color: #64748b;
+    }
+
+    .vcm-item .vcm-check {
+      width: 14px;
+      font-size: 0.75rem;
+      color: #10b981;
+      font-weight: bold;
+      display: inline-block;
+    }
+
+    .vcm-item.selected .vcm-check::before {
+      content: '✓';
+    }
+
+    .vcm-item.selected {
+      background: rgba(16, 185, 129, 0.15);
+      color: #6ee7b7;
+      font-weight: 600;
+    }
+
+    /* Submenu cascateado */
+    .vcm-parent-item {
+      position: relative;
+    }
+
+    .vcm-submenu {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 100%;
+      margin-left: 4px;
+      background: rgba(15, 23, 42, 0.98);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      border-radius: 10px;
+      padding: 6px;
+      min-width: 250px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+    }
+
+    .vcm-parent-item:hover .vcm-submenu,
+    .vcm-parent-item.open .vcm-submenu {
+      display: block;
+    }
+
+    @media (max-width: 600px) {
+      .vcm-submenu {
+        position: static;
+        margin-left: 0;
+        margin-top: 4px;
+        border: none;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: none;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -2295,18 +2433,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_24"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_24"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_25"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_25"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
@@ -2381,6 +2519,56 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       <span class="m-nav-text">Sair</span>
     </button>
   </nav>
+
+
+  <!-- Menu de Contexto para Seleção de Resolução de Exibição (Apenas Administrador) -->
+  <?php if ($canAdmit): ?>
+  <div id="videoResolutionContextMenu" class="video-context-menu" style="display: none;">
+    <div class="vcm-header">
+      <span class="vcm-title">⚙️ Imagem em Exibição</span>
+      <span class="vcm-subtitle" id="vcmTargetSubtitle">Palco Principal</span>
+    </div>
+    <div class="vcm-divider"></div>
+    <div class="vcm-parent-item" id="vcmResolutionParent" onclick="this.classList.toggle('open')">
+      <div class="vcm-item vcm-has-submenu">
+        <span class="vcm-icon">📐</span>
+        <span class="vcm-label">Resolução</span>
+        <span class="vcm-arrow">▶</span>
+      </div>
+      <div class="vcm-submenu" id="vcmResolutionSubmenu">
+        <div class="vcm-item" data-res="1080p" onclick="MeetingPresentation.changeDisplayResolution('1080p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">1080p (Full HD - 1920×1080)</span>
+        </div>
+        <div class="vcm-item" data-res="720p" onclick="MeetingPresentation.changeDisplayResolution('720p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">720p (HD - 1280×720)</span>
+        </div>
+        <div class="vcm-item" data-res="480p" onclick="MeetingPresentation.changeDisplayResolution('480p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">480p (SD - 854×480)</span>
+        </div>
+        <div class="vcm-item" data-res="360p" onclick="MeetingPresentation.changeDisplayResolution('360p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">360p (Normal - 640×360)</span>
+        </div>
+        <div class="vcm-item" data-res="240p" onclick="MeetingPresentation.changeDisplayResolution('240p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">240p (Baixa - 320×240)</span>
+        </div>
+        <div class="vcm-item" data-res="120p" onclick="MeetingPresentation.changeDisplayResolution('120p')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">120p (Econômica - 160×120)</span>
+        </div>
+        <div class="vcm-divider"></div>
+        <div class="vcm-item" data-res="auto" onclick="MeetingPresentation.changeDisplayResolution('auto')">
+          <span class="vcm-check"></span>
+          <span class="vcm-label">⚡ Automática (Adaptativa)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
 
 </body>
 </html>

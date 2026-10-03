@@ -313,6 +313,10 @@ final class ControlSocket implements MessageComponentInterface
                         ->execute([$roomId, $pKey]);
                     return ['ok' => true];
 
+                case 'participant.resolution.change':
+                case 'room.resolution.change':
+                    return ['ok' => true];
+
                 // Modo Apresentação / Full (Tarefas 07, 14, 15, 23, 25)
                 case 'room.presentation.start':
                     $mediaType = in_array(($payload['media_type'] ?? ''), ['camera', 'screen'], true) ? $payload['media_type'] : 'camera';

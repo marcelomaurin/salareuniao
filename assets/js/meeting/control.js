@@ -391,6 +391,27 @@
         }
         break;
 
+      // Mudança de Resolução de Exibição pelo Administrador
+      case 'participant.resolution.change':
+        if (isForMe && window.MeetingMedia) {
+          const p = payload || {};
+          window.MeetingMedia.setCustomResolution(p.width, p.height, p.fps, p.label, p.resKey);
+          if (window.showToast) {
+            window.showToast('O administrador ajustou sua resolução para ' + (p.label || 'definida'));
+          }
+        }
+        break;
+
+      case 'room.resolution.change':
+        if (window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter() && window.MeetingMedia) {
+          const p = payload || {};
+          window.MeetingMedia.setCustomResolution(p.width, p.height, p.fps, p.label, p.resKey);
+          if (window.showToast) {
+            window.showToast('O administrador ajustou a resolução do palco para ' + (p.label || 'definida'));
+          }
+        }
+        break;
+
       // Expulsão (Tarefas 29, 30)
       case 'participant.kick':
         if (isForMe) {

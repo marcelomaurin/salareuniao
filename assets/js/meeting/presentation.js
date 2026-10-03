@@ -292,6 +292,141 @@
     }
   }
 
+
+  // =========================================================================
+  // GESTÃO DE RESOLUÇÃO DE EXIBIÇÃO PELO ADMINISTRADOR (BOTÃO DIREITO NO VÍDEO)
+  // =========================================================================
+  const RESOLUTION_MAP = {
+    '1080p': { label: '1080p (Full HD - 1920×1080)', width: 1920, height: 1080, fps: 15 },
+    '720p':  { label: '720p (HD - 1280×720)',       width: 1280, height: 720,  fps: 15 },
+    '480p':  { label: '480p (SD - 854×480)',        width: 854,  height: 480,  fps: 15 },
+    '360p':  { label: '360p (Normal - 640×360)',    width: 640,  height: 360,  fps: 15 },
+    '240p':  { label: '240p (Baixa - 320×240)',     width: 320,  height: 240,  fps: 12 },
+    '120p':  { label: '120p (Econômica - 160×120)', width: 160,  height: 120,  fps: 10 },
+    'auto':  { label: '⚡ Automática (Adaptativa)',   width: null, height: null, fps: 15 }
+  };
+
+  let contextTargetKey = null;
+
+  function showContextMenu(e, targetKey, targetName) {
+    const menu = document.getElementById('videoResolutionContextMenu');
+    if (!menu) return;
+
+    contextTargetKey = targetKey;
+    const subTitleEl = document.getElementById('vcmTargetSubtitle');
+    if (subTitleEl) {
+      subTitleEl.textContent = targetName ? `Exibição: ${targetName}` : 'Palco Principal';
+    }
+
+    // Marca a opção ativa
+    const currentKey = window.MeetingMedia ? window.MeetingMedia.getCurrentResolutionKey() : 'auto';
+    menu.querySelectorAll('[data-res]').forEach(el => {
+      el.classList.toggle('selected', el.getAttribute('data-res') === currentKey);
+    });
+
+    menu.style.display = 'block';
+
+    const menuWidth = menu.offsetWidth || 250;
+    const menuHeight = menu.offsetHeight || 290;
+    let posX = e.clientX;
+    let posY = e.clientY;
+
+    if (posX + menuWidth > window.innerWidth - 10) {
+      posX = window.innerWidth - menuWidth - 10;
+    }
+    if (posY + menuHeight > window.innerHeight - 10) {
+      posY = window.innerHeight - menuHeight - 10;
+    }
+    if (posX < 10) posX = 10;
+    if (posY < 10) posY = 10;
+
+    menu.style.left = posX + 'px';
+    menu.style.top = posY + 'px';
+  }
+
+  function hideContextMenu() {
+    const menu = document.getElementById('videoResolutionContextMenu');
+    if (menu) menu.style.display = 'none';
+  }
+
+  async function changeDisplayResolution(resKey) {
+    const cfg = getCfg();
+    if (!cfg.CAN_ADMIT) return;
+
+    const resDef = RESOLUTION_MAP[resKey];
+    if (!resDef) return;
+
+    hideContextMenu();
+
+    const isLocal = (!contextTargetKey || contextTargetKey === cfg.selfKey || contextTargetKey === 'local');
+
+    if (isLocal) {
+      // Aplica na transmissão local
+      if (window.MeetingMedia) {
+        await window.MeetingMedia.setCustomResolution(resDef.width, resDef.height, resDef.fps, resDef.label, resKey);
+      }
+    } else {
+      // Envia comando para o participante remoto que está transmitindo
+      if (window.MeetingControl) {
+        try {
+          await window.MeetingControl.sendCommand('participant.resolution.change', contextTargetKey, {
+            width: resDef.width,
+            height: resDef.height,
+            fps: resDef.fps,
+            label: resDef.label,
+            resKey: resKey
+          });
+          if (window.showToast) {
+            window.showToast(`Solicitada resolução ${resDef.label} para o participante em exibição.`);
+          }
+        } catch (err) {
+          console.warn('Erro ao enviar comando de resolução:', err);
+        }
+      }
+    }
+  }
+
+  // Listener para clique com botão direito na imagem em exibição
+  document.addEventListener('contextmenu', (e) => {
+    const cfg = getCfg();
+    if (!cfg.CAN_ADMIT) return;
+
+    // Detecta se o clique foi na área de palco, no container de vídeo ou no próprio elemento de vídeo
+    const stage = e.target.closest('#stageArea') || e.target.closest('.video-tile') || e.target.closest('video');
+    if (stage) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tile = e.target.closest('.video-tile') || (document.getElementById('stageArea') ? document.getElementById('stageArea').querySelector('.video-tile') : null);
+      let targetKey = cfg.selfKey;
+      let targetName = 'Apresentador';
+
+      if (tile) {
+        if (tile.id === 'tile-local') {
+          targetKey = cfg.selfKey;
+          targetName = 'Você (Local)';
+        } else {
+          targetKey = tile.id.replace('tile-', '');
+          const nameEl = tile.querySelector('.name');
+          targetName = nameEl ? nameEl.textContent : targetKey;
+        }
+      } else {
+        const pres = activePresenterKey;
+        if (pres) targetKey = pres;
+      }
+
+      showContextMenu(e, targetKey, targetName);
+    }
+  });
+
+  // Fecha o menu de contexto ao clicar em qualquer outro lugar
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('videoResolutionContextMenu');
+    if (menu && !menu.contains(e.target)) {
+      hideContextMenu();
+    }
+  });
+
   window.MeetingPresentation = {
     start,
     end,
@@ -302,6 +437,9 @@
     resolveParticipantTile,
     updateStageUI,
     updateConductionButtons,
-    takeBackConduction
+    takeBackConduction,
+    changeDisplayResolution,
+    showContextMenu,
+    hideContextMenu
   };
 })(window);

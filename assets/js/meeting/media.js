@@ -245,6 +245,8 @@
   }
 
   let currentProfileMode = 'normal';
+  let manualResolutionOverride = false;
+  let currentResolutionKey = 'auto';
 
   async function applyNormalVideoProfile() {
     if (!cameraTrack || cameraTrack.readyState !== 'live') return;
@@ -302,6 +304,10 @@
   }
 
   async function adaptResolutionForParticipantCount(count) {
+    // Não altera se o administrador tiver definido resolução manual de exibição
+    if (manualResolutionOverride) {
+      return;
+    }
     // Não rebaixa a resolução se estiver em compartilhamento de tela ou modo apresentador
     if (screen_user_enabled || (window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter())) {
       return;
@@ -316,6 +322,52 @@
         await applyNormalVideoProfile();
       }
     }
+  }
+
+  async function setCustomResolution(width, height, fps, label, key) {
+    if (key === 'auto' || !width || !height) {
+      manualResolutionOverride = false;
+      currentResolutionKey = 'auto';
+      await applyNormalVideoProfile();
+      if (window.showToast) window.showToast('Resolução de exibição redefinida para Automática.');
+      return;
+    }
+
+    manualResolutionOverride = true;
+    currentResolutionKey = key || `${height}p`;
+
+    if (!cameraTrack || cameraTrack.readyState !== 'live') {
+      if (window.showToast) window.showToast(`Resolução pré-configurada para ${label || currentResolutionKey}.`);
+      return;
+    }
+
+    try {
+      await cameraTrack.applyConstraints({
+        width: { ideal: width, max: width },
+        height: { ideal: height, max: height },
+        frameRate: { ideal: fps || 15, max: fps || 15 }
+      });
+      currentProfileMode = currentResolutionKey;
+      window.rtcLog && window.rtcLog('LOCAL', `custom-res-${currentResolutionKey}-${width}x${height}`);
+      if (window.showToast) window.showToast(`Resolução de exibição alterada para ${label || currentResolutionKey}`);
+    } catch (e1) {
+      console.warn(`applyConstraints direto para ${currentResolutionKey} falhou, tentando tolerante:`, e1);
+      try {
+        await cameraTrack.applyConstraints({
+          width: { ideal: width },
+          height: { ideal: height },
+          frameRate: { ideal: fps || 15, max: 20 }
+        });
+        currentProfileMode = currentResolutionKey;
+        if (window.showToast) window.showToast(`Resolução alterada para ${label || currentResolutionKey}`);
+      } catch (e2) {
+        console.warn('Falha ao aplicar resolução personalizada:', e2);
+      }
+    }
+  }
+
+  function getCurrentResolutionKey() {
+    return currentResolutionKey;
   }
 
   // Substituição dinâmica no RTCRtpSender sem destruir conexão P2P (Tarefa 17)
@@ -591,6 +643,8 @@
     applyLowVideoProfile,
     applyFullscreenVideoProfile,
     adaptResolutionForParticipantCount,
+    setCustomResolution,
+    getCurrentResolutionKey,
     setVideoUserPreference,
     setVideoAdminPermission,
     setVideoRoomPermission,
