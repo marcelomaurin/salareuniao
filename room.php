@@ -60,6 +60,19 @@ $canAdmit = $isRoomAdmin;
 // Garante subpasta storage/<room_id> dinâmica criada
 get_room_storage_dir((int)$me['room_id']);
 
+// Pré-aquece o cache de autenticação do Relay HTTP em disco (12 horas)
+$tokenCacheDir = __DIR__ . '/storage/tokens';
+if (!is_dir($tokenCacheDir)) {
+    @mkdir($tokenCacheDir, 0775, true);
+}
+@file_put_contents($tokenCacheDir . '/' . md5($token) . '.json', json_encode([
+    'exp' => time() + 43200,
+    'data' => [
+        'room_id' => (int)$me['room_id'],
+        'participant_key' => preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$me['participant_key'])
+    ]
+], JSON_UNESCAPED_SLASHES), LOCK_EX);
+
 $cursorQuery = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM signaling_messages WHERE room_id=?');
 $cursorQuery->execute([$me['room_id']]);
 $signalCursor = (int)$cursorQuery->fetchColumn();
@@ -1746,18 +1759,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_8"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_8"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_9"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_9"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

@@ -29,20 +29,28 @@ if (!$isApiRequest && session_status() !== PHP_SESSION_ACTIVE) {
     @session_start();
 }
 
-$dsn = sprintf(
-    'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-    $config['db']['host'],
-    $config['db']['port'] ?? 3306,
-    $config['db']['name'],
-    $config['db']['charset'] ?? 'utf8mb4'
-);
-
-try {
+function get_pdo(): PDO {
+    global $config, $pdo;
+    if (isset($pdo) && $pdo instanceof PDO) {
+        return $pdo;
+    }
+    $dsn = sprintf(
+        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+        $config['db']['host'],
+        $config['db']['port'] ?? 3306,
+        $config['db']['name'],
+        $config['db']['charset'] ?? 'utf8mb4'
+    );
     $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+    return $pdo;
+}
+
+try {
+    $pdo = get_pdo();
 
     // Garante colunas de Pedir a Palavra, Limite de Vídeo e Permissões na tabela room_presence (apenas fora de APIs)
     if (!$isApiRequest) {

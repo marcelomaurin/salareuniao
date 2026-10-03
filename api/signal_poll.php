@@ -51,7 +51,6 @@ try {
         $m['payload'] = json_decode($m['payload'], true);
         $messages[] = $m;
     }
-    $pdo = null; // Libera conexão MySQL imediatamente
 
     echo json_encode([
         'ok' => true,
