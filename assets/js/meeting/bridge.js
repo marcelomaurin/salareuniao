@@ -81,23 +81,20 @@
   // Tarefas 42 e 44: Conexão segura ao endpoint do Bridge com token
   function getBridgeUrl() {
     const cfg = getCfg();
-    if (cfg.BRIDGE_URL) {
+    if (cfg.BRIDGE_URL && cfg.BRIDGE_ENABLED) {
       const url = new URL(cfg.BRIDGE_URL, window.location.href);
       if (cfg.TOKEN) {
         url.searchParams.set('token', cfg.TOKEN);
       }
       return url.toString();
     }
-    const loc = window.location;
-    const proto = (loc.protocol === 'https:') ? 'wss:' : 'ws:';
-    const base = cfg.baseUrl || (loc.pathname.substring(0, loc.pathname.lastIndexOf('/')));
-    const cleanBase = base.replace(/\/+$/, '');
-    return `${proto}//${loc.host}${cleanBase}/bridge?token=${encodeURIComponent(cfg.TOKEN || '')}`;
+    return '';
   }
 
   function connect() {
-    if (wsBridgeUnavailable) {
-      return Promise.reject(new Error('WebSocket indisponível no servidor'));
+    const url = getBridgeUrl();
+    if (!url || wsBridgeUnavailable) {
+      return Promise.resolve(); // Sem WebSocket configurado; opera exclusivamente via HTTP Relay
     }
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       return Promise.resolve();
@@ -107,7 +104,6 @@
     }
 
     isConnecting = true;
-    const url = getBridgeUrl();
 
     return new Promise((resolve, reject) => {
       try {

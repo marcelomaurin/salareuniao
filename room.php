@@ -118,7 +118,8 @@ $ice = json_encode($iceServers, JSON_UNESCAPED_SLASHES);
 $wsEnabled = !empty($config['websocket']['enabled']) && !empty($config['websocket']['public_url']);
 $wsUrl = $wsEnabled ? (string)$config['websocket']['public_url'] : '';
 $wsReconnect = max(500, (int)($config['websocket']['reconnect_ms'] ?? 2000));
-$bridgeEnabled = !empty($config['bridge']['enabled']) && !empty($config['bridge']['public_url']);
+// Na Hospedagem Compartilhada (sem daemons), o Bridge opera via Webservice HTTP Relay sem abrir WebSockets
+$bridgeEnabled = $wsEnabled && !empty($config['bridge']['enabled']) && !empty($config['bridge']['public_url']);
 $bridgeUrl = $bridgeEnabled ? (string)$config['bridge']['public_url'] : '';
 $bridgeChunkMs = max(100, (int)($config['bridge']['chunk_ms'] ?? 250));
 $bridgeFallbackTimeoutMs = max(2000, (int)($config['bridge']['fallback_timeout_ms'] ?? 8000));
@@ -1759,18 +1760,18 @@ $runtimeState = get_room_runtime_state((int)$me['room_id']);
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_10"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_10"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_11"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_11"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
