@@ -18,6 +18,10 @@
   let recorder = null;
   let currentStreamId = null;
   let activeMediaType = 'camera';
+  let currentChunkSeq = 0;
+  let isSendingChunk = false;
+  const chunkQueue = [];
+  const activePullLoops = new Map(); // remoteKey => { running: true, lastSeq: -1 }
 
   // Subscrições e reprodutores MSE remotos:
   // publisherKey => { mediaSource, sourceBuffer, queue: [], videoEl, mime, isReady }
@@ -148,8 +152,35 @@
     return ws !== null && ws.readyState === WebSocket.OPEN;
   }
 
+  // Envio de chunks de audio/video para o Webservice de Encaminhamento HTTP (Hostinger)
+  async function sendHttpRelayChunk(buffer, seq, mime, isInit) {
+    const cfg = getCfg();
+    const token = cfg.TOKEN;
+    if (!token) return;
+
+    chunkQueue.push({ buffer, seq, mime, isInit });
+    if (chunkQueue.length > 6) {
+      chunkQueue.shift();
+    }
+    if (isSendingChunk) return;
+    isSendingChunk = true;
+
+    while (chunkQueue.length > 0) {
+      const item = chunkQueue.shift();
+      try {
+        const url = `api/relay_push.php?token=${encodeURIComponent(token)}&seq=${item.seq}&mime=${encodeURIComponent(item.mime)}${item.isInit ? '&init=1' : ''}`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: item.buffer
+        });
+      } catch (e) {}
+    }
+    isSendingChunk = false;
+  }
+
   // =========================================================================
-  // PUBLICAÇÃO COM MediaRecorder (Tarefas 48, 49, 50, 51, 52, 67)
+  // PUBLICAÇÃO COM MediaRecorder (Tarefas 48, 49, 50, 51, 52, 67 + HTTP Forwarding)
   // =========================================================================
   async function startPublishing(customStream = null, mediaType = 'camera') {
     if (isPublishing) return;
@@ -161,15 +192,18 @@
       stream = window.MeetingMedia.getLocalStream();
     }
     if (!stream) {
-      console.warn('[MeetingBridge] Impossível publicar: nenhum stream local disponível.');
+      console.warn('[MeetingBridge] Impossivel publicar: nenhum stream local disponivel.');
       return;
     }
 
-    await connect();
+    if (cfg.BRIDGE_ENABLED && cfg.BRIDGE_URL) {
+      connect().catch(() => {});
+    }
 
     const mime = getSupportedMimeType();
     currentStreamId = 'stream_' + Math.random().toString(36).substring(2, 9);
     activeMediaType = mediaType;
+    currentChunkSeq = 0;
 
     try {
       recorder = new MediaRecorder(stream, {
@@ -178,32 +212,44 @@
         audioBitsPerSecond: 48000
       });
 
-      // Anuncia início de publicação no servidor (Tarefa 51)
-      ws.send(JSON.stringify({
-        type: 'bridge.publish.start',
-        stream_id: currentStreamId,
-        media: activeMediaType,
-        mime: mime
-      }));
+      // Anuncia inicio de publicacao no WebSocket se disponivel
+      if (isConnected()) {
+        try {
+          ws.send(JSON.stringify({
+            type: 'bridge.publish.start',
+            stream_id: currentStreamId,
+            media: activeMediaType,
+            mime: mime
+          }));
+        } catch(e) {}
+      }
 
-      // Tarefas 50 e 52: Envio binário direto com cabeçalho de timestamp de 8 bytes (Float64)
+      // Envio binario continuo: WebSocket (se disponivel) + Webservice HTTP Relay
       recorder.ondataavailable = async (e) => {
-        if (!e.data || e.data.size === 0 || !isConnected()) return;
+        if (!e.data || e.data.size === 0) return;
         try {
           const now = Date.now();
           const chunkBuffer = await e.data.arrayBuffer();
 
-          // Cabeçalho de 8 bytes com timestamp para medição de latência (Tarefa 52, 61)
+          // Cabecalho de 8 bytes com timestamp para medicao de latencia
           const framed = new Uint8Array(8 + chunkBuffer.byteLength);
           const dv = new DataView(framed.buffer);
           dv.setFloat64(0, now, false); // Float64 big-endian
           framed.set(new Uint8Array(chunkBuffer), 8);
 
-          ws.send(framed.buffer);
+          // 1. Envia via WebSocket se conectado
+          if (isConnected()) {
+            try { ws.send(framed.buffer); } catch(e) {}
+          }
+
+          // 2. Envia via Webservice de Encaminhamento HTTP (Hostinger)
+          const isInit = (currentChunkSeq === 0);
+          sendHttpRelayChunk(framed.buffer, currentChunkSeq++, mime, isInit);
+
           stats.bytesSent += framed.byteLength;
           stats.chunksSent++;
         } catch (bufErr) {
-          console.warn('[MeetingBridge] Erro ao enviar chunk binário:', bufErr);
+          console.warn('[MeetingBridge] Erro ao processar chunk binario:', bufErr);
         }
       };
 
@@ -321,7 +367,11 @@
     if (!tile) return;
 
     const videoEl = tile.querySelector('video');
+    const avatarEl = tile.querySelector('.avatar');
     if (!videoEl) return;
+
+    if (avatarEl) avatarEl.style.display = 'none';
+    videoEl.style.display = 'block';
 
     const mime = mimeType || getSupportedMimeType();
     if (!window.MediaSource || !MediaSource.isTypeSupported(mime)) {
@@ -411,40 +461,103 @@
     remotePlayers.delete(publisherKey);
   }
 
+  // Loop de Recepcao via HTTP Long-Polling (Hostinger Relay)
+  async function startHttpPullLoop(remoteKey) {
+    if (activePullLoops.has(remoteKey)) return;
+    const state = { running: true, lastSeq: -1 };
+    activePullLoops.set(remoteKey, state);
+
+    const cfg = getCfg();
+    const token = cfg.TOKEN;
+    if (!token) return;
+
+    console.log(`[MeetingBridge] Iniciando recepcao por encaminhamento HTTP para ${remoteKey}`);
+
+    let errCount = 0;
+    while (state.running && !window.MeetingApp?.isLeaving()) {
+      try {
+        const url = `api/relay_pull.php?token=${encodeURIComponent(token)}&publisher_key=${encodeURIComponent(remoteKey)}&after=${state.lastSeq}`;
+        const resp = await fetch(url, { cache: 'no-store' });
+
+        if (!resp.ok) {
+          errCount++;
+          await new Promise(r => setTimeout(r, Math.min(2000, 300 * errCount)));
+          continue;
+        }
+
+        errCount = 0;
+        const contentType = resp.headers.get('Content-Type') || '';
+
+        if (contentType.includes('octet-stream') || contentType.includes('video/webm')) {
+          const isInit = resp.headers.get('X-Relay-Is-Init') === '1';
+          const seq = parseInt(resp.headers.get('X-Relay-Seq') || '0', 10);
+          const mime = resp.headers.get('X-Relay-Mime') || 'video/webm;codecs=vp8,opus';
+
+          if (!remotePlayers.has(remoteKey)) {
+            stats.activePublisherKey = remoteKey;
+            setupRemotePlayer(remoteKey, mime);
+          }
+
+          const buffer = await resp.arrayBuffer();
+          if (buffer.byteLength > 0) {
+            handleIncomingData(buffer);
+            state.lastSeq = seq;
+          }
+        } else {
+          const json = await resp.json().catch(() => ({}));
+          if (json && json.last_seq !== undefined && json.last_seq > state.lastSeq) {
+            state.lastSeq = json.last_seq - 1;
+          }
+          await new Promise(r => setTimeout(r, 100));
+        }
+      } catch (err) {
+        errCount++;
+        await new Promise(r => setTimeout(r, Math.min(2000, 300 * errCount)));
+      }
+    }
+  }
+
+  function stopHttpPullLoop(remoteKey) {
+    if (activePullLoops.has(remoteKey)) {
+      activePullLoops.get(remoteKey).running = false;
+      activePullLoops.delete(remoteKey);
+    }
+  }
+
   // =========================================================================
-  // FALLBACK E INTEGRAÇÃO WEBRTC (Tarefas 62 a 65, 77, 78)
+  // FALLBACK E INTEGRACAO WEBRTC COM SERVICO DE ENCAMINHAMENTO
   // =========================================================================
   async function activateFallback(remoteKey) {
-    if (!getCfg().BRIDGE_ENABLED) return;
     activeFallbacks.add(remoteKey);
     stats.transportMode = 'bridge';
 
-    console.warn(`[MeetingBridge] Ativando fallback Bridge para peer: ${remoteKey}`);
-    if (window.rtcLog) window.rtcLog(remoteKey, 'WEBRTC_FAILED');
+    console.log(`[MeetingBridge] Ativando encaminhamento de midia para peer: ${remoteKey}`);
     if (window.rtcLog) window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
 
-    await connect();
-
-    // Se nós formos apresentadores ou se estivermos em modo Full, publicamos via Bridge
-    const isPresenter = window.MeetingPresentation && window.MeetingPresentation.isLocalPresenter();
-    if (isPresenter) {
+    // 1. Inicia gravacao e envio dos nossos frames para quem pedir nosso ID
+    if (!isPublishing) {
       startPublishing();
-    } else {
-      subscribe(remoteKey);
     }
 
+    // 2. Inicia recepcao dos frames do peer remoto (via WebSocket e/ou HTTP Relay)
+    if (isConnected()) {
+      subscribe(remoteKey);
+    }
+    startHttpPullLoop(remoteKey);
+
     if (window.showToast) {
-      window.showToast('Transporte de mídia alternativo (Bridge HTTPS) ativado temporariamente.');
+      window.showToast('Encaminhamento de audio e video ativo.');
     }
   }
 
   function deactivateFallback(remoteKey) {
     activeFallbacks.delete(remoteKey);
+    stopHttpPullLoop(remoteKey);
     if (activeFallbacks.size === 0) {
       stats.transportMode = 'webrtc';
       stopPublishing();
       if (window.rtcLog) window.rtcLog(remoteKey, 'WEBRTC_RESTORED');
-      console.log(`[MeetingBridge] Conexão WebRTC restaurada. Desativando fallback Bridge.`);
+      console.log(`[MeetingBridge] Conexao WebRTC restaurada. Desativando fallback.`);
     }
   }
 
