@@ -374,6 +374,11 @@
         if (isPresenter) badgesTxt += ' · ⛶ Apresentando';
 
         div.querySelector('.badges').textContent = badgesTxt;
+        if (handRaised) {
+          div.classList.add('hand-raised-glow');
+        } else {
+          div.classList.remove('hand-raised-glow');
+        }
 
         const actions = div.querySelector('.person-actions');
         if (!isSelf && cfg.CAN_ADMIT) {
@@ -1021,6 +1026,15 @@ O participante será desconectado imediatamente.`)) {
         window.MeetingControl.sendCommand(newAction === 'request' ? 'room.hand.raise' : 'room.hand.cancel', cfg.selfKey, {
           display_name: cfg.displayName || 'Participante'
         }).catch(() => {});
+      }
+
+      // 1b. Lança mensagem no chat: "Usuário [Nome] solicitou falar."
+      if (newAction === 'request') {
+        const userName = cfg.displayName || 'Participante';
+        const chatMsg = `✋ Usuário ${userName} solicitou falar.`;
+        if (window.MeetingChat && typeof window.MeetingChat.sendChatMessage === 'function') {
+          window.MeetingChat.sendChatMessage(chatMsg).catch((err) => console.warn('Erro ao postar aviso no chat:', err));
+        }
       }
 
       // 2. Persiste autoritativamente no backend

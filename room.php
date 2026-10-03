@@ -359,9 +359,55 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
       }
     }
 
-    .tile.hand-raised-glow {
+    @keyframes pulse-glow-border {
+      0% {
+        border-color: rgba(234, 179, 8, 0.45);
+        box-shadow: 0 0 10px rgba(234, 179, 8, 0.35), inset 0 0 8px rgba(234, 179, 8, 0.15);
+        opacity: 0.92;
+      }
+      50% {
+        border-color: #facc15;
+        box-shadow: 0 0 26px rgba(250, 204, 21, 0.8), inset 0 0 16px rgba(250, 204, 21, 0.3);
+        opacity: 1;
+      }
+      100% {
+        border-color: rgba(234, 179, 8, 0.45);
+        box-shadow: 0 0 10px rgba(234, 179, 8, 0.35), inset 0 0 8px rgba(234, 179, 8, 0.15);
+        opacity: 0.92;
+      }
+    }
+
+    @keyframes pulse-avatar-glow {
+      0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 4px rgba(234, 179, 8, 0.4));
+      }
+      50% {
+        transform: scale(1.06);
+        filter: drop-shadow(0 0 14px rgba(250, 204, 21, 0.85));
+      }
+      100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 4px rgba(234, 179, 8, 0.4));
+      }
+    }
+
+    /* O usuário que solicitou falar fica piscando suavemente */
+    .hand-raised-glow,
+    .tile.hand-raised-glow,
+    .person.hand-raised-glow {
       border: 2px solid #eab308 !important;
-      box-shadow: 0 0 20px rgba(234, 179, 8, 0.5) !important;
+      animation: pulse-glow-border 1.5s ease-in-out infinite !important;
+    }
+
+    .audience-strip .tile.hand-raised-glow {
+      border: 2px solid #eab308 !important;
+      animation: pulse-glow-border 1.5s ease-in-out infinite !important;
+    }
+
+    .hand-raised-glow .peer-avatar,
+    .hand-raised-glow #localAvatar {
+      animation: pulse-avatar-glow 1.5s ease-in-out infinite !important;
     }
 
         /* Ícone / Imagem de Mãozinha na Janela do Participante */
@@ -2468,18 +2514,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_29"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_29"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_30"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_30"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador
