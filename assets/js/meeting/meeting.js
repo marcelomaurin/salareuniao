@@ -125,9 +125,8 @@
       // 1. Inicializa mídia local primeiro
       await window.MeetingMedia.initLocalMedia();
 
-      // Inicia imediatamente a publicação e o scanner multi-participante do encaminhamento
+      // Inicia o scanner de encaminhamento (Bridge) em modo standby para contingência
       if (window.MeetingBridge) {
-        window.MeetingBridge.startPublishing();
         window.MeetingBridge.startScanner();
       }
 

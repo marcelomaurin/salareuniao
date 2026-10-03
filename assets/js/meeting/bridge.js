@@ -666,6 +666,9 @@
   }
 
   async function activateFallback(remoteKey) {
+    if (!isPublishing) {
+      startPublishing();
+    }
     syncParticipant(remoteKey);
     if (window.rtcLog) window.rtcLog(remoteKey, 'BRIDGE_CONNECTING');
     if (window.showToast) {

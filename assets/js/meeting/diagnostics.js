@@ -65,6 +65,14 @@
         }
         localCandidate = stats.get(selectedPair.localCandidateId);
         remoteCandidate = stats.get(selectedPair.remoteCandidateId);
+
+        // Fallback robusto: se outbound-rtp não registrou bytes, lê do candidate-pair selecionado
+        if (selectedPair.bytesSent !== undefined && (bytesSent === 0 || selectedPair.bytesSent > bytesSent)) {
+          bytesSent = selectedPair.bytesSent;
+        }
+        if (selectedPair.bytesReceived !== undefined && (bytesReceived === 0 || selectedPair.bytesReceived > bytesReceived)) {
+          bytesReceived = selectedPair.bytesReceived;
+        }
       }
 
       const localType = localCandidate?.candidateType || '?';
@@ -186,13 +194,27 @@
     if (!content) return;
 
     const bridgeStats = window.MeetingBridge ? window.MeetingBridge.getStats() : null;
-    const isBridgeActive = bridgeStats && (bridgeStats.transportMode === 'bridge' || bridgeStats.chunksSent > 0 || bridgeStats.chunksReceived > 0);
-    const transportBadge = isBridgeActive
-      ? '<span style="background:rgba(234,179,8,0.2);color:#eab308;border:1px solid rgba(234,179,8,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● Bridge HTTPS (Ratchet Relay)</span>'
-      : '<span style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid rgba(16,185,129,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● WebRTC (Mesh P2P)</span>';
+    const connectedPeers = window.MeetingWebRTC ? window.MeetingWebRTC.getConnectedPeerCount() : 0;
+    const anyBridgePeer = Array.from(peerStatsCache.values()).some(p => p.route === 'TURN relay' || (window.MeetingBridge && window.MeetingBridge.isFallbackActive(p.key)));
+
+    let transportBadge = '';
+    if (connectedPeers > 0 && !anyBridgePeer) {
+      transportBadge = '<span style="background:rgba(16,185,129,0.2);color:#10b981;border:1px solid rgba(16,185,129,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● WebRTC P2P Direto (Mesh)</span>';
+    } else if (anyBridgePeer || (bridgeStats && bridgeStats.transportMode === 'bridge')) {
+      transportBadge = '<span style="background:rgba(234,179,8,0.2);color:#eab308;border:1px solid rgba(234,179,8,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● Bridge HTTPS (Ratchet Relay)</span>';
+    } else {
+      transportBadge = '<span style="background:rgba(0,210,255,0.2);color:#00d2ff;border:1px solid rgba(0,210,255,0.4);padding:4px 12px;border-radius:20px;font-size:0.8rem;font-weight:700;">● WebRTC Mesh</span>';
+    }
 
     let bridgeInfo = '';
-    if (bridgeStats && (isBridgeActive || bridgeStats.bytesSent > 0 || bridgeStats.bytesReceived > 0)) {
+    if (connectedPeers > 0 && !anyBridgePeer) {
+      bridgeInfo = `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:8px;font-size:0.8rem;color:#10b981;">
+          <span>✓</span>
+          <span>Todos os ${connectedPeers} peers conectados diretamente em P2P local (Bridge em standby).</span>
+        </div>
+      `;
+    } else if (bridgeStats && (anyBridgePeer || bridgeStats.bytesSent > 0 || bridgeStats.bytesReceived > 0)) {
       bridgeInfo = `
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:0.8rem;">
           <div><span style="color:var(--text-muted);">Bridge Latência:</span> <strong style="color:#38bdf8;">${bridgeStats.latencyMs} ms</strong></div>
