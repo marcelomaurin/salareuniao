@@ -179,9 +179,20 @@
     updateAudienceNavButtons();
   }
 
-  function ensureTile(key) {
+  function ensureTile(key, displayName) {
+    if (displayName) {
+      participantNames.set(key, displayName);
+    }
     let tile = document.getElementById('tile-' + key);
-    if (tile) return tile;
+    if (tile) {
+      if (displayName) {
+        const nEl = document.getElementById('name-' + key);
+        if (nEl) nEl.textContent = displayName;
+        const aEl = document.getElementById('avatar-' + key);
+        if (aEl) aEl.textContent = displayName.trim().charAt(0).toUpperCase();
+      }
+      return tile;
+    }
 
     tile = document.createElement('div');
     tile.className = 'tile';
@@ -222,6 +233,19 @@
         approveFullMode(key);
       } else {
         toggleFullMode(key);
+      }
+    };
+
+    // Clique no participante da base passa a visualização para ele (vira Apresentador no topo)
+    tile.onclick = (e) => {
+      if (e.target.closest('button') || e.target.closest('.tile-hand-action')) {
+        return;
+      }
+      if (cfg.CAN_ADMIT) {
+        const curPres = window.MeetingPresentation ? window.MeetingPresentation.getActivePresenterKey() : null;
+        if (key === curPres) return;
+        const targetName = participantNames.get(key) || 'Participante';
+        makePresenter(key, targetName);
       }
     };
 
@@ -467,9 +491,12 @@
 
       // Atualiza tile remoto (nome, avatar e estado de câmera)
       const nameEl = document.getElementById('name-' + p.participant_key);
-      if (nameEl) nameEl.textContent = p.display_name;
+      if (nameEl && p.display_name) nameEl.textContent = p.display_name;
 
       const avatarEl = document.getElementById('avatar-' + p.participant_key);
+      if (avatarEl && p.display_name) {
+        avatarEl.textContent = p.display_name.trim().charAt(0).toUpperCase();
+      }
       const peerVideo = document.getElementById('peer-' + p.participant_key);
       const camOn = Number(p.cam_enabled) === 1;
       const videoGranted = Number(p.video_granted) === 1;
