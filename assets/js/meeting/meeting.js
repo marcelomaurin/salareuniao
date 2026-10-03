@@ -62,9 +62,15 @@
         return;
       }
 
+      if (d.room_state && window.MeetingPresentation && typeof window.MeetingPresentation.sync === 'function') {
+        window.MeetingPresentation.sync(d.room_state);
+      }
       if (window.MeetingParticipants) {
         window.MeetingParticipants.renderParticipants(d.participants || []);
         if (d.waiting) window.MeetingParticipants.renderWaitingList(d.waiting);
+      }
+      if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
+        window.MeetingPresentation.updateStageUI();
       }
     } catch (e) {
       // Erro temporário de heartbeat
@@ -157,9 +163,15 @@
       }
 
       // 4. Descobre e inicia conexão com os participantes já presentes na sala
+      if (first.room_state && window.MeetingPresentation && typeof window.MeetingPresentation.sync === 'function') {
+        window.MeetingPresentation.sync(first.room_state);
+      }
       if (window.MeetingParticipants) {
         window.MeetingParticipants.renderParticipants(first.participants || []);
         if (first.waiting) window.MeetingParticipants.renderWaitingList(first.waiting);
+      }
+      if (window.MeetingPresentation && typeof window.MeetingPresentation.updateStageUI === 'function') {
+        window.MeetingPresentation.updateStageUI();
       }
 
       // 5. Notifica a sala que estamos prontos para receber conexões P2P

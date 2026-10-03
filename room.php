@@ -131,8 +131,18 @@ $bridgeChunkMs = max(100, (int)($config['bridge']['chunk_ms'] ?? 250));
 $bridgeFallbackTimeoutMs = max(2000, (int)($config['bridge']['fallback_timeout_ms'] ?? 8000));
 $maxMeshParticipants = (int)get_system_parameter('webrtc.max_mesh_participants', $config['webrtc']['max_mesh_participants'] ?? 4);
 $runtimeState = get_room_runtime_state((int)$me['room_id']);
-if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
-    $runtimeState = set_room_presentation((int)$me['room_id'], $me['participant_key'], 'camera');
+if (empty($runtimeState['active_presenter_key'])) {
+    if ($canAdmit) {
+        $runtimeState = set_room_presentation((int)$me['room_id'], $me['participant_key'], 'camera');
+    } else {
+        try {
+            $stAdm = $pdo->prepare("SELECT p.participant_key FROM room_presence p JOIN rooms r ON r.id = p.room_id LEFT JOIN room_invites i ON i.room_id = p.room_id AND i.participant_key = p.participant_key WHERE p.room_id = ? AND (i.role = 'admin' OR i.user_id = r.owner_user_id) LIMIT 1");
+            $stAdm->execute([(int)$me['room_id']]);
+            if ($admRow = $stAdm->fetch()) {
+                $runtimeState = set_room_presentation((int)$me['room_id'], $admRow['participant_key'], 'camera');
+            }
+        } catch (Throwable $e) {}
+    }
 }
 ?>
 <!doctype html>
@@ -2514,18 +2524,18 @@ if ($canAdmit && empty($runtimeState['active_presenter_key'])) {
   </script>
 
   <!-- Módulos JavaScript Especializados do Sala Reunião -->
-  <script src="assets/js/meeting/logger.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/media.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/bridge.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/signaling.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/webrtc.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/participants.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/control.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/presentation.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/files.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/chat.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/diagnostics.js?v=20261003_31"></script>
-  <script src="assets/js/meeting/meeting.js?v=20261003_31"></script>
+  <script src="assets/js/meeting/logger.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/media.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/bridge.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/signaling.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/webrtc.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/participants.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/control.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/presentation.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/files.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/chat.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/diagnostics.js?v=20261003_32"></script>
+  <script src="assets/js/meeting/meeting.js?v=20261003_32"></script>
 
   <script>
     // Inicialização do Chat e Orquestrador

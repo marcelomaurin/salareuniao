@@ -127,12 +127,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $rState = get_room_runtime_state($roomId);
+            if ($isAdmin && empty($rState['active_presenter_key'])) {
+                $rState = set_room_presentation($roomId, $key, 'camera');
+            }
             $isActivePresenter = (!empty($rState['active_presenter_key']) && $rState['active_presenter_key'] === $key);
             $vidVal = (int)$rowExisting['video_granted'];
             if (!empty($rState['active_presenter_key']) && !$isActivePresenter) {
                 // Outro é o apresentador ativo: participante não transmite
                 $vidVal = 0;
-            } elseif ($isAdmin && empty($rState['active_presenter_key'])) {
+            } elseif ($isAdmin || $isActivePresenter) {
                 $vidVal = 1;
             }
 
@@ -159,8 +162,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // 4. Lista de Participantes Online
 $participants = [];
 try {
-    $q = $pdo->prepare("SELECT participant_key, display_name, mic_enabled, cam_enabled, screen_sharing, hand_raised, hand_requested_at, video_granted, video_admin_allowed, audio_admin_allowed, screen_admin_allowed, joined_at, last_seen_at
-                        FROM room_presence WHERE room_id=? AND last_seen_at>=DATE_SUB(NOW(), INTERVAL 20 SECOND) ORDER BY joined_at");
+    $q = $pdo->prepare("SELECT p.participant_key, p.display_name, p.mic_enabled, p.cam_enabled, p.screen_sharing, p.hand_raised, p.hand_requested_at, p.video_granted, p.video_admin_allowed, p.audio_admin_allowed, p.screen_admin_allowed, p.joined_at, p.last_seen_at,
+                        (CASE WHEN i.role = 'admin' OR i.user_id = r.owner_user_id THEN 1 ELSE 0 END) as is_admin
+                        FROM room_presence p
+                        JOIN rooms r ON r.id = p.room_id
+                        LEFT JOIN room_invites i ON i.room_id = p.room_id AND i.participant_key = p.participant_key
+                        WHERE p.room_id=? AND p.last_seen_at>=DATE_SUB(NOW(), INTERVAL 20 SECOND) ORDER BY p.joined_at");
     $q->execute([$roomId]);
     $participants = $q->fetchAll();
 } catch (Throwable $e) {}

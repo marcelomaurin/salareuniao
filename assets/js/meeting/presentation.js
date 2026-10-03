@@ -36,7 +36,19 @@
   }
 
   function getActivePresenterKey() {
-    return activePresenterKey;
+    if (activePresenterKey) return activePresenterKey;
+    const cfg = getCfg();
+    if (cfg.initialRuntimeState && cfg.initialRuntimeState.active_presenter_key) {
+      return cfg.initialRuntimeState.active_presenter_key;
+    }
+    if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipants === 'function') {
+      const pList = window.MeetingParticipants.getParticipants() || [];
+      const granted = pList.find(p => Number(p.video_granted) === 1);
+      if (granted) return granted.participant_key;
+      const adminPart = pList.find(p => Number(p.is_admin) === 1 || (p.display_name && p.display_name.toLowerCase().includes('administrador')));
+      if (adminPart) return adminPart.participant_key;
+    }
+    return cfg.CAN_ADMIT ? cfg.selfKey : null;
   }
 
   function updateStageUI() {
@@ -47,18 +59,15 @@
     if (!stageArea || !audienceStrip) return;
 
     // Determina quem é o apresentador que fica EM CIMA
-    let presenterKey = activePresenterKey;
-    if (!presenterKey) {
-      presenterKey = (cfg.initialRuntimeState && cfg.initialRuntimeState.active_presenter_key) || (cfg.CAN_ADMIT ? cfg.selfKey : null);
-    }
+    const presenterKey = getActivePresenterKey();
 
     // Atualiza o rótulo superior com o nome do usuário que está apresentando
     const titleEl = document.getElementById('stagePresenterName') || document.querySelector('.stage-header-title');
     if (titleEl) {
       let presName = '';
-      if (!presenterKey || presenterKey === cfg.selfKey) {
+      if (presenterKey && presenterKey === cfg.selfKey) {
         presName = cfg.displayName || 'Você';
-      } else if (window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
+      } else if (presenterKey && window.MeetingParticipants && typeof window.MeetingParticipants.getParticipantName === 'function') {
         presName = window.MeetingParticipants.getParticipantName(presenterKey);
       }
       if (!presName || presName === 'Participante') {
@@ -70,7 +79,9 @@
           }
         }
       }
-      if (!presName) presName = cfg.displayName || 'Participante';
+      if (!presName) {
+        presName = cfg.CAN_ADMIT ? (cfg.displayName || 'Você') : 'Administrador';
+      }
       titleEl.textContent = presName;
     }
 
