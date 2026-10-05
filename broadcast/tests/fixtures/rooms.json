@@ -1,0 +1,31 @@
+{
+  "rooms": [
+    { "id": 1, "name": "Sala de Teste", "status": "open", "owner_user_id": 1,
+      "join_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    { "id": 2, "name": "Sala Fechada", "status": "closed", "owner_user_id": 1,
+      "join_token": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+  ],
+  "users": [
+    { "id": 1, "email": "admin@example.com", "role": "user" },
+    { "id": 2, "email": "coadmin@example.com", "role": "user" }
+  ],
+  "room_admins": [
+    { "room_id": 1, "user_id": 2 }
+  ],
+  "invites": [
+    { "id": 1, "room_id": 1, "token": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "email": "admin@example.com", "status": "approved", "display_name": "Organizador",
+      "participant_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" },
+    { "id": 2, "room_id": 1, "token": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "email": "convidado@example.com", "status": "approved", "display_name": "Convidado Aprovado",
+      "participant_key": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
+    { "id": 3, "room_id": 1, "token": "9999999999999999999999999999999999999999999999999999999999999999",
+      "email": "coadmin@example.com", "status": "approved", "display_name": "Co-organizador",
+      "participant_key": "8888888888888888888888888888888888888888888888888888888888888888" }
+  ],
+  "bans": [],
+  "messages": [
+    { "id": 1, "room_id": 1, "participant_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "display_name": "Organizador", "message": "Bem-vindos", "ts": 1759600000000 }
+  ]
+}

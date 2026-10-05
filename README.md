@@ -1,5 +1,10 @@
 # Cliente Web — PHP + MySQL + WebRTC P2P
 
+> **Novo: modo broadcast.** A pasta [`broadcast/`](broadcast/README.md) traz o `bcastd`, servidor em C (C90 + pthreads)
+> que substitui o P2P por distribuição a partir do servidor: um orador por vez, sala de espera, levantar a mão, chat e
+> funções do organizador. Ative com `'media' => ['transport' => 'broadcast']` no `config.php`; a página da sala passa a
+> ser `broadcast.php`. Protocolo em [`broadcast/docs/PROTOCOL.md`](broadcast/docs/PROTOCOL.md); migração em `sql/014_broadcast.sql`.
+
 O cliente Web do Sala Reunião usa **PHP 8.1+**, **MySQL/MariaDB** e **WebRTC** no navegador.
 
 ## Recursos implementados

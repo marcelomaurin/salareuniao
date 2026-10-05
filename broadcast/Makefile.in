@@ -1,0 +1,77 @@
+# Makefile.in - bcastd (copiado para Makefile pelo ./configure)
+
+include config.mk
+
+WARN_CFLAGS = -Werror
+CFLAGS_ALL  = $(BASE_CFLAGS) $(OPT) $(SAN) $(PTHREAD_CFLAGS) -Isrc -MMD -MP
+LDFLAGS_ALL = $(SAN) $(LDFLAGS)
+
+CORE_SRC = src/bc_util.c src/bc_log.c src/bc_config.c src/bc_crypto.c src/bc_buf.c \
+           src/bc_ws.c src/bc_ebml.c src/bc_fsm.c src/bc_json.c src/bc_net.c \
+           src/bc_room.c src/bc_proto.c src/bc_db.c
+DB_SRC_mysql = src/bc_db_mysql.c
+DB_SRC_stub  = src/bc_db_stub.c
+DB_SRC       = $(DB_SRC_$(DB_BACKEND))
+CJSON_SRC    = src/third_party/cjson/cJSON.c
+
+CORE_OBJ  = $(CORE_SRC:.c=.o)
+DB_OBJ    = $(DB_SRC:.c=.o)
+CJSON_OBJ = $(CJSON_SRC:.c=.o)
+MAIN_OBJ  = src/main.o
+
+TEST_SRC = tests/unit/test_main.c
+TEST_OBJ = $(TEST_SRC:.c=.o)
+
+.PHONY: all check itest install uninstall clean distclean
+
+all: bcastd
+
+bcastd: $(MAIN_OBJ) $(CORE_OBJ) $(DB_OBJ) $(CJSON_OBJ)
+	$(CC) $(LDFLAGS_ALL) -o $@ $^ $(LIBS)
+
+src/bc_db_mysql.o: src/bc_db_mysql.c
+	$(CC) $(CFLAGS_ALL) $(WARN_CFLAGS) $(MYSQL_CFLAGS) -c -o $@ $<
+
+# cJSON e codigo de terceiros: compila em C89 sem -Werror
+$(CJSON_OBJ): $(CJSON_SRC)
+	$(CC) -std=c89 $(OPT) $(SAN) -c -o $@ $<
+
+src/%.o: src/%.c
+	$(CC) $(CFLAGS_ALL) $(WARN_CFLAGS) -c -o $@ $<
+
+tests/unit/%.o: tests/unit/%.c
+	$(CC) $(CFLAGS_ALL) $(WARN_CFLAGS) -c -o $@ $<
+
+tests/unit/run_tests: $(TEST_OBJ) $(CORE_OBJ) src/bc_db_stub.o $(CJSON_OBJ)
+	$(CC) $(LDFLAGS_ALL) -o $@ $^ $(LIBS)
+
+src/bc_db_stub.o: src/bc_db_stub.c
+	$(CC) $(CFLAGS_ALL) $(WARN_CFLAGS) -c -o $@ $<
+
+check: tests/unit/run_tests
+	./tests/unit/run_tests
+
+# Exige: ./configure --with-mysql=no && make (backend stub com fixture)
+itest: bcastd
+	python3 tests/integration/test_broadcast.py --bin ./bcastd
+
+install: bcastd
+	install -d $(DESTDIR)$(PREFIX)/sbin $(DESTDIR)$(SYSCONFDIR)
+	install -m 0755 bcastd $(DESTDIR)$(PREFIX)/sbin/bcastd
+	test -f $(DESTDIR)$(SYSCONFDIR)/broadcast.conf || \
+	  install -m 0640 etc/broadcast.conf.example $(DESTDIR)$(SYSCONFDIR)/broadcast.conf
+	install -d $(DESTDIR)/etc/systemd/system
+	sed 's|@PREFIX@|$(PREFIX)|g; s|@SYSCONFDIR@|$(SYSCONFDIR)|g' etc/systemd/salareuniao-broadcast.service \
+	  > $(DESTDIR)/etc/systemd/system/salareuniao-broadcast.service
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/sbin/bcastd $(DESTDIR)/etc/systemd/system/salareuniao-broadcast.service
+
+clean:
+	rm -f bcastd tests/unit/run_tests src/*.o src/*.d src/third_party/cjson/*.o src/third_party/cjson/*.d \
+	      tests/unit/*.o tests/unit/*.d
+
+distclean: clean
+	rm -f config.mk src/config.h Makefile
+
+-include $(CORE_OBJ:.o=.d) $(MAIN_OBJ:.o=.d) $(DB_OBJ:.o=.d) $(TEST_OBJ:.o=.d)

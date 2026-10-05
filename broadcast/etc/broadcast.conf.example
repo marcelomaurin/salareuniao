@@ -1,0 +1,47 @@
+# /etc/salareuniao/broadcast.conf - configuracao do bcastd
+# Formato: chave = valor. Linhas com # ou ; sao comentarios.
+
+# Rede: escute so localmente; o Apache faz o TLS e o proxy do WebSocket.
+listen_addr = 127.0.0.1
+listen_port = 8090
+io_threads = 4
+
+# Limites
+max_clients = 2000
+max_rooms = 200
+max_clients_per_room = 300
+max_frame_bytes = 1048576        # maior quadro WebSocket aceito (1 MB)
+max_queue_bytes = 4194304        # fila de saida por cliente antes de considerar "atrasado"
+max_cache_bytes = 8388608        # cache de midia desde o ultimo keyframe por sala
+
+# Tempos (ms)
+hello_timeout_ms = 5000          # tempo para o cliente enviar o hello
+ping_interval_ms = 15000
+idle_timeout_ms = 45000          # sem trafego: desconecta
+waiting_timeout_ms = 900000      # 15 min na sala de espera
+speaker_pending_ms = 15000       # orador escolhido tem 15 s para comecar a transmitir
+room_linger_ms = 60000           # sala vazia sai da memoria apos 60 s
+
+# Regras
+invite_auto_admit = 1            # convite com status 'approved' entra direto (0 = todos pela espera)
+chat_history = 50                # mensagens enviadas a quem entra
+
+# Seguranca
+allowed_origin = https://seu-dominio.example
+trust_proxy = 1                  # IP real vem de X-Real-IP / X-Forwarded-For (somente atras do Apache)
+
+# Banco (usuario com privilegios minimos: veja broadcast/README.md)
+db_host = 127.0.0.1
+db_port = 3306
+db_name = salareuniao
+db_user = salareuniao_bcast
+db_pass = TROQUE_A_SENHA
+# db_socket = /run/mysqld/mysqld.sock
+
+# Links de convite criados pela sala (admin.invite)
+base_url = https://seu-dominio.example/salareuniao
+
+# Log
+log_level = info                 # error | warn | info | debug | trace
+log_file = -                     # "-" = stderr (journald). Ou /var/log/salareuniao/bcastd.log
+# pid_file = /run/bcastd.pid

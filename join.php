@@ -7,6 +7,10 @@ header("Expires: 0");
 $token = trim((string)($_GET['token'] ?? ''));
 $roomToken = trim((string)($_GET['room_token'] ?? ($_POST['room_token'] ?? '')));
 
+// Modo broadcast: a sala de espera passa a ser um estado da conexão no bcastd.
+require_once __DIR__ . '/lib/broadcast.php';
+broadcast_redirect_if_active($config, $token, $roomToken);
+
 $invite = null;
 $room = null;
 $roomId = 0;

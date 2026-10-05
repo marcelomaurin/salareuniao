@@ -1,0 +1,8 @@
+*.o
+*.d
+bcastd
+config.mk
+src/config.h
+Makefile
+tests/unit/run_tests
+__pycache__/

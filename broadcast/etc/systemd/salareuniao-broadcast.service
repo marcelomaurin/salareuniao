@@ -1,0 +1,22 @@
+[Unit]
+Description=Sala Reuniao - servico de broadcast (bcastd)
+After=network-online.target mariadb.service mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@PREFIX@/sbin/bcastd -c @SYSCONFDIR@/broadcast.conf -f
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2
+User=salareuniao
+Group=salareuniao
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/log/salareuniao
+
+[Install]
+WantedBy=multi-user.target

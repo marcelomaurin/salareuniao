@@ -96,6 +96,22 @@ return [
             // 'ttl' => 3600,
         ],
     ],
+    // Transporte de mídia da sala:
+    //   'p2p'       = WebRTC mesh legado (room.php)
+    //   'broadcast' = servidor de broadcast em C (broadcast/, bcastd): um orador por vez,
+    //                 sala de espera, palavra, chat e funções do organizador pelo serviço.
+    'media' => [
+        'transport' => 'p2p',
+    ],
+    // Serviço broadcast (bcastd). Requer VPS: o binário roda atrás do Apache em 127.0.0.1:8090.
+    // Veja broadcast/README.md e broadcast/etc/apache/broadcast.conf.
+    'broadcast' => [
+        'enabled' => false,
+        'public_url' => 'wss://seu-dominio.example/salareuniao/broadcast',
+        'internal_host' => '127.0.0.1',   // usado por admin_system.php (/healthz e /metrics)
+        'internal_port' => 8090,
+        'chunk_ms' => 250,                // tamanho dos pedaços do MediaRecorder (latência x overhead)
+    ],
     // PHP Media Bridge: Desative em hospedagem compartilhada (Hostinger hPanel).
     // Requer VPS com serviço daemon Ratchet rodando em segundo plano.
     'bridge' => [

@@ -1,0 +1,190 @@
+#!/bin/sh
+# configure - bcastd (servico de broadcast da Sala Reuniao)
+# Script POSIX escrito a mao (sem autotools). Gera config.mk, src/config.h
+# e Makefile a partir de Makefile.in.
+
+VERSION="0.1.0"
+prefix="/usr/local"
+sysconfdir=""
+with_mysql="auto"
+enable_debug="no"
+enable_asan="no"
+enable_tsan="no"
+CC="${CC:-}"
+
+usage() {
+    cat <<EOF
+Uso: ./configure [opcoes]
+
+  --prefix=DIR         diretorio de instalacao [/usr/local]
+  --sysconfdir=DIR     diretorio da configuracao [/etc/salareuniao]
+  --with-mysql=VALOR   auto | yes | no  (no = backend em memoria para testes)
+  --enable-debug       -O0 -g, sem otimizacao
+  --enable-asan        AddressSanitizer + UndefinedBehaviorSanitizer
+  --enable-tsan        ThreadSanitizer
+  --cc=COMPILADOR      compilador C (padrao: \$CC, cc ou gcc)
+  -h, --help           esta ajuda
+EOF
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --prefix=*)      prefix="${arg#*=}" ;;
+        --sysconfdir=*)  sysconfdir="${arg#*=}" ;;
+        --with-mysql=*)  with_mysql="${arg#*=}" ;;
+        --with-mysql)    with_mysql="yes" ;;
+        --without-mysql) with_mysql="no" ;;
+        --enable-debug)  enable_debug="yes" ;;
+        --enable-asan)   enable_asan="yes" ;;
+        --enable-tsan)   enable_tsan="yes" ;;
+        --cc=*)          CC="${arg#*=}" ;;
+        -h|--help)       usage; exit 0 ;;
+        *) echo "configure: opcao desconhecida: $arg" >&2; usage; exit 1 ;;
+    esac
+done
+
+[ -z "$sysconfdir" ] && sysconfdir="/etc/salareuniao"
+
+cd "$(dirname "$0")" || exit 1
+TMPD=$(mktemp -d 2>/dev/null || echo "/tmp/bcastd-configure.$$")
+mkdir -p "$TMPD"
+trap 'rm -rf "$TMPD"' EXIT INT TERM
+
+log() { printf '%s\n' "$*"; }
+checking() { printf 'verificando %s... ' "$*"; }
+
+# ------------------------------------------------------------ compilador
+if [ -z "$CC" ]; then
+    for c in cc gcc clang; do
+        if command -v "$c" >/dev/null 2>&1; then CC="$c"; break; fi
+    done
+fi
+checking "compilador C"
+if [ -z "$CC" ] || ! command -v "$CC" >/dev/null 2>&1; then
+    log "nao encontrado"; echo "configure: instale gcc ou clang" >&2; exit 1
+fi
+log "$CC"
+
+BASE_CFLAGS="-std=c90 -pedantic -Wall -Wextra -Wshadow -Wstrict-prototypes -Wno-long-long -Wno-overlength-strings -D_XOPEN_SOURCE=600 -D_DEFAULT_SOURCE"
+
+try_compile() {
+    # $1 = codigo; $2 = flags extras; $3 = libs
+    printf '%s\n' "$1" > "$TMPD/t.c"
+    $CC $BASE_CFLAGS $2 -o "$TMPD/t" "$TMPD/t.c" $3 >"$TMPD/log" 2>&1
+}
+
+checking "se $CC compila C90"
+if try_compile 'int main(void) { return 0; }' "" ""; then log "sim"; else
+    log "nao"; cat "$TMPD/log" >&2; exit 1; fi
+
+checking "pthreads"
+PTHREAD_LIBS=""
+if try_compile '#include <pthread.h>
+static void *f(void *a) { return a; }
+int main(void) { pthread_t t; pthread_create(&t, 0, f, 0); pthread_join(t, 0); return 0; }' "-pthread" "-pthread"; then
+    PTHREAD_LIBS="-pthread"; log "sim (-pthread)"
+elif try_compile '#include <pthread.h>
+int main(void) { pthread_mutex_t m; pthread_mutex_init(&m, 0); return 0; }' "" "-lpthread"; then
+    PTHREAD_LIBS="-lpthread"; log "sim (-lpthread)"
+else
+    log "nao"; echo "configure: pthreads e obrigatorio" >&2; exit 1
+fi
+
+checking "epoll"
+HAVE_EPOLL=0
+if try_compile '#include <sys/epoll.h>
+int main(void) { int fd = epoll_create(1); return fd < 0; }' "" ""; then HAVE_EPOLL=1; log "sim"; else log "nao (usando poll)"; fi
+
+checking "eventfd"
+HAVE_EVENTFD=0
+if try_compile '#include <sys/eventfd.h>
+int main(void) { int fd = eventfd(0, EFD_NONBLOCK); return fd < 0; }' "" ""; then HAVE_EVENTFD=1; log "sim"; else log "nao (usando pipe)"; fi
+
+checking "clock_gettime"
+RT_LIBS=""
+if try_compile '#include <time.h>
+int main(void) { struct timespec ts; return clock_gettime(CLOCK_MONOTONIC, &ts); }' "" ""; then log "sim"
+elif try_compile '#include <time.h>
+int main(void) { struct timespec ts; return clock_gettime(CLOCK_MONOTONIC, &ts); }' "" "-lrt"; then RT_LIBS="-lrt"; log "sim (-lrt)"
+else log "nao"; echo "configure: clock_gettime e obrigatorio" >&2; exit 1; fi
+
+# ------------------------------------------------------------ MySQL
+DB_BACKEND="stub"
+MYSQL_CFLAGS=""
+MYSQL_LIBS=""
+if [ "$with_mysql" != "no" ]; then
+    checking "cliente MySQL/MariaDB"
+    MC=""
+    for m in mariadb_config mysql_config; do
+        if command -v "$m" >/dev/null 2>&1; then MC="$m"; break; fi
+    done
+    if [ -n "$MC" ]; then
+        MYSQL_CFLAGS=$($MC --cflags 2>/dev/null | sed 's/-std=[^ ]*//g')
+        MYSQL_LIBS=$($MC --libs 2>/dev/null)
+        if try_compile '#include <mysql.h>
+int main(void) { MYSQL *m = mysql_init(0); mysql_close(m); return 0; }' "$MYSQL_CFLAGS" "$MYSQL_LIBS"; then
+            DB_BACKEND="mysql"; log "sim ($MC)"
+        else
+            log "encontrado, mas nao compila"; cat "$TMPD/log" >&2
+        fi
+    else
+        log "nao"
+    fi
+    if [ "$DB_BACKEND" = "stub" ] && [ "$with_mysql" = "yes" ]; then
+        echo "configure: --with-mysql=yes mas libmariadb-dev/libmysqlclient-dev nao encontrada" >&2
+        echo "           (Debian/Ubuntu: apt install libmariadb-dev)" >&2
+        exit 1
+    fi
+    if [ "$DB_BACKEND" = "stub" ]; then
+        log "AVISO: compilando com backend em memoria (stub); use --with-mysql=yes em producao"
+    fi
+fi
+
+# ------------------------------------------------------------ flags
+if [ "$enable_debug" = "yes" ]; then OPT="-O0 -g"; else OPT="-O2 -g"; fi
+SAN=""
+[ "$enable_asan" = "yes" ] && SAN="-fsanitize=address,undefined -fno-omit-frame-pointer"
+[ "$enable_tsan" = "yes" ] && SAN="-fsanitize=thread"
+if [ "$enable_asan" = "yes" ] && [ "$enable_tsan" = "yes" ]; then
+    echo "configure: --enable-asan e --enable-tsan sao exclusivos" >&2; exit 1
+fi
+
+cat > config.mk <<EOF
+# gerado por ./configure em $(date)
+CC = $CC
+PREFIX = $prefix
+SYSCONFDIR = $sysconfdir
+VERSION = $VERSION
+DB_BACKEND = $DB_BACKEND
+BASE_CFLAGS = $BASE_CFLAGS
+OPT = $OPT
+SAN = $SAN
+MYSQL_CFLAGS = $MYSQL_CFLAGS
+LIBS = $PTHREAD_LIBS $RT_LIBS -lm $MYSQL_LIBS
+PTHREAD_CFLAGS = $( [ "$PTHREAD_LIBS" = "-pthread" ] && echo "-pthread" )
+EOF
+
+cat > src/config.h <<EOF
+/* gerado por ./configure - nao editar */
+#ifndef BC_CONFIG_GEN_H
+#define BC_CONFIG_GEN_H
+#define BC_VERSION "$VERSION"
+#define BC_SYSCONFDIR "$sysconfdir"
+#define BC_DB_BACKEND "$DB_BACKEND"
+#define HAVE_EPOLL $HAVE_EPOLL
+#define HAVE_EVENTFD $HAVE_EVENTFD
+#endif
+EOF
+
+cp Makefile.in Makefile
+
+log ""
+log "bcastd $VERSION configurado:"
+log "  compilador ..... $CC"
+log "  backend banco .. $DB_BACKEND"
+log "  E/S ............ $( [ $HAVE_EPOLL = 1 ] && echo epoll || echo poll )"
+log "  prefixo ........ $prefix"
+log "  configuracao ... $sysconfdir/broadcast.conf"
+[ -n "$SAN" ] && log "  sanitizadores .. $SAN"
+log ""
+log "Agora rode: make && make check"

@@ -24,6 +24,18 @@ $wsUrl=(string)($ws['public_url']??'');
 $wsOk=!empty($ws['enabled'])&&str_starts_with($wsUrl,'wss://')&&!empty($ws['http_host'])&&!empty($ws['listen_port']);
 $checks[]=['WebSocket',$wsOk,$wsOk?$wsUrl:'pendente'];
 
+require_once __DIR__.'/lib/broadcast.php';
+$bcCfg=broadcast_config($config);
+$bcActive=broadcast_active($config);
+$bcHealth=$bcCfg['enabled']?broadcast_health($config):['ok'=>false,'metrics'=>[],'error'=>'desabilitado'];
+$checks[]=['Transporte de mídia',true,$bcActive?'broadcast (bcastd)':'p2p (WebRTC mesh)'];
+if($bcCfg['enabled']){
+    $checks[]=['Serviço broadcast',$bcHealth['ok'],$bcHealth['ok']
+        ?('online · salas '.($bcHealth['metrics']['bcast_rooms']??'0').' · clientes '.($bcHealth['metrics']['bcast_clients']??'0'))
+        :('sem resposta em '.$bcCfg['internal_host'].':'.$bcCfg['internal_port'].' ('.$bcHealth['error'].')')];
+    $checks[]=['Broadcast URL WSS',str_starts_with($bcCfg['public_url'],'wss://'),$bcCfg['public_url']?:'não configurada'];
+}
+
 $mailCfg=$config['mail']??[];
 $vendorOk=is_file(__DIR__.'/vendor/autoload.php');
 $checks[]=['PHPMailer',$vendorOk,$vendorOk?'instalado':'execute composer install em apps/web'];

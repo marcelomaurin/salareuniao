@@ -12,6 +12,10 @@ if ($token === '') {
     exit;
 }
 
+// Modo broadcast (config.php: media.transport = 'broadcast'): a sala roda no bcastd.
+require_once __DIR__ . '/lib/broadcast.php';
+broadcast_redirect_if_active($config, $token, '');
+
 // 1. Busca os dados do convite informado na URL e da sala
 $st = $pdo->prepare("SELECT i.*, r.id as room_id, r.name as room_name, r.status as room_status, r.owner_user_id, r.join_token 
                      FROM room_invites i 

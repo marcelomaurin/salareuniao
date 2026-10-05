@@ -1,0 +1,98 @@
+/* broadcast.css - sala no modo broadcast (um orador, muitos ouvintes)
+   Usa as variaveis de cor/tipografia de salareuniao.css. */
+
+.bc-body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+.bc-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border-glass); background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+}
+.bc-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bc-title h1 { font-family: var(--font-heading); font-size: 1.1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent-red); flex: none; }
+.bc-dot.is-on { background: var(--accent-green); }
+.bc-live { font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: #fff; background: var(--accent-red); padding: 2px 8px; border-radius: var(--radius-full); }
+.bc-top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.bc-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+
+.bc-stage-wrap { display: flex; flex-direction: column; min-height: 0; padding: 12px; gap: 10px; }
+.bc-stage { position: relative; flex: 1; min-height: 200px; background: #000; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-glass); }
+.bc-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.bc-stage-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--text-muted); font-size: 1.05rem; }
+.bc-speaker-tag { position: absolute; left: 12px; bottom: 12px; background: rgba(7, 11, 20, .75); padding: 4px 12px; border-radius: var(--radius-full); font-weight: 600; font-size: .9rem; }
+.bc-unmute { position: absolute; right: 12px; bottom: 12px; }
+
+.bc-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bc-controls #bcSpeakerControls { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.bc-controls #bcSpeakerControls[hidden] { display: none; }
+.bc-stats { margin-left: auto; color: var(--text-dim); font-size: .82rem; }
+
+.bc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);
+  background: var(--bg-card); color: var(--text-main); font: inherit; font-size: .9rem; cursor: pointer; text-decoration: none;
+}
+.bc-btn:hover { background: var(--bg-card-hover); }
+.bc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.bc-btn-primary { background: var(--primary); color: var(--bg-deep); border-color: transparent; font-weight: 600; }
+.bc-btn-primary:hover { background: var(--primary-hover); }
+.bc-btn-danger { color: #fff; background: rgba(239, 68, 68, .85); border-color: transparent; }
+.bc-btn-warn { color: var(--accent-amber); }
+.bc-btn-ghost { background: transparent; }
+.bc-btn-sm { padding: 5px 10px; font-size: .82rem; }
+
+.bc-side { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border-glass); background: var(--bg-glass); }
+.bc-tabs { display: flex; border-bottom: 1px solid var(--border-glass); overflow-x: auto; }
+.bc-tab { flex: 1; padding: 10px 8px; background: none; border: 0; color: var(--text-muted); font: inherit; font-size: .85rem; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+.bc-tab.is-active { color: var(--text-main); border-bottom-color: var(--primary); }
+.bc-tab.bc-attn span { color: var(--accent-amber); font-weight: 700; }
+.bc-panel { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 10px; flex-direction: column; }
+.bc-panel.is-active { display: flex; }
+.bc-h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin: 8px 4px; }
+
+.bc-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.bc-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-card); }
+.bc-who { display: flex; flex-direction: column; min-width: 0; }
+.bc-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-tag { font-size: .75rem; color: var(--primary); }
+.bc-muted { font-size: .78rem; color: var(--text-dim); }
+.bc-acts { display: flex; gap: 6px; flex: none; }
+
+.bc-menu { position: relative; }
+.bc-menu-box { display: none; position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 170px; flex-direction: column; gap: 2px; padding: 6px; border-radius: var(--radius-sm); background: var(--bg-base); border: 1px solid var(--border-glass); box-shadow: var(--shadow-md); }
+.bc-menu.is-open .bc-menu-box { display: flex; }
+.bc-menu-box .bc-btn { justify-content: flex-start; border: 0; }
+
+.bc-chat { list-style: none; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; }
+.bc-chat-small { max-height: 200px; min-height: 60px; }
+.bc-msg { padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-card); }
+.bc-msg-admin { border-left: 3px solid var(--primary); }
+.bc-msg-priv { border-left: 3px solid var(--accent-purple); }
+.bc-msg-head { display: flex; justify-content: space-between; gap: 8px; font-size: .78rem; color: var(--text-muted); }
+.bc-msg p { white-space: pre-wrap; word-break: break-word; font-size: .9rem; }
+.bc-chat-form { display: flex; gap: 6px; }
+.bc-chat-form input { flex: 1; min-width: 0; }
+
+.bc-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(7, 11, 20, .78); backdrop-filter: blur(6px); }
+.bc-overlay[hidden] { display: none; }
+.bc-card { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: var(--radius-md); background: var(--bg-base); border: 1px solid var(--border-glass); box-shadow: var(--shadow-md); }
+.bc-card h2 { font-family: var(--font-heading); font-size: 1.2rem; }
+.bc-card label { font-size: .82rem; color: var(--text-muted); }
+.bc-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.bc-card input, .bc-card select, .bc-chat-form input {
+  padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);
+  background: var(--bg-deep); color: var(--text-main); font: inherit;
+}
+
+.bc-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; max-width: calc(100% - 32px); padding: 10px 18px; border-radius: var(--radius-full); background: rgba(15, 23, 42, .95); border: 1px solid var(--border-glass); box-shadow: var(--shadow-md); font-size: .9rem; }
+
+@media (max-width: 860px) {
+  .bc-body { height: auto; min-height: 100vh; overflow: auto; }
+  .bc-main { grid-template-columns: 1fr; }
+  .bc-stage { aspect-ratio: 16 / 9; flex: none; }
+  .bc-side { border-left: 0; border-top: 1px solid var(--border-glass); min-height: 360px; }
+  .bc-top { flex-wrap: wrap; }
+}
