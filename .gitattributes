@@ -1,0 +1,3 @@
+
+# Scripts e fontes do broadcast devem usar LF para compilar no Linux.
+broadcast/** text eol=lf
