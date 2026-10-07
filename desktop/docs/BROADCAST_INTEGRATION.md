@@ -1,129 +1,127 @@
-﻿# Integração com o Servidor Broadcast (bcastd) · Sala Reunião Desktop
+﻿# Integração com o Protocolo Específico do Broadcast (bcastd) · Sala Reunião Desktop
 
-Este documento especifica a arquitetura de comunicação entre o aplicativo **Lazarus Desktop** (`desktop/`) e o servidor de broadcast **`bcastd`** (`linuxsrv/broadcast/`), além dos requisitos visuais baseados no layout do **Microsoft Teams**.
+Este documento detalha o **protocolo de videoconferência de alta eficiência do `bcastd`** (`linuxsrv/broadcast`), implementado diretamente no cliente desktop em Lazarus.
 
 ---
 
-## 1. Visão Geral e Arquitetura
+## 1. Visão Geral do Protocolo de Videoconferência
 
-O servidor `bcastd` (desenvolvido em C90 com pthreads) centraliza a distribuição de mídia (WebM) e as mensagens de controle da sala via WebSocket.
+O `bcastd` não utiliza SIP nem SFU tradicional RTP/RTCP pesado. Ele emprega um **protocolo proprietário otimizado para conferências e apresentações centralizadas**, trafegando em uma única conexão multiplexada por participante (via WebSocket ou WebRTC DataChannel):
+
+1. **Plano de Controle (Quadros de Texto JSON):**
+   - Versionamento estrito: `{"v": 1, "t": "<tipo>", ...}`.
+   - Idempotência administrativa via `id` (UUID v4) e confirmações `ack` com `ref`.
+2. **Plano de Mídia Audiovisual (Quadros Binários):**
+   - Cabeçalho binário fixo de **16 bytes big-endian** (`magic 0xB5`).
+   - Carga útil contendo fatias de vídeo e áudio **WebM (VP8/VP9 + Opus)** produzidas pelo codec de hardware/software.
+   - Tratamento inteligente de estruturas EBML no servidor (reconhecimento de cabeçalhos de inicialização e limites de Cluster/Keyframe para reconexão sem perda de sinc).
+
+---
+
+## 2. Estrutura Binária dos Quadros de Mídia (Header de 16 Bytes)
+
+Todos os pacotes de áudio/vídeo transmitidos ou recebidos contêm o cabeçalho fixo:
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│             APLICAÇÃO LAZARUS DESKTOP                  │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │   Interface Visual Nativa (Estilo Teams Dark)    │  │
-│  │   • Modo Palco / Spotlight (Orador Principal)    │  │
-│  │   • Coluna Lateral de Galeria de Participantes   │  │
-│  │   • Barra Superior (Timer, Mic, Cam, Mão, Sair)  │  │
-│  │   • Painel de Chat e Fila de Espera              │  │
-│  └────────────────────────┬─────────────────────────┘  │
-│                           │                            │
-│  ┌────────────────────────┴─────────────────────────┐  │
-│  │     Cliente de Protocolo Broadcast (TBcastClient)│  │
-│  │     • Conexão WebSocket / TLS                    │  │
-│  │     • Envio e recepção de JSON (v: 1)            │  │
-│  └────────────────────────┬─────────────────────────┘  │
-└───────────────────────────┼────────────────────────────┘
-                            │ WebSocket (wss://.../broadcast)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│           SERVIDOR LINUX (linuxsrv/broadcast)          │
-│                       bcastd                           │
-│  • Gestão de Sessões, FSM e Permissões                 │
-│  • Sala de Espera (Lobby) e Admissão Administrativa    │
-│  • Fila FIFO de Oradores (Pedir a Palavra)             │
-│  • Distribuição de Vídeo e Áudio WebM                  │
-└────────────────────────────────────────────────────────┘
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|  Magic (0xB5) |  Tipo (1/2)   |     Flags     |    Geração    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                       Sequência (seq)                         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                      Timestamp (64 bits, ms)                  +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     Payload WebM (Variável)                   |
+|                              ...                              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+### Detalhamento dos Campos:
+| Offset (Bytes) | Campo | Tipo | Descrição |
+| :--- | :--- | :--- | :--- |
+| **0** | `magic` | `UInt8` | Sempre `0xB5` (identificador único do pacote de broadcast). |
+| **1** | `tipo` | `UInt8` | `1` = Cabeçalho de Inicialização (EBML Header), `2` = Dados de Mídia contínuos. |
+| **2** | `flags` | `UInt8` | Bit 0 (`0x01`): Marca início de Cluster com **Keyframe** de vídeo. |
+| **3** | `geracao` | `UInt8` | ID da geração da transmissão (incrementado a cada `media.init`). |
+| **4–7** | `seq` | `UInt32 BE` | Número sequencial monotônico para detecção de pacotes perdidos ou desordenados. |
+| **8–15** | `timestamp` | `UInt64 BE` | Carimbo de tempo do emissor em milissegundos (usado para cálculo de latência e jitter). |
+| **16+** | `payload` | Binário | Fluxo de bytes WebM. |
+
+---
+
+## 3. Implementação da Unidade Pascal (`uBcastProtocol.pas`)
+
+No Lazarus, a manipulação deste cabeçalho é encapsulada em tipos nativos do Free Pascal:
+
+```pascal
+type
+  TBcastFrameType = (bftInit = 1, bftData = 2);
+
+  {$PACKRECORDS 1}
+  TBcastHeader = record
+    Magic: Byte;         // 0xB5
+    FrameType: Byte;     // 1=Init, 2=Data
+    Flags: Byte;         // bit 0 = Keyframe
+    Generation: Byte;    // Contador de geração
+    Seq: Cardinal;       // Big-endian
+    Timestamp: QWord;    // Big-endian (ms)
+  end;
+  {$PACKRECORDS DEFAULT}
+
+function DecodeBcastHeader(const Buffer: PByte; BufferSize: Integer; out Header: TBcastHeader): Boolean;
+var
+  H: TBcastHeader;
+begin
+  Result := False;
+  if BufferSize < SizeOf(TBcastHeader) then Exit;
+  Move(Buffer^, H, SizeOf(TBcastHeader));
+  if H.Magic <> $B5 then Exit;
+
+  Header.Magic := H.Magic;
+  Header.FrameType := H.FrameType;
+  Header.Flags := H.Flags;
+  Header.Generation := H.Generation;
+  Header.Seq := BEtoN(H.Seq);
+  Header.Timestamp := BEtoN(H.Timestamp);
+  Result := True;
+end;
 ```
 
 ---
 
-## 2. Modos de Visualização da Interface (Estilo Microsoft Teams)
+## 4. Máquina de Estados e Ciclo de Vida da Conexão
 
-O cliente desktop implementa dois modos de visualização alternáveis:
+```text
+[DESCONECTADO]
+      │
+      ▼ Conectar WebSocket / DataChannel
+[HANDSHAKE]
+      │
+      ▼ Enviar {"v":1,"t":"hello", ...}
+[AUTENTICAÇÃO]
+      │
+      ├─ Se role = admin ou convite de host ─────────► [IN_ROOM (Videoconferência)]
+      │                                                      ▲
+      └─ Se usuário comum / sem permissão direta ─► [WAITING] │
+                                                       │      │
+                                         admin.admit   └──────┘
+```
 
-### 2.1. Modo Galeria (Grid Completo — Imagem 1)
-- Grade proporcional distribuindo todos os participantes na tela (ex.: 2x2, 3x3).
-- Cartões com avatares/vídeos, tarja inferior com nome e ícone de microfone.
-- Destaque com borda luminosa (roxo/azul) para quem estiver falando.
-
-### 2.2. Modo Palco / Spotlight (Apresentação e Orador — Imagem 3)
-- **Área Central (Stage):** Espaço amplo dedicado ao orador ativo (`speaker`) ou ao compartilhamento de tela.
-- **Galeria Lateral Direita:** Coluna com cartões dos demais participantes em miniatura e trilha vertical de avatares com iniciais coloridas.
-- **Painel de Chat Integrado:** Balões de conversa com identificação de remetente, horário e avatar.
-
-### 2.3. Barra Superior de Controles (Dark Theme)
-- Cronômetro no canto superior esquerdo (`22:06`).
-- Botões de controle no topo à direita:
-  - 👥 **Participantes & Espera:** Alterna o painel lateral com lista de presença e admissão do lobby.
-  - 💬 **Chat:** Alterna o painel de mensagens instantâneas.
-  - ✋ **Pedir a Palavra:** Aciona `hand.raise` / `hand.lower` com fila visual FIFO.
-  - 📷 **Câmera:** Ativa/desativa transmissão de vídeo local.
-  - 🎤 **Microfone:** Alterna mudo/ativo.
-  - 🖥 **Compartilhar Tela:** Inicia transmissão da área de trabalho.
-  - 🚪 **Botão Vermelho "Leave":** Encerra ou sai da conferência com envio de `bye`.
+### Estados de Transmissão do Participante:
+- **`viewer`:** Apenas recebe áudio e vídeo distribuídos pelo servidor.
+- **`hand`:** Participante com a mão levantada na fila FIFO aguardando permissão.
+- **`pending`:** O administrador concedeu a palavra (`speaker.you`); o cliente prepara a câmera/microfone e envia `media.init`.
+- **`speaking`:** O cliente envia ativamente quadros binários de mídia (`0xB5` + WebM); o servidor redistribui para todos os ouvintes da sala.
 
 ---
 
-## 3. Protocolo WebSocket do bcastd (Versão 1)
+## 5. Renderização e Decodificação no Cliente Lazarus
 
-O aplicativo Lazarus implementa a classe `TBcastClient` que gerencia a máquina de estados do protocolo:
-
-### 3.1. Handshake e Entrada (`hello`)
-Ao conectar, o cliente envia:
-```json
-{
-  "v": 1,
-  "t": "hello",
-  "room_token": "<token_da_sala>",
-  "invite_token": "<token_do_convite>",
-  "name": "Nome do Usuário",
-  "client": "desktop"
-}
-```
-
-O servidor responde com `welcome`:
-```json
-{
-  "v": 1,
-  "t": "welcome",
-  "session": 17,
-  "pkey": "<chave_hex_64>",
-  "name": "Nome do Usuário",
-  "role": "admin",
-  "state": "in_room",
-  "room_id": 1,
-  "room_name": "Sala do Conselho",
-  "state_version": 12,
-  "server": "bcastd/0.1.0"
-}
-```
-
-### 3.2. Sincronização de Estado (`state.sync`)
-O servidor envia o panorama completo da sala:
-- Lista de participantes online e seus papéis (`admin`, `speaker`, `viewer`).
-- Orador atual (`speaker`).
-- Fila de espera do lobby (para administradores).
-- Fila FIFO de mãos levantadas (`hand_queue`).
-- Histórico recente do chat.
-
-### 3.3. Comandos Administrativos (com ID e Idempotência)
-- `admin.admit`: `{"v":1,"t":"admin.admit","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.deny`: `{"v":1,"t":"admin.deny","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.hand.accept`: `{"v":1,"t":"admin.hand.accept","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.speaker.set`: `{"v":1,"t":"admin.speaker.set","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.mute`: `{"v":1,"t":"admin.mute","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.kick`: `{"v":1,"t":"admin.kick","id":"<uuid>","pkey":"<part_key>"}`
-- `admin.close`: `{"v":1,"t":"admin.close","id":"<uuid>"}`
-
-### 3.4. Chat em Tempo Real
-- Envio: `{"v":1,"t":"chat.send","text":"Olá a todos!"}`
-- Broadcast recebido: `{"v":1,"t":"chat.msg","from":"Nome","pkey":"...","text":"Olá a todos!","time":"14:32"}`
-
----
-
-## 4. Renderização Audiovisual no Desktop
-- O cliente pode operar com o visualizador embutido **CEF4Delphi** apontado para `broadcast.php?token=...`, garantindo decodificação acelerada por hardware de WebM (VP8/Opus) via `MediaSource Extensions`.
-- A interface nativa Lazarus se encarrega de sincronizar toda a lista de participantes, controle de fila e ações administrativas em paralelo.
+Para consumir e reproduzir o fluxo WebM de forma fluida, o cliente desktop oferece:
+1. **Pipeline Acelerado com CEF4Delphi:**
+   - O componente embutido consome o WebSocket diretamente e alimenta `MediaSource Extensions (MSE)` com `video/webm; codecs="vp8,opus"`, proporcionando aceleração total por GPU (D3D11/OpenGL).
+2. **Integração Bidirecional LCL:**
+   - O aplicativo nativo Lazarus intercepta todas as mensagens de controle, mantendo a grade visual, botões de ação e moderação perfeitamente sincronizados com o servidor `bcastd`.
