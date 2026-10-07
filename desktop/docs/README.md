@@ -3,8 +3,10 @@
 Aplicativo desktop nativo desenvolvido em **Lazarus / Free Pascal (FPC 3.2.2+)** para o ecossistema **Sala Reunião**, integrando-se diretamente com o backend Web e com o servidor de distribuição **`bcastd`** (`linuxsrv/broadcast`).
 
 O aplicativo oferece uma experiência completa no padrão corporativo (estilo **Microsoft Teams**):
+- **Abertura Automática por E-mail (Deep Linking):** Os convidados recebem e-mails com tokens únicos de acesso; ao clicar no link, o aplicativo desktop abre automaticamente já conectado à sala.
+- **Autoridade Administrativa Estrita:** Apenas administradores e anfitriões podem gerar tokens, convidar pessoas e moderar a sala.
 - **Flexibilidade total de Layout:** Clique em qualquer participante para destacá-lo no palco principal (Spotlight/Pin), redimensionando os demais automaticamente para miniaturas na galeria lateral.
-- Grid de participantes com destaque automático do orador ativo.
+- **Menu Views Completo:** Modos Grade (*Gallery*), Orador (*Speaker*), Destaque (*Spotlight*) e Galeria no Topo/Lateral.
 - Barra superior de controles rápidos (Timer, Câmera, Microfone, Tela, Levantar a Mão, Chat e Sair).
 - Painel lateral retrátil com Sala de Espera (Lobby), Fila de Fala (FIFO), Chat e Envio de Convites por e-mail.
 - Comunicação WebSocket com o servidor **`bcastd`** (`linuxsrv/broadcast`).
@@ -18,12 +20,13 @@ O aplicativo oferece uma experiência completa no padrão corporativo (estilo **
 desktop/
 ├── bin/          # Executáveis finais (.exe), bibliotecas auxiliares e runtime Chromium
 ├── docs/         # Documentação arquitetural, guias e especificação de APIs
-│   ├── README.md                  # Visão geral e guia de início rápido
-│   ├── ARCHITECTURE.md            # Arquitetura interna, camadas e ciclo de vida
-│   ├── API_INTEGRATION.md         # Especificação técnica das APIs REST (/api/v1/)
-│   ├── BROADCAST_INTEGRATION.md   # Protocolo do bcastd e interface estilo Teams
-│   ├── LAYOUT_AND_INTERACTION.md  # Redimensionamento dinâmico e seleção de janelas
-│   └── CEF_INTEGRATION.md         # Guia de configuração e uso do CEF4Delphi
+│   ├── README.md                      # Visão geral e guia de início rápido
+│   ├── ARCHITECTURE.md                # Arquitetura interna, camadas e ciclo de vida
+│   ├── API_INTEGRATION.md             # Especificação técnica das APIs REST (/api/v1/)
+│   ├── BROADCAST_INTEGRATION.md       # Protocolo do bcastd e interface estilo Teams
+│   ├── LAYOUT_AND_INTERACTION.md      # Redimensionamento dinâmico e menu Views
+│   ├── INVITATION_AND_DEEP_LINKING.md # Convites por e-mail, tokens e protocolo salareuniao://
+│   └── CEF_INTEGRATION.md             # Guia de configuração e uso do CEF4Delphi
 ├── libs/         # Bibliotecas, pacotes locais ou dependências de terceiros
 └── src/          # Código-fonte da aplicação (.lpr, .lpi, .pas, .lfm, .res)
 ```
@@ -32,50 +35,45 @@ desktop/
 
 ## Recursos Implementados no Cliente Desktop
 
-1. **Seleção e Redimensionamento Dinâmico de Janelas:**
-   - Liberdade para escolher quem fica em destaque amplo na tela através de seleção simples (clique na pessoa).
+1. **Abertura Automática por Link de E-mail (Deep Linking):**
+   - Suporte ao protocolo nativo `salareuniao://join?token=<TOKEN>` e parâmetros de linha de comando.
+   - Detecção de instância única (Single Instance via IPC): se a aplicação já estiver aberta, ativa e carrega a sala imediatamente.
+   - Acesso direto do participante sem necessidade de login manual de anfitrião.
+
+2. **Controle Estrito de Permissões (Exclusividade do Administrador):**
+   - Somente administradores podem criar tokens, emitir links e chamar novas pessoas.
+   - Controles de convite e admissão de sala de espera (lobby) restritos a administradores.
+
+3. **Seleção e Redimensionamento Dinâmico de Janelas:**
+   - Liberdade para escolher quem fica em destaque amplo na tela através de clique na pessoa.
    - Reorganização automática dos demais participantes em miniaturas pequenas na galeria lateral (2 colunas + coluna de avatares circulares).
-   - Alternância rápida entre Modo Grade (`lmGrid`) e Modo Destaque (`lmSpotlight`).
+   - Menu **Views** com alternância rápida entre Grade, Orador, Destaque e Galeria Lateral/Topo.
 
-2. **Autenticação Segura:**
-   - Login por e-mail e senha corporativos via `/api/v1/auth/login.php`.
-   - Emissão de Token Bearer com persistência local segura de sessão.
-   - Suporte a perfil de administrador e usuário padrão.
+4. **Autenticação Segura de Anfitriões:**
+   - Login corporativo via `/api/v1/auth/login.php` com Bearer Token persistido.
 
-3. **Gestão de Salas e Videoconferências:**
+5. **Gestão de Salas e Videoconferências:**
    - Listagem em tempo real de salas ativas, agendadas e encerradas.
    - Criação de novas salas com agendamento prévio ou início imediato.
    - Abertura, encerramento e cancelamento de salas pelo anfitrião.
-   - Geração automática da identidade e token individual de host.
 
-4. **Integração com o Servidor Broadcast (`bcastd`):**
+6. **Integração com o Servidor Broadcast (`bcastd`):**
    - Conexão direta via WebSocket (`wss://.../broadcast`).
    - Sincronização em tempo real de participantes, orador e mensagens.
    - Gestão de fila de mãos levantadas (FIFO).
    - Sala de espera (lobby) com admissão e recusa em tempo real.
 
-5. **Interface Gráfica Estilo Microsoft Teams:**
+7. **Interface Gráfica Estilo Microsoft Teams:**
    - Palco amplo de orador ou tela compartilhada.
    - Galeria lateral com miniaturas e avatares com iniciais coloridas.
    - Painel lateral retrátil com Lista de Participantes, Fila de Fala e Chat.
    - Barra de controle superior com temporizador e botões de ação rápida.
 
-6. **Gestão de Convites por E-mail:**
-   - Geração de tokens únicos e links de acesso direto.
-   - Layout de convite personalizado com resumo da reunião e inclusão na agenda.
+8. **Agenda e Notificações:**
+   - Acompanhamento das próximas reuniões agendadas com alertas nativos do Windows.
 
-7. **Agenda e Notificações:**
-   - Acompanhamento das próximas reuniões agendadas.
-   - Alertas nativos do Windows (bandeja / toast) quando uma reunião estiver próxima do início.
-   - Opção de auto-entrada configurável.
-
-8. **Videoconferência Integrada:**
-   - Modo embutido via Chromium Embedded Framework (**CEF4Delphi**), mantendo todo o fluxo de áudio, vídeo, WebRTC, chat e compartilhamento de tela na própria janela nativa.
-   - Fallback automático para o navegador padrão caso os binários do CEF não estejam presentes.
-
-9. **Atualizador Automático (Auto-Update):**
-   - Verificação automática de novas versões pelo endpoint `/api/v1/desktop_update.php`.
-   - Download assistido e aplicação do pacote de instalação.
+9. **Videoconferência Integrada:**
+   - Suporte a Chromium Embedded Framework (**CEF4Delphi**) e fallback para navegador padrão.
 
 ---
 
