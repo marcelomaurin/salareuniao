@@ -15,6 +15,7 @@ typedef void (*bc_task_fn)(struct bc_conn *c, void *arg);
 typedef struct bc_outq {
     bc_buf *b;
     size_t  off;
+    int rtc;
     struct bc_outq *next;
 } bc_outq;
 
@@ -31,6 +32,9 @@ typedef struct bc_conn {
     pthread_mutex_t mu;
     int     refs;
     int     fd;
+    struct bc_rtc *rtc;
+    int rtc_ready;
+    size_t rtc_pending;
     bc_u64  id;
     struct bc_worker *w;
 
@@ -112,6 +116,8 @@ void     bc_conn_unref(bc_conn *c);
 
 /* Enfileira (ref do buffer e assumida pela fila: o chamador passa a sua). */
 int  bc_conn_send(bc_conn *c, bc_buf *b);
+int bc_conn_send_signal(bc_conn *c, const char *json);
+void bc_net_message(bc_conn *c, int op, bc_u8 *p, size_t n);
 int  bc_conn_send_text(bc_conn *c, const char *json);
 /* Enfileira midia; retorna -1 se o cliente esta atrasado (fila cheia). */
 int  bc_conn_send_media(bc_conn *c, bc_buf *b);

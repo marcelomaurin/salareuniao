@@ -7,6 +7,7 @@ VERSION="0.1.0"
 prefix="/usr/local"
 sysconfdir=""
 with_mysql="auto"
+with_webrtc="no"
 enable_debug="no"
 enable_asan="no"
 enable_tsan="no"
@@ -19,6 +20,7 @@ Uso: ./configure [opcoes]
   --prefix=DIR         diretorio de instalacao [/usr/local]
   --sysconfdir=DIR     diretorio da configuracao [/etc/salareuniao]
   --with-mysql=VALOR   auto | yes | no  (no = backend em memoria para testes)
+  --with-webrtc=VALOR  yes | no (padrao no); requer libdatachannel 0.24.5
   --enable-debug       -O0 -g, sem otimizacao
   --enable-asan        AddressSanitizer + UndefinedBehaviorSanitizer
   --enable-tsan        ThreadSanitizer
@@ -31,6 +33,7 @@ for arg in "$@"; do
     case "$arg" in
         --prefix=*)      prefix="${arg#*=}" ;;
         --sysconfdir=*)  sysconfdir="${arg#*=}" ;;
+        --with-webrtc=*) with_webrtc="${arg#*=}" ;;
         --with-mysql=*)  with_mysql="${arg#*=}" ;;
         --with-mysql)    with_mysql="yes" ;;
         --without-mysql) with_mysql="no" ;;
@@ -140,6 +143,26 @@ int main(void) { MYSQL *m = mysql_init(0); mysql_close(m); return 0; }' "$MYSQL_
     fi
 fi
 
+# ------------------------------------------------------------ WebRTC (optional)
+HAVE_WEBRTC=0
+RTC_CFLAGS="${RTC_CFLAGS:-}"
+RTC_LIBS="${RTC_LIBS:--ldatachannel}"
+case "$with_webrtc" in
+    yes)
+        checking "libdatachannel (C API)"
+        printf '%s\n' '#include <rtc/rtc.h>
+int main(void) { rtcConfiguration c = {0}; c.maxMessageSize = 1048576;
+rtcCleanup(); return c.maxMessageSize == 0; }' > "$TMPD/rtc.c"
+        if $CC -std=c99 $RTC_CFLAGS -o "$TMPD/rtc" "$TMPD/rtc.c" $RTC_LIBS >"$TMPD/log" 2>&1; then
+            HAVE_WEBRTC=1; log "sim"
+        else
+            log "nao"; cat "$TMPD/log" >&2
+            echo "configure: informe RTC_CFLAGS e RTC_LIBS para libdatachannel" >&2; exit 1
+        fi ;;
+    no) RTC_CFLAGS=""; RTC_LIBS="" ;;
+    *) echo "configure: --with-webrtc aceita yes ou no" >&2; exit 1 ;;
+esac
+
 # ------------------------------------------------------------ flags
 if [ "$enable_debug" = "yes" ]; then OPT="-O0 -g"; else OPT="-O2 -g"; fi
 SAN=""
@@ -160,7 +183,8 @@ BASE_CFLAGS = $BASE_CFLAGS
 OPT = $OPT
 SAN = $SAN
 MYSQL_CFLAGS = $MYSQL_CFLAGS
-LIBS = $PTHREAD_LIBS $RT_LIBS -lm $MYSQL_LIBS
+RTC_CFLAGS = $RTC_CFLAGS
+LIBS = $PTHREAD_LIBS $RT_LIBS -lm $MYSQL_LIBS $RTC_LIBS
 PTHREAD_CFLAGS = $( [ "$PTHREAD_LIBS" = "-pthread" ] && echo "-pthread" )
 EOF
 
@@ -171,6 +195,7 @@ cat > src/config.h <<EOF
 #define BC_VERSION "$VERSION"
 #define BC_SYSCONFDIR "$sysconfdir"
 #define BC_DB_BACKEND "$DB_BACKEND"
+#define HAVE_WEBRTC $HAVE_WEBRTC
 #define HAVE_EPOLL $HAVE_EPOLL
 #define HAVE_EVENTFD $HAVE_EVENTFD
 #endif
@@ -181,6 +206,7 @@ cp Makefile.in Makefile
 log ""
 log "bcastd $VERSION configurado:"
 log "  compilador ..... $CC"
+log "  WebRTC ......... $with_webrtc"
 log "  backend banco .. $DB_BACKEND"
 log "  E/S ............ $( [ $HAVE_EPOLL = 1 ] && echo epoll || echo poll )"
 log "  prefixo ........ $prefix"

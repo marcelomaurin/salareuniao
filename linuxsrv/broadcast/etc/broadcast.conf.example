@@ -45,3 +45,9 @@ base_url = https://seu-dominio.example/salareuniao
 log_level = info                 # error | warn | info | debug | trace
 log_file = -                     # "-" = stderr (journald). Ou /var/log/salareuniao/bcastd.log
 # pid_file = /run/bcastd.pid
+
+# WebRTC opcional (--with-webrtc=yes). Sinalizacao continua pelo WebSocket.
+# rtc_bind_address = 172.17.241.200
+# rtc_port_begin = 50000
+# rtc_port_end = 50100
+# rtc_ice_server = stun:stun.l.google.com:19302

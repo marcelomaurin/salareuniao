@@ -12,6 +12,7 @@
 #include "bc_config.h"
 #include "bc_log.h"
 #include "bc_util.h"
+#include "bc_rtc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -844,6 +845,10 @@ void bc_proto_text(bc_conn *c, const char *s, size_t n)
     ver = bc_json_int(o, "v", 1, &ok);
     if (!type) { bc_proto_error(c, id, "bad_request", "campo t ausente"); cJSON_Delete(o); return; }
     if (!ok || ver != 1) { bc_proto_error(c, id, "protocol_version", "use v=1"); cJSON_Delete(o); return; }
+
+    if (bc_rtc_signal(c, type, o)) {
+        cJSON_Delete(o); return;
+    }
 
     if (strcmp(type, "ping") == 0) {
         cJSON *p = bc_json_msg("pong");

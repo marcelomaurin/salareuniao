@@ -7,6 +7,9 @@ typedef struct bc_config {
     char     listen_addr[64];
     int      listen_port;
     int      io_threads;
+    char rtc_bind_address[64];
+    char rtc_ice_server[512];
+    int rtc_port_begin, rtc_port_end;
     int      max_clients;
     int      max_rooms;
     int      max_clients_per_room;

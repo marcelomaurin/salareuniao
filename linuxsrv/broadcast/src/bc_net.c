@@ -10,6 +10,7 @@
 #include "bc_util.h"
 #include "bc_room.h"
 #include "bc_proto.h"
+#include "bc_rtc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -176,7 +177,7 @@ static int enqueue(bc_conn *c, bc_buf *b, int media)
         bc_buf_unref(b);
         return media ? 0 : -1;
     }
-    if (media && c->out_bytes + b->len > g_cfg.max_queue_bytes) {
+    if (media > 0 && c->out_bytes + b->len > g_cfg.max_queue_bytes) {
         pthread_mutex_unlock(&c->mu);
         bc_buf_unref(b);
         return -1;
@@ -184,6 +185,7 @@ static int enqueue(bc_conn *c, bc_buf *b, int media)
     q = (bc_outq *)bc_xmalloc(sizeof(bc_outq));
     q->b = b;
     q->off = 0;
+    q->rtc = media >= 0 && c->rtc_ready;
     q->next = NULL;
     if (c->oq_tail) c->oq_tail->next = q; else c->oq_head = q;
     c->oq_tail = q;
@@ -193,7 +195,12 @@ static int enqueue(bc_conn *c, bc_buf *b, int media)
     return 0;
 }
 
-int bc_conn_send(bc_conn *c, bc_buf *b) { return enqueue(c, b, 0); }
+int bc_conn_send(bc_conn *c, bc_buf *b) { return enqueue(c, b, -1); }
+
+int bc_conn_send_signal(bc_conn *c, const char *json)
+{
+    return enqueue(c, bc_ws_make_text(json), -1);
+}
 
 int bc_conn_send_text(bc_conn *c, const char *json)
 {
@@ -240,7 +247,7 @@ void bc_conn_close_soon(bc_conn *c, int code, const char *reason)
     }
     if (b) {
         bc_outq *q = (bc_outq *)bc_xmalloc(sizeof(bc_outq));
-        q->b = b; q->off = 0; q->next = NULL;
+        q->b = b; q->off = 0; q->rtc = 0; q->next = NULL;
         if (c->oq_tail) c->oq_tail->next = q; else c->oq_head = q;
         c->oq_tail = q;
         c->out_bytes += b->len;
@@ -278,6 +285,7 @@ static void conn_destroy(bc_worker *w, bc_conn *c, const char *why)
     pthread_mutex_lock(&c->mu);
     c->closed = 1;
     pthread_mutex_unlock(&c->mu);
+    bc_rtc_destroy(c);
     for (i = 0; i < w->conns_n; i++) {
         if (w->conns[i] == c) {
             w->conns[i] = w->conns[--w->conns_n];
@@ -301,7 +309,22 @@ static int conn_flush(bc_worker *w, bc_conn *c)
         int n = 0;
         bc_outq *q = c->oq_head;
         ssize_t wr;
-        while (q && n < MAX_IOV) {
+        if (q->rtc) {
+            int sent;
+            pthread_mutex_unlock(&c->mu);
+            sent = bc_rtc_send_frame(c, q->b);
+            pthread_mutex_lock(&c->mu);
+            if (sent < 0) { rc = -1; break; }
+            c->oq_head = q->next;
+            if (!c->oq_head) c->oq_tail = NULL;
+            c->out_bytes -= q->b->len;
+            pthread_mutex_lock(&stats_mu);
+            st_out += q->b->len;
+            pthread_mutex_unlock(&stats_mu);
+            bc_buf_unref(q->b); free(q);
+            continue;
+        }
+        while (q && !q->rtc && n < MAX_IOV) {
             iov[n].iov_base = q->b->data + q->off;
             iov[n].iov_len = q->b->len - q->off;
             n++;
@@ -502,6 +525,15 @@ static void handle_message(bc_conn *c, int op, bc_u8 *p, size_t n, bc_u64 now)
         if (c->media_bytes > 1500000) return;     /* ~12 Mbit/s: descarta excesso */
         if (c->room) bc_room_on_media(c, p, n);
     }
+}
+
+void bc_net_message(bc_conn *c, int op, bc_u8 *p, size_t n)
+{
+    if (bc_conn_closing(c) || n > g_cfg.max_frame_bytes) return;
+    pthread_mutex_lock(&stats_mu);
+    st_in += (bc_u64)n;
+    pthread_mutex_unlock(&stats_mu);
+    handle_message(c, op, p, n, bc_now_ms());
 }
 
 static int process_frames(bc_conn *c, bc_u64 now)

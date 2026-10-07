@@ -12,6 +12,7 @@
 #include "bc_net.h"
 #include "bc_db.h"
 #include "bc_room.h"
+#include "bc_rtc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,6 +111,7 @@ int main(int argc, char **argv)
     bc_sleep_ms(500);
     bc_db_stop();
     bc_net_stop();
+    bc_rtc_cleanup();
     bc_rooms_free_all();
     if (g_cfg.pid_file[0]) unlink(g_cfg.pid_file);
     BC_LOG_INFO("bcastd encerrado");

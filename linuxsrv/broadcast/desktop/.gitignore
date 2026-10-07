@@ -1,0 +1,8 @@
+/bin/
+/lib/
+*.lps
+*.bak
+*.compiled
+/tests/test_process
+/tests/*.o
+/tests/*.ppu

@@ -73,6 +73,8 @@ static int apply(bc_config *c, const char *k, const char *v)
 {
     if (0) { return 0; }
     STR(listen_addr)
+    STR(rtc_bind_address)
+    STR(rtc_ice_server)
     STR(allowed_origin)
     STR(db_host)
     STR(db_name)
@@ -84,6 +86,8 @@ static int apply(bc_config *c, const char *k, const char *v)
     STR(log_level)
     STR(pid_file)
     STR(base_url)
+    else if (strcmp(k, "rtc_port_begin") == 0) return set_int(v, &c->rtc_port_begin, 0, 65535);
+    else if (strcmp(k, "rtc_port_end") == 0) return set_int(v, &c->rtc_port_end, 0, 65535);
     else if (strcmp(k, "listen_port") == 0) return set_int(v, &c->listen_port, 1, 65535);
     else if (strcmp(k, "io_threads") == 0) return set_int(v, &c->io_threads, 1, 64);
     else if (strcmp(k, "max_clients") == 0) return set_int(v, &c->max_clients, 1, 100000);
@@ -163,6 +167,9 @@ int bc_config_load(bc_config *c, const char *path, char *err, size_t errlen)
 
 int bc_config_validate(const bc_config *c, char *err, size_t errlen)
 {
+    if ((c->rtc_port_begin == 0) != (c->rtc_port_end == 0) || c->rtc_port_begin > c->rtc_port_end) {
+        snprintf(err, errlen, "intervalo de portas WebRTC invalido"); return -1;
+    }
     if (c->max_queue_bytes < c->max_frame_bytes) {
         snprintf(err, errlen, "max_queue_bytes deve ser >= max_frame_bytes");
         return -1;

@@ -8,7 +8,7 @@ LDFLAGS_ALL = $(SAN) $(LDFLAGS)
 
 CORE_SRC = src/bc_util.c src/bc_log.c src/bc_config.c src/bc_crypto.c src/bc_buf.c \
            src/bc_ws.c src/bc_ebml.c src/bc_fsm.c src/bc_json.c src/bc_net.c \
-           src/bc_room.c src/bc_proto.c src/bc_db.c
+           src/bc_room.c src/bc_proto.c src/bc_db.c src/bc_rtc.c
 DB_SRC_mysql = src/bc_db_mysql.c
 DB_SRC_stub  = src/bc_db_stub.c
 DB_SRC       = $(DB_SRC_$(DB_BACKEND))
@@ -28,6 +28,9 @@ all: bcastd
 
 bcastd: $(MAIN_OBJ) $(CORE_OBJ) $(DB_OBJ) $(CJSON_OBJ)
 	$(CC) $(LDFLAGS_ALL) -o $@ $^ $(LIBS)
+
+src/bc_rtc.o: src/bc_rtc.c
+	$(CC) $(filter-out -std=c90,$(CFLAGS_ALL)) -std=c99 $(WARN_CFLAGS) $(RTC_CFLAGS) -c -o $@ $<
 
 src/bc_db_mysql.o: src/bc_db_mysql.c
 	$(CC) $(CFLAGS_ALL) $(WARN_CFLAGS) $(MYSQL_CFLAGS) -c -o $@ $<
