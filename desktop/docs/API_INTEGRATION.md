@@ -269,3 +269,19 @@ Este documento descreve detalhadamente o contrato de dados e os endpoints da API
     "platform": "windows"
   }
   ```
+
+---
+
+## 7. Controle de Acesso e Permissões Administrativas
+
+> **ATENÇÃO:** A criação de tokens de entrada e o envio de convites para chamar participantes são privilégios **exclusivos de administradores ou do criador da sala**. 
+
+- Usuários comuns não possuem permissão para chamar novas pessoas.
+- Ao tentar invocar `POST /api/v1/room_invites.php` sem privilégios de administrador ou sem ser dono da sala, o servidor rejeita imediatamente a requisição:
+  ```json
+  {
+    "ok": false,
+    "error": "forbidden"
+  }
+  ```
+- O cliente desktop oculta automaticamente os botões e painéis de convite caso o usuário autenticado não possua o papel `admin`.

@@ -111,3 +111,21 @@ O sistema foi concebido seguindo o princípio de separação de responsabilidade
 - **Tratamento de Objetos JSON:** Todo objeto `TJSONObject` ou `TJSONArray` instanciado pelo parser é liberado em blocos `try ... finally`.
 - **Conexões HTTP:** `TFPHTTPClient` é criado e destruído dinamicamente a cada requisição ou reutilizado com cabeçalhos limpos, evitando vazamento de descritores de sockets.
 - **Isolamento de Threads:** Chamadas de longa duração (download de atualizações) utilizam threads auxiliares (`TThread`) para manter a interface LCL responsiva.
+
+---
+
+## 4. Regras de Segurança e Permissões Administrativas
+
+Conforme a regra de negócio central da plataforma:
+
+> **O Administrador (ou proprietário da sala) é a única autoridade autorizada a gerar tokens, convidar e chamar pessoas para a reunião.**
+
+### 4.1. Restrições aos Participantes Comuns (Viewers / Speakers):
+- **Ocultação de Controles na Interface:** Os botões de *"Criar Convite"*, *"Chamar Participante"*, *"Gerar Link de Acesso"* e *"Admitir Participantes da Espera"* permanecem estritamente invisíveis ou desabilitados para qualquer usuário sem papel de administrador.
+- **Bloqueio no Backend:** Qualquer requisição forçada por participante comum aos endpoints administrativos (`room_invites.php` com POST ou `admin.invite` via WebSocket) é sumariamente rejeitada pelo servidor com código de erro `not_admin` ou `403 Forbidden`.
+
+### 4.2. Ações Exclusivas do Administrador:
+1. **Geração e Distribuição de Tokens de Acesso:** Emissão de tokens criptográficos individuais para novos participantes.
+2. **Envio de Convites por E-mail:** Disparo oficial do e-mail com resumo e link de entrada.
+3. **Controle de Entrada (Lobby / Espera):** Deliberação de admissão (`admin.admit`) ou recusa (`admin.deny`).
+4. **Moderação da Reunião:** Definição do orador oficial (`admin.speaker.set`), aceitação de mão levantada (`admin.hand.accept`), silenciamento (`admin.mute`), expulsão (`admin.kick`) e encerramento da conferência (`admin.close`).
