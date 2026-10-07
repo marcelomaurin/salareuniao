@@ -1,129 +1,129 @@
 ﻿# Convites por E-mail, Tokens e Abertura Automática (Deep Linking) · Sala Reunião Desktop
 
-Este documento especifica o fluxo completo de **convites por e-mail com token individual** e **abertura automática da aplicação Desktop diretamente na sala**.
+Este documento especifica o fluxo completo de **convites por e-mail com token individual**, a estrutura dos **3 links de acesso no e-mail** e a **abertura automática da aplicação Desktop diretamente na sala**.
 
 ---
 
 ## 1. Visão Geral do Fluxo
 
 ```text
-[ ADMINISTRAÇÃO ]
-       │
-       ▼ Emite convite com token individual via e-mail
-[ SERVIDOR / SMTP ]
-       │
-       ▼ Envia e-mail elegante com resumo da reunião e link
-[ PARTICIPANTE ]
-       │
-       ▼ Clica no link do e-mail ("Entrar na Reunião")
-       ├────────────────────────────────────────┐
-       ▼                                        ▼
-Opção A: Protocolo Direto                Opção B: Página Web (join.php)
-salareuniao://join?token=<TOKEN>         • Verifica navegador
-       │                                 • Oferece "Abrir no Desktop"
-       ▼                                 • Redireciona para salareuniao://...
-[ APLICAÇÃO LAZARUS DESKTOP ]
-       │
-       ├─ Processa ParamStr(1) contendo o token
-       ├─ Conecta à sala correspondente sem exigir credenciais prévias
-       └─ Abre imediatamente a janela de videoconferência no modo reunião
+[ ADMINISTRADOR (APLICAÇÃO DESKTOP) ]
+                   │
+                   ▼ Dispara convite via interface de envio
+[ SERVIDOR / BACKEND ]
+                   │
+                   ▼ Dispara e-mail em HTML corporativo
+┌────────────────────────────────────────────────────────┐
+│             CONVITE RECEBIDO POR E-MAIL                │
+│                                                        │
+│  [ OPÇÃO 1 - PRINCIPAL: ENTRAR NO APLICATIVO ]         │
+│  • Link "Clique aqui para entrar na reunião"           │
+│  • Dispara protocolo: salareuniao://join?token=<TOKEN> │
+│  • Abre o Desktop e entra automaticamente na sala      │
+│                                                        │
+│  [ OPÇÃO 2 - DOWNLOAD: BAIXAR O PROGRAMA ]             │
+│  • Link "Baixar Aplicativo Desktop"                    │
+│  • Baixa o instalador caso o usuário ainda não possua  │
+│                                                        │
+│  [ OPÇÃO 3 - ACESSO WEB: NAVEGADOR ]                   │
+│  • Link "Acessar versão Web pelo Navegador"            │
+│  • Abre broadcast.php?token=<TOKEN> sem instalar nada  │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Registro do Protocolo Customizado no Windows (`salareuniao://`)
+## 2. Estrutura do E-mail Enviado aos Convidados
 
-Para que o Windows saiba abrir o executável `SalaReuniaoDesktop.exe` ao clicar no link do e-mail ou do navegador, o aplicativo registra o manipulador de protocolo no Registro do Windows (`HKCU\Software\Classes\salareuniao`):
+O e-mail gerado pelo sistema é construído em HTML moderno e responsivo, contendo os três caminhos de entrada:
 
-```ini
-[HKEY_CURRENT_USER\Software\Classes\salareuniao]
-@="URL:Sala Reuniao Protocol"
-"URL Protocol"=""
+### 2.1. Template do E-mail (Os 3 Links Obrigatórios):
 
-[HKEY_CURRENT_USER\Software\Classes\salareuniao\DefaultIcon]
-@="\"C:\\Program Files\\Maurinsoft\\SalaReuniao\\SalaReuniaoDesktop.exe\",0"
+```html
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e1e4e8; border-radius: 8px;">
+  <div style="text-align: center; margin-bottom: 20px;">
+    <h2 style="color: #2b579a; margin: 0;">Sala Reunião Corporativa</h2>
+    <p style="color: #666; font-size: 14px;">Você foi convidado para uma videoconferência</p>
+  </div>
 
-[HKEY_CURRENT_USER\Software\Classes\salareuniao\shell\open\command]
-@="\"C:\\Program Files\\Maurinsoft\\SalaReuniao\\SalaReuniaoDesktop.exe\" \"%1\""
+  <div style="background: #f8f9fa; padding: 16px; border-radius: 6px; margin-bottom: 24px;">
+    <h3 style="margin-top: 0; color: #333;">{NOME_DA_REUNIAO}</h3>
+    <p style="margin: 4px 0; color: #555;"><strong>Organizador:</strong> {ORGANIZADOR}</p>
+    <p style="margin: 4px 0; color: #555;"><strong>Data e Horário:</strong> {DATA_HORA}</p>
+  </div>
+
+  <!-- OPÇÃO 1: BOTÃO PRINCIPAL DE ABERTURA NO DESKTOP -->
+  <div style="text-align: center; margin-bottom: 24px;">
+    <a href="salareuniao://join?token={TOKEN}&server={SERVER_URL}" 
+       style="background: #2b579a; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">
+      Clique Aqui para Entrar na Reunião (Aplicativo)
+    </a>
+    <p style="font-size: 12px; color: #777; margin-top: 8px;">
+      Ao clicar, o aplicativo Sala Reunião será aberto automaticamente já conectado à sala.
+    </p>
+  </div>
+
+  <hr style="border: 0; border-top: 1px solid #eee; margin: 24px 0;" />
+
+  <!-- OPÇÃO 2 & 3: DOWNLOAD OU NAVEGADOR WEB -->
+  <div style="display: flex; justify-content: space-between; font-size: 13px; color: #444;">
+    <div style="width: 48%;">
+      <p style="margin: 0 0 6px 0;"><strong>Ainda não tem o aplicativo?</strong></p>
+      <a href="{SERVER_URL}/downloads/SalaReuniaoSetup.exe" style="color: #2b579a; text-decoration: underline;">
+        Baixar Aplicativo Desktop para Windows
+      </a>
+    </div>
+    <div style="width: 48%; text-align: right;">
+      <p style="margin: 0 0 6px 0;"><strong>Prefere usar pelo navegador?</strong></p>
+      <a href="{SERVER_URL}/broadcast.php?token={TOKEN}" style="color: #2b579a; text-decoration: underline;">
+        Acessar Versão Web no Navegador
+      </a>
+    </div>
+  </div>
+</div>
 ```
 
-O aplicativo também implementa auto-registro no primeiro início ou através de rotina nativa no Lazarus:
+---
+
+## 3. Comportamento ao Clicar em "Entrar na Reunião"
+
+1. **Invocação do Protocolo `salareuniao://`:**
+   - O navegador ou leitor de e-mail (Outlook, Thunderbird, Gmail, etc.) reconhece o protocolo customizado e solicita permissão para abrir `SalaReuniaoDesktop.exe`.
+2. **Execução com Parâmetro:**
+   - O Windows executa:
+     ```bash
+     "C:\...\SalaReuniaoDesktop.exe" "salareuniao://join?token=a1b2c3d4e5f6...&server=https://servidor/salareuniao"
+     ```
+3. **Reconhecimento do Token pelo Aplicativo Lazarus:**
+   - Na inicialização (`.lpr`), a rotina `ProcessStartupParameters` isola o token:
+     ```pascal
+     Token := ExtractTokenFromParam(ParamStr(1));
+     ```
+   - O aplicativo se conecta ao servidor broadcast com o token de convite.
+   - Se for um usuário comum, é posicionado na **Sala de Espera (Lobby)** com mensagem amigável, notificando o administrador para admissão.
+4. **Instância Única (Single Instance via IPC):**
+   - Caso o executável já esteja aberto no computador, o token é transferido via IPC (`TSimpleIPCClient -> TSimpleIPCServer`).
+   - A janela existente é restaurada, ganha foco no topo da tela (`SetForegroundWindow`) e conecta imediatamente à sala.
+
+---
+
+## 4. Formulário de Envio no Desktop (`TInviteDialog`)
+
+Na aplicação Lazarus, o Administrador conta com um diálogo nativo para chamar convidados:
+
 ```pascal
-procedure RegisterUrlProtocol(const ExePath: string);
-var
-  Reg: TRegistry;
-begin
-  Reg := TRegistry.Create;
-  try
-    Reg.RootKey := HKEY_CURRENT_USER;
-    if Reg.OpenKey('Software\Classes\salareuniao', True) then
-    begin
-      Reg.WriteString('', 'URL:Sala Reuniao Protocol');
-      Reg.WriteString('URL Protocol', '');
-      if Reg.OpenKey('shell\open\command', True) then
-        Reg.WriteString('', '"' + ExePath + '" "%1"');
-    end;
-  finally
-    Reg.Free;
+type
+  TInviteDialog = class(TForm)
+    EdGuestName: TEdit;
+    EdGuestEmail: TEdit;
+    ChkSendEmailNow: TCheckBox;
+    BtnSendInvite: TButton;
+    BtnCopyLink: TButton;
   end;
-end;
 ```
 
----
-
-## 3. Tratamento de Linha de Comando e Inicialização Automática (`.lpr` e `uMain.pas`)
-
-Ao ser disparado pelo e-mail ou protocolo, o aplicativo recebe o parâmetro no `ParamStr(1)`:
-
-### Formatos Reconhecidos:
-1. `salareuniao://join?token=a1b2c3d4e5f6...&server=https://...`
-2. `salareuniao:a1b2c3d4e5f6...`
-3. `--token=a1b2c3d4e5f6...`
-4. `a1b2c3d4e5f6...` (token hexadecimal direto)
-
-### Lógica de Entrada Automática:
-```pascal
-procedure TMainForm.ProcessStartupParameters;
-var
-  RawParam, Token, ServerUrl: string;
-begin
-  if ParamCount < 1 then Exit;
-  RawParam := ParamStr(1);
-  Token := ExtractTokenFromParam(RawParam, ServerUrl);
-
-  if Token <> '' then
-  begin
-    // Se o link especificar servidor alternativo, atualiza em runtime
-    if ServerUrl <> '' then
-      FConfig.WebBaseUrl := ServerUrl;
-
-    // Dispara a entrada direta na reunião com o token recebido
-    JoinMeetingWithToken(Token);
-  end;
-end;
-```
-
----
-
-## 4. Instância Única e Mensagens entre Processos (Single Instance via IPC)
-
-Se a aplicação Desktop já estiver em execução (por exemplo, minimizada na bandeja do sistema), o clique no link do e-mail não deve abrir um segundo processo concorrente, mas sim ativar a instância existente:
-
-1. O executável secundário detecta que já há uma instância ativa (`UniqueInstance` ou `TSimpleIPCClient`).
-2. Envia a mensagem contendo o token para a instância primária via `TSimpleIPC`.
-3. A instância primária:
-   - Restaura a janela principal caso esteja minimizada.
-   - Traz a aplicação para o primeiro plano (`SetForegroundWindow`).
-   - Carrega imediatamente a sala da reunião associada ao token.
-4. O processo secundário é encerrado instantaneamente.
-
----
-
-## 5. Estrutura do E-mail Enviado aos Convidados
-
-O e-mail disparado pelo backend (baseado no card da imagem de referência) contém:
-- **Cabeçalho:** Identificação corporativa e avatar do anfitrião.
-- **Saudação e Descrição:** *"Olá [Nome], você foi convidado para participar da reunião [Título]."*
-- **Data e Horário:** Data formatada com botão para inclusão no calendário (`.ics`).
-- **Botão Principal de Ação:**
-  - Link duplo: abre a página oficial da sala e dispara a chamada do protocolo desktop `salareuniao://join?token=<TOKEN>`.
+- **Ação do Botão `Enviar Convite`:**
+  - Aciona `POST /api/v1/room_invites.php`.
+  - O servidor gera o `token` criptográfico individual de 32 bytes (64 caracteres hexadecimais).
+  - Monta o e-mail com as 3 opções (Link direto `salareuniao://`, Download do instalador e Link Web `broadcast.php`).
+  - Dispara o e-mail via serviço de mensageria corporativo.
