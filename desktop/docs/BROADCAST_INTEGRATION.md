@@ -1,6 +1,6 @@
 ﻿# Integração com o Servidor Broadcast (bcastd) · Sala Reunião Desktop
 
-Este documento especifica a arquitetura de comunicação entre o aplicativo **Lazarus Desktop** (`desktop/`) e o servidor de broadcast **`bcastd`** (`linuxsrv/broadcast/`), além dos requisitos visuais inspirados no layout do Microsoft Teams.
+Este documento especifica a arquitetura de comunicação entre o aplicativo **Lazarus Desktop** (`desktop/`) e o servidor de broadcast **`bcastd`** (`linuxsrv/broadcast/`), além dos requisitos visuais baseados no layout do **Microsoft Teams**.
 
 ---
 
@@ -13,10 +13,11 @@ O servidor `bcastd` (desenvolvido em C90 com pthreads) centraliza a distribuiç�
 │             APLICAÇÃO LAZARUS DESKTOP                  │
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │   Interface Visual Nativa (Estilo Teams Grid)    │  │
-│  │   • Grid de Câmeras/Avatares dos Participantes   │  │
+│  │   Interface Visual Nativa (Estilo Teams Dark)    │  │
+│  │   • Modo Palco / Spotlight (Orador Principal)    │  │
+│  │   • Coluna Lateral de Galeria de Participantes   │  │
 │  │   • Barra Superior (Timer, Mic, Cam, Mão, Sair)  │  │
-│  │   • Painel Lateral (Lobby, Fila de Mão, Chat)    │  │
+│  │   • Painel de Chat e Fila de Espera              │  │
 │  └────────────────────────┬─────────────────────────┘  │
 │                           │                            │
 │  ┌────────────────────────┴─────────────────────────┐  │
@@ -39,38 +40,30 @@ O servidor `bcastd` (desenvolvido em C90 com pthreads) centraliza a distribuiç�
 
 ---
 
-## 2. Especificação da Interface Visual (Design Inspirado no Microsoft Teams)
+## 2. Modos de Visualização da Interface (Estilo Microsoft Teams)
 
-Com base no layout corporativo de referência:
+O cliente desktop implementa dois modos de visualização alternáveis:
 
-### 2.1. Área Central — Grid de Participantes
-- **Grade Dinâmica de Vídeos/Avatares:** Exibição dos participantes em blocos proporcionais (1x1, 2x2, 3x3, etc.).
-- **Destaque do Orador Ativo (`speaker`):** O participante com a palavra recebe borda destacada e indicador de áudio ativo.
-- **Rótulo de Identificação:** Tarja semitransparente no canto inferior esquerdo de cada card com o nome do participante e status de microfone.
+### 2.1. Modo Galeria (Grid Completo — Imagem 1)
+- Grade proporcional distribuindo todos os participantes na tela (ex.: 2x2, 3x3).
+- Cartões com avatares/vídeos, tarja inferior com nome e ícone de microfone.
+- Destaque com borda luminosa (roxo/azul) para quem estiver falando.
 
-### 2.2. Barra Superior de Controles
-- **Cronômetro da Reunião:** Relógio em tempo real com o tempo decorrido (`HH:MM:SS`).
-- **Botões de Ação Rápida:**
-  - 👥 **Participantes & Espera:** Exibe/oculta a barra lateral com a lista e contagem de participantes.
-  - 💬 **Chat:** Alterna o painel de mensagens em tempo real.
-  - ✋ **Pedir a Palavra:** Aciona `hand.raise` / `hand.lower` (fila FIFO).
-  - 📷 **Câmera:** Alterna o envio de vídeo do usuário.
-  - 🎤 **Microfone:** Alterna o mudo local.
-  - 🖥 **Compartilhar Tela:** Aciona o compartilhamento de desktop.
-  - 🚪 **Sair / Encerrar (Botão Vermelho "Leave"):** Desconecta com envio de `bye` e confirmação.
+### 2.2. Modo Palco / Spotlight (Apresentação e Orador — Imagem 3)
+- **Área Central (Stage):** Espaço amplo dedicado ao orador ativo (`speaker`) ou ao compartilhamento de tela.
+- **Galeria Lateral Direita:** Coluna com cartões dos demais participantes em miniatura e trilha vertical de avatares com iniciais coloridas.
+- **Painel de Chat Integrado:** Balões de conversa com identificação de remetente, horário e avatar.
 
-### 2.3. Painel Lateral Direito (Retrátil)
-- **Sala de Espera (Lobby):**
-  - Lista participantes que aguardam autorização (`state = "waiting"`).
-  - Botões para o Administrador: **Admitir** (`admin.admit`), **Admitir Todos** (`admin.admit_all`) e **Recusar** (`admin.deny`).
-- **Fila de Mãos Levantadas:**
-  - Ordenação estrita por tempo de solicitação.
-  - Botões administrativos para **Conceder a Palavra** (`admin.hand.accept`) ou **Dispensar** (`admin.hand.reject`).
-- **Chat da Reunião:**
-  - Lista de mensagens com remetente, horário e balão de texto.
-  - Campo de entrada com envio por tecla Enter ou botão Enviar (`chat.send`).
-- **Gestão de Convites (Card de E-mail):**
-  - Módulo para emissão de novos convites (`admin.invite`) com geração de links únicos e envio automático de e-mail recapitulando a reunião.
+### 2.3. Barra Superior de Controles (Dark Theme)
+- Cronômetro no canto superior esquerdo (`22:06`).
+- Botões de controle no topo à direita:
+  - 👥 **Participantes & Espera:** Alterna o painel lateral com lista de presença e admissão do lobby.
+  - 💬 **Chat:** Alterna o painel de mensagens instantâneas.
+  - ✋ **Pedir a Palavra:** Aciona `hand.raise` / `hand.lower` com fila visual FIFO.
+  - 📷 **Câmera:** Ativa/desativa transmissão de vídeo local.
+  - 🎤 **Microfone:** Alterna mudo/ativo.
+  - 🖥 **Compartilhar Tela:** Inicia transmissão da área de trabalho.
+  - 🚪 **Botão Vermelho "Leave":** Encerra ou sai da conferência com envio de `bye`.
 
 ---
 
