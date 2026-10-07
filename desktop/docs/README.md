@@ -3,6 +3,7 @@
 Aplicativo desktop nativo desenvolvido em **Lazarus / Free Pascal (FPC 3.2.2+)** para o ecossistema **Sala Reunião**, integrando-se diretamente com o backend Web e com o servidor de distribuição **`bcastd`** (`linuxsrv/broadcast`).
 
 O aplicativo oferece uma experiência completa no padrão corporativo (estilo **Microsoft Teams**):
+- **Sala de Espera (Lobby Automático):** Usuários normais entram automaticamente na sala de espera aguardando autorização; o administrador recebe alertas e admite ou recusa com um clique.
 - **Abertura Automática por E-mail (Deep Linking):** Os convidados recebem e-mails com tokens únicos de acesso; ao clicar no link, o aplicativo desktop abre automaticamente já conectado à sala.
 - **Autoridade Administrativa Estrita:** Apenas administradores e anfitriões podem gerar tokens, convidar pessoas e moderar a sala.
 - **Flexibilidade total de Layout:** Clique em qualquer participante para destacá-lo no palco principal (Spotlight/Pin), redimensionando os demais automaticamente para miniaturas na galeria lateral.
@@ -26,6 +27,7 @@ desktop/
 │   ├── BROADCAST_INTEGRATION.md       # Protocolo do bcastd e interface estilo Teams
 │   ├── LAYOUT_AND_INTERACTION.md      # Redimensionamento dinâmico e menu Views
 │   ├── INVITATION_AND_DEEP_LINKING.md # Convites por e-mail, tokens e protocolo salareuniao://
+│   ├── LOBBY_AND_WAITING_ROOM.md      # Sala de espera (lobby) e fluxo de admissão
 │   └── CEF_INTEGRATION.md             # Guia de configuração e uso do CEF4Delphi
 ├── libs/         # Bibliotecas, pacotes locais ou dependências de terceiros
 └── src/          # Código-fonte da aplicação (.lpr, .lpi, .pas, .lfm, .res)
@@ -35,44 +37,46 @@ desktop/
 
 ## Recursos Implementados no Cliente Desktop
 
-1. **Abertura Automática por Link de E-mail (Deep Linking):**
+1. **Sala de Espera Obrigatória para Usuários Normais (Lobby):**
+   - Usuários normais permanecem em tela de espera (*"Aguarde a liberação do organizador"*).
+   - O administrador recebe notificações em tempo real (`lobby.join`) com botões para Admitir, Recusar ou Admitir Todos.
+   - Transição automática e suave para a videoconferência assim que admitido.
+
+2. **Abertura Automática por Link de E-mail (Deep Linking):**
    - Suporte ao protocolo nativo `salareuniao://join?token=<TOKEN>` e parâmetros de linha de comando.
    - Detecção de instância única (Single Instance via IPC): se a aplicação já estiver aberta, ativa e carrega a sala imediatamente.
-   - Acesso direto do participante sem necessidade de login manual de anfitrião.
 
-2. **Controle Estrito de Permissões (Exclusividade do Administrador):**
+3. **Controle Estrito de Permissões (Exclusividade do Administrador):**
    - Somente administradores podem criar tokens, emitir links e chamar novas pessoas.
-   - Controles de convite e admissão de sala de espera (lobby) restritos a administradores.
 
-3. **Seleção e Redimensionamento Dinâmico de Janelas:**
+4. **Seleção e Redimensionamento Dinâmico de Janelas:**
    - Liberdade para escolher quem fica em destaque amplo na tela através de clique na pessoa.
    - Reorganização automática dos demais participantes em miniaturas pequenas na galeria lateral (2 colunas + coluna de avatares circulares).
    - Menu **Views** com alternância rápida entre Grade, Orador, Destaque e Galeria Lateral/Topo.
 
-4. **Autenticação Segura de Anfitriões:**
+5. **Autenticação Segura de Anfitriões:**
    - Login corporativo via `/api/v1/auth/login.php` com Bearer Token persistido.
 
-5. **Gestão de Salas e Videoconferências:**
+6. **Gestão de Salas e Videoconferências:**
    - Listagem em tempo real de salas ativas, agendadas e encerradas.
    - Criação de novas salas com agendamento prévio ou início imediato.
    - Abertura, encerramento e cancelamento de salas pelo anfitrião.
 
-6. **Integração com o Servidor Broadcast (`bcastd`):**
+7. **Integração com o Servidor Broadcast (`bcastd`):**
    - Conexão direta via WebSocket (`wss://.../broadcast`).
    - Sincronização em tempo real de participantes, orador e mensagens.
    - Gestão de fila de mãos levantadas (FIFO).
-   - Sala de espera (lobby) com admissão e recusa em tempo real.
 
-7. **Interface Gráfica Estilo Microsoft Teams:**
+8. **Interface Gráfica Estilo Microsoft Teams:**
    - Palco amplo de orador ou tela compartilhada.
    - Galeria lateral com miniaturas e avatares com iniciais coloridas.
    - Painel lateral retrátil com Lista de Participantes, Fila de Fala e Chat.
    - Barra de controle superior com temporizador e botões de ação rápida.
 
-8. **Agenda e Notificações:**
+9. **Agenda e Notificações:**
    - Acompanhamento das próximas reuniões agendadas com alertas nativos do Windows.
 
-9. **Videoconferência Integrada:**
+10. **Videoconferência Integrada:**
    - Suporte a Chromium Embedded Framework (**CEF4Delphi**) e fallback para navegador padrão.
 
 ---
